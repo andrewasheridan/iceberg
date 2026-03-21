@@ -1,34 +1,34 @@
-# 0006. Typer CLI
+# 0006. CLI Framework: argparse (migrated from Typer)
 
 Date: 2026-03-21
 Status: Accepted
 
 ## Context
 
-The project requires a CLI entry point for the `iceberg` tool. The two natural
-choices are Click (the dominant Python CLI framework) and Typer (a thin layer
-built on top of Click). The project enforces `mypy --strict` across all code,
-which creates a preference for type-annotation-driven patterns over imperative
-decorator-based ones.
+The CLI was originally built with Typer, which pulls in Click as a transitive
+runtime dependency. A dependency audit found that Typer/Click add install weight
+that is inappropriate for a tool designed to run as a pre-commit hook, where
+fast, lean installs matter. The project also has a strong preference for stdlib
+over third-party dependencies when the stdlib is sufficient.
+
+The CLI surface is simple: two subcommands (`check` and `fix`) and three
+options total. This is well within the scope of `argparse`.
 
 ## Decision
 
-The CLI is built with Typer. Commands and options are defined using standard
-Python type annotations, which mypy can verify without special plugins or
-stubs. This keeps the CLI consistent with the rest of the codebase and avoids
-a context switch into Click's decorator-heavy style.
-
-The command is exposed as `iceberg` (not `sheridan-iceberg`). The shorter name
-is ergonomic for pre-commit hooks and CI pipelines, and the `sheridan.*`
-namespace is already conveyed by the package name. The entry point is declared
-as `sheridan.iceberg.cli:app` in `pyproject.toml`.
+We migrated the CLI from Typer to stdlib `argparse`. The `typer` package was
+removed from `dependencies` in `pyproject.toml`; the project now has no runtime
+dependencies at all. The entry point was updated from `sheridan.iceberg.cli:app`
+to `sheridan.iceberg.cli:main`.
 
 ## Consequences
 
-- CLI construction is type-checked end-to-end with no extra effort.
-- Typer is added as a runtime dependency (it pulls in Click transitively).
-- The `iceberg` command name must not collide with any other tool in the
-  environment; operators installing multiple `sheridan.*` tools should be aware
-  of this.
-- Future CLI authors follow the Typer pattern established here rather than
-  dropping down to raw Click unless Typer proves insufficient.
+- Runtime dependencies are now empty — install is as lean as possible.
+- `argparse` is less ergonomic than Typer for larger CLIs, but is sufficient
+  for this tool's two-subcommand surface and will remain so unless the CLI
+  grows substantially.
+- Type annotations on CLI handler functions are no longer verified by the
+  framework itself; mypy still checks the handlers as regular functions.
+- Pre-commit hook installs are faster and carry no third-party transitive deps.
+- Future CLI additions must use `argparse` conventions rather than Typer's
+  annotation-driven style.
