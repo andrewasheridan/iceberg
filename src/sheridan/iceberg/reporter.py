@@ -1,18 +1,18 @@
 """Issue detection and reporting for __all__ correctness."""
 
-import json
-from dataclasses import dataclass
-from enum import StrEnum
-from pathlib import Path
-
-from sheridan.iceberg.ast_walker import ModuleInfo
-
 __all__ = [
     "Issue",
     "IssueKind",
     "check_modules",
     "report",
 ]
+
+import json
+from dataclasses import dataclass
+from enum import StrEnum
+from pathlib import Path
+
+from sheridan.iceberg.ast_walker import ModuleInfo
 
 
 class IssueKind(StrEnum):

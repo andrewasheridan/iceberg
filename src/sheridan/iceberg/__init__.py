@@ -1,9 +1,5 @@
 """sheridan-iceberg: enforce __all__ correctness in Python modules."""
 
-from sheridan.iceberg.ast_walker import ModuleInfo, load_modules, walk_module, walk_path
-from sheridan.iceberg.fixer import fix_module, fix_modules
-from sheridan.iceberg.reporter import Issue, IssueKind, check_modules, report
-
 __all__ = [
     "Issue",
     "IssueKind",
@@ -16,3 +12,7 @@ __all__ = [
     "walk_module",
     "walk_path",
 ]
+
+from sheridan.iceberg.ast_walker import ModuleInfo, load_modules, walk_module, walk_path
+from sheridan.iceberg.fixer import fix_module, fix_modules
+from sheridan.iceberg.reporter import Issue, IssueKind, check_modules, report

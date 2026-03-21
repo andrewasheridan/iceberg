@@ -1,5 +1,9 @@
 """Command-line interface for sheridan-iceberg."""
 
+__all__ = [
+    "main",
+]
+
 import argparse
 import json
 import sys
@@ -9,10 +13,6 @@ from pathlib import Path
 from sheridan.iceberg.ast_walker import load_modules
 from sheridan.iceberg.fixer import fix_modules
 from sheridan.iceberg.reporter import Issue, IssueKind, check_modules
-
-__all__ = [
-    "main",
-]
 
 
 class OutputFormat(StrEnum):

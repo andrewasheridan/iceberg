@@ -1,16 +1,16 @@
 """AST-based walker for extracting public API surface from Python modules."""
 
-import ast
-import contextlib
-from dataclasses import dataclass, field
-from pathlib import Path
-
 __all__ = [
     "ModuleInfo",
     "load_modules",
     "walk_module",
     "walk_path",
 ]
+
+import ast
+import contextlib
+from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass

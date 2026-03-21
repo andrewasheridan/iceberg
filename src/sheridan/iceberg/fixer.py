@@ -1,16 +1,16 @@
 """Auto-fix __all__ declarations in Python source files."""
 
+__all__ = [
+    "fix_module",
+    "fix_modules",
+]
+
 import ast
 import re
 from pathlib import Path
 
 from sheridan.iceberg.ast_walker import ModuleInfo
 from sheridan.iceberg.reporter import Issue
-
-__all__ = [
-    "fix_module",
-    "fix_modules",
-]
 
 _ALL_PATTERN = re.compile(
     r"^__all__\s*=\s*[\[\(].*?[\]\)]",
