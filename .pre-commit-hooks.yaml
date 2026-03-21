@@ -1,0 +1,7 @@
+- id: iceberg
+  name: iceberg
+  description: Enforce presence and correctness of __all__ in Python modules
+  entry: sheridan-iceberg check
+  language: python
+  types: [python]
+  pass_filenames: false

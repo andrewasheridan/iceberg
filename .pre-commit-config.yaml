@@ -1,0 +1,24 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+      - id: mypy
+        args: [--strict]
+        additional_dependencies: [click>=8.0]
+
+  - repo: local
+    hooks:
+      - id: iceberg
+        name: iceberg (self-check)
+        entry: uv run iceberg check
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]
