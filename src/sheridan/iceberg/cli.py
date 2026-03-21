@@ -15,14 +15,14 @@ from sheridan.iceberg.fixer import fix_modules
 from sheridan.iceberg.reporter import Issue, IssueKind, check_modules
 
 
-class OutputFormat(StrEnum):
+class _OutputFormat(StrEnum):
     """Supported output formats for the check command."""
 
     text = "text"
     json = "json"
 
 
-def _render(issues: list[Issue], fmt: OutputFormat) -> str:
+def _render(issues: list[Issue], fmt: _OutputFormat) -> str:
     """Render issues as text or JSON.
 
     Args:
@@ -32,7 +32,7 @@ def _render(issues: list[Issue], fmt: OutputFormat) -> str:
     Returns:
         Formatted string.
     """
-    if fmt == OutputFormat.json:
+    if fmt == _OutputFormat.json:
         return json.dumps([i.to_dict() for i in issues], indent=2)
     return "\n".join(i.to_text() for i in issues)
 
@@ -51,7 +51,7 @@ def _check(args: argparse.Namespace) -> int:
         print(f"error: path does not exist: {path}", file=sys.stderr)
         return 2
 
-    fmt = OutputFormat(args.format)
+    fmt = _OutputFormat(args.format)
     issues = check_modules(load_modules(path))
 
     if args.ignore_missing:

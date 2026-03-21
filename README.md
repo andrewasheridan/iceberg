@@ -32,14 +32,70 @@ pip install sheridan-iceberg
 
 ```bash
 # Check a project
-sheridan-iceberg check src/
+iceberg check src/
 
 # Auto-fix __all__ declarations
-sheridan-iceberg fix src/
+iceberg fix src/
 
 # JSON output
-sheridan-iceberg check src/ --format json
+iceberg check src/ --format json
+
+# Ignore modules that are missing __all__ entirely
+iceberg check src/ --ignore-missing
+
+# Preview what fix would change without writing
+iceberg fix src/ --dry-run
 ```
+
+### Example output
+
+```
+src/mypackage/utils.py: IB001 missing __all__ (expected ['helper', 'parse'])
+src/mypackage/models.py: IB002 incorrect __all__ (declared ['User'], expected ['Role', 'User'])
+src/mypackage/core.py: IB003 __all__ is not sorted (expected ['Alpha', 'Beta', 'Gamma'])
+```
+
+Exit codes: `0` — no issues, `1` — issues found, `2` — path does not exist.
+
+### JSON output
+
+```json
+[
+  {
+    "code": "IB001",
+    "path": "src/mypackage/utils.py",
+    "kind": "missing",
+    "declared": null,
+    "expected": ["helper", "parse"]
+  }
+]
+```
+
+## How inference works
+
+For regular modules, iceberg infers the public API from top-level definitions —
+functions, classes, and assignments whose names do not start with `_`.
+
+For `__init__.py` files, names re-exported via `from x import y` are also
+counted, since this is the standard Python pattern for building a package's
+public surface.
+
+```python
+# foo/__init__.py
+from foo.snap import Widget   # Widget is inferred as public
+from foo._bar import _helper  # _helper is excluded (underscore)
+```
+
+**Submodules are not automatically included.** The existence of `foo/snap.py`
+on disk does not add `snap` to `foo.__all__` — the `__init__.py` is the
+explicit gatekeeper. To expose a submodule, import it explicitly:
+
+```python
+# foo/__init__.py
+from foo import snap  # now snap is part of the inferred public API
+```
+
+Test files (`test_*.py`, `*_test.py`, `conftest.py`) are always skipped.
 
 ## As a pre-commit hook
 

@@ -71,7 +71,7 @@ These apply across all `sheridan.*` repos. Do not deviate without good reason.
 | `mutmut` | Mutation testing (incremental — see below) |
 | `pre-commit` | Local hooks: ruff, mypy, iceberg before push |
 | `commitizen` | Enforces conventional commits (`feat:`, `fix:`, `chore:`) |
-| `Taskfile.yml` | Task runner. Never use `make`. Use `task <name>` |
+| `Taskfile.yaml` | Task runner. Never use `make`. Use `task <name>` |
 | `MkDocs` + Material + MkDocstrings | Documentation site |
 | `CLAUDE.md` | Repo-specific context for Claude Code sessions |
 | Devcontainer config | One-command dev environment |
@@ -176,7 +176,7 @@ sheridan-iceberg/
 ├── CONTRIBUTING.md
 ├── LICENSE
 ├── README.md
-├── Taskfile.yml
+├── Taskfile.yaml
 ├── pyproject.toml
 ├── .pre-commit-config.yaml
 ├── .pre-commit-hooks.yaml
@@ -212,6 +212,6 @@ sheridan-iceberg/
 - Static analysis only — no exec or import of user code
 - `__all__` is authoritative; AST inference is the fallback
 - `iceberg` has no git awareness — that belongs to `diffract`
-- Task runner: `task` (Taskfile.yml) — never `make` or `just`
+- Task runner: `task` (Taskfile.yaml) — never `make` or `just`
 - Agents are curated, not generated — missing agent = stop with error
 - Agent conventions come from CLAUDE.md, not from agent system prompts

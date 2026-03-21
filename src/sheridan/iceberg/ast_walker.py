@@ -71,14 +71,20 @@ def _extract_declared_all(tree: ast.Module) -> list[str] | None:
     return None
 
 
-def _infer_public_names(tree: ast.Module) -> list[str]:
+def _infer_public_names(tree: ast.Module, is_init: bool = False) -> list[str]:
     """Infer public names from top-level definitions.
 
     Collects names of top-level functions, classes, and simple variable
     assignments that do not start with an underscore.
 
+    When ``is_init`` is ``True`` (i.e. the module is an ``__init__.py``),
+    also collects names re-exported via ``from ... import`` statements.
+    For each alias the local name is ``alias.asname`` when present, otherwise
+    ``alias.name``; names starting with ``_`` are excluded.
+
     Args:
         tree: Parsed AST of a module.
+        is_init: When ``True``, treat ``from ... import`` names as public.
 
     Returns:
         Sorted list of inferred public names.
@@ -96,20 +102,42 @@ def _infer_public_names(tree: ast.Module) -> list[str]:
                 for target in targets:
                     if isinstance(target, ast.Name) and not target.id.startswith("_") and target.id != "__all__":
                         names.append(target.id)
+            case ast.ImportFrom(names=aliases) if is_init:
+                for alias in aliases:
+                    local_name = alias.asname if alias.asname else alias.name
+                    if not local_name.startswith("_"):
+                        names.append(local_name)
     return sorted(names)
+
+
+def _is_test_file(path: Path) -> bool:
+    """Return True if *path* is a test module that should be skipped.
+
+    Matches pytest's default discovery conventions: files named ``test_*.py``,
+    ``*_test.py``, or ``conftest.py``.
+
+    Args:
+        path: Path to a ``.py`` file.
+
+    Returns:
+        ``True`` if the file is a test module, ``False`` otherwise.
+    """
+    name = path.name
+    return name.startswith("test_") or name.endswith("_test.py") or name == "conftest.py"
 
 
 def load_modules(path: Path) -> list[ModuleInfo]:
     """Load module info from a file or directory.
 
     Convenience wrapper: if ``path`` is a file, returns a single-element list;
-    if it is a directory, delegates to :func:`walk_path`.
+    if it is a directory, delegates to :func:`walk_path`.  Test files are
+    always skipped.
 
     Args:
         path: A ``.py`` file or a directory to walk recursively.
 
     Returns:
-        List of parsed :class:`ModuleInfo`.
+        List of parsed :class:`ModuleInfo`.  Empty if the file is a test module.
 
     Raises:
         SyntaxError: If a single file cannot be parsed.
@@ -117,6 +145,8 @@ def load_modules(path: Path) -> list[ModuleInfo]:
     """
     if path.is_dir():
         return walk_path(path)
+    if _is_test_file(path):
+        return []
     return [walk_module(path)]
 
 
@@ -136,7 +166,7 @@ def walk_module(path: Path) -> ModuleInfo:
     source = path.read_text(encoding="utf-8")
     tree = ast.parse(source, filename=str(path))
     declared = _extract_declared_all(tree)
-    inferred = _infer_public_names(tree)
+    inferred = _infer_public_names(tree, is_init=path.name == "__init__.py")
     return ModuleInfo(path=path, declared_all=declared, inferred_all=inferred)
 
 
@@ -153,6 +183,8 @@ def walk_path(root: Path) -> list[ModuleInfo]:
     """
     results: list[ModuleInfo] = []
     for py_file in sorted(root.rglob("*.py")):
+        if _is_test_file(py_file):
+            continue
         with contextlib.suppress(SyntaxError, OSError):
             results.append(walk_module(py_file))
     return results
