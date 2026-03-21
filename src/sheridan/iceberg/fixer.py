@@ -2,7 +2,6 @@
 
 import ast
 import re
-from pathlib import Path
 
 from sheridan.iceberg.ast_walker import ModuleInfo
 
@@ -71,9 +70,9 @@ def fix_module(info: ModuleInfo, expected: list[str]) -> bool:
     if all_node is not None:
         lines = source.splitlines(keepends=True)
         start = all_node.lineno - 1  # 0-indexed
-        end = all_node.end_lineno  # type: ignore[attr-defined]
+        end = all_node.end_lineno if all_node.end_lineno is not None else start + 1
         # Preserve any trailing newline after the block
-        new_lines = lines[:start] + [new_decl + "\n"] + lines[end:]
+        new_lines = [*lines[:start], new_decl + "\n", *lines[end:]]
         new_source = "".join(new_lines)
     else:
         new_source = _insert_all(source, new_decl)
@@ -116,7 +115,7 @@ def _insert_all(source: str, decl: str) -> str:
         and isinstance(tree.body[0].value, ast.Constant)
         and isinstance(tree.body[0].value.value, str)
     ):
-        insert_after = tree.body[0].end_lineno  # type: ignore[attr-defined]
+        insert_after = tree.body[0].end_lineno or 0
     else:
         # Skip leading blank lines and comment lines
         for i, line in enumerate(lines):
@@ -125,5 +124,5 @@ def _insert_all(source: str, decl: str) -> str:
                 insert_after = i
                 break
 
-    new_lines = lines[:insert_after] + ["\n", decl + "\n"] + lines[insert_after:]
+    new_lines = [*lines[:insert_after], "\n", decl + "\n", *lines[insert_after:]]
     return "".join(new_lines)

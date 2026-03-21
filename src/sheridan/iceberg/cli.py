@@ -3,7 +3,7 @@
 import argparse
 import json
 import sys
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 from sheridan.iceberg.ast_walker import ModuleInfo, walk_module, walk_path
@@ -15,7 +15,7 @@ __all__ = [
 ]
 
 
-class OutputFormat(str, Enum):
+class OutputFormat(StrEnum):
     """Supported output formats for the check command."""
 
     text = "text"

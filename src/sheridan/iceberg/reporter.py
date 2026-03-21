@@ -2,7 +2,7 @@
 
 import json
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 from sheridan.iceberg.ast_walker import ModuleInfo
@@ -14,7 +14,7 @@ __all__ = [
 ]
 
 
-class IssueKind(str, Enum):
+class IssueKind(StrEnum):
     """Categories of __all__ issues that iceberg detects.
 
     Attributes:
@@ -67,10 +67,7 @@ class Issue:
             case IssueKind.MISSING:
                 return f"{self.path}: missing __all__ (expected {self.expected!r})"
             case IssueKind.INCORRECT:
-                return (
-                    f"{self.path}: incorrect __all__ "
-                    f"(declared {self.declared!r}, expected {self.expected!r})"
-                )
+                return f"{self.path}: incorrect __all__ (declared {self.declared!r}, expected {self.expected!r})"
             case IssueKind.UNSORTED:
                 return f"{self.path}: __all__ is not sorted (expected {self.expected!r})"
 

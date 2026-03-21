@@ -55,6 +55,7 @@ packages = ["src/sheridan"]
 src = ["src"]
 target-version = "py314"
 line-length = 120
+exclude = [".claude/worktrees"]
 
 [tool.ruff.lint]
 select = [

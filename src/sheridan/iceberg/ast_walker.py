@@ -1,6 +1,7 @@
 """AST-based walker for extracting public API surface from Python modules."""
 
 import ast
+import contextlib
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -92,11 +93,7 @@ def _infer_public_names(tree: ast.Module) -> list[str]:
                     names.append(name)
             case ast.Assign(targets=targets):
                 for target in targets:
-                    if (
-                        isinstance(target, ast.Name)
-                        and not target.id.startswith("_")
-                        and target.id != "__all__"
-                    ):
+                    if isinstance(target, ast.Name) and not target.id.startswith("_") and target.id != "__all__":
                         names.append(target.id)
     return sorted(names)
 
@@ -134,9 +131,6 @@ def walk_path(root: Path) -> list[ModuleInfo]:
     """
     results: list[ModuleInfo] = []
     for py_file in sorted(root.rglob("*.py")):
-        try:
+        with contextlib.suppress(SyntaxError, OSError):
             results.append(walk_module(py_file))
-        except (SyntaxError, OSError):
-            # Skip unparseable or unreadable files
-            pass
     return results
