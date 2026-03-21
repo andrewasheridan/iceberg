@@ -38,3 +38,6 @@ site/
 # Claude agent worktrees
 .claude/worktrees/
 
+# uv
+uv.lock
+
