@@ -1,0 +1,62 @@
+version: "3"
+
+tasks:
+  install:
+    desc: Install all dependencies
+    cmds:
+      - uv sync --all-extras --dev
+
+  lint:
+    desc: Run ruff linter
+    cmds:
+      - uv run ruff check .
+
+  format:
+    desc: Run ruff formatter
+    cmds:
+      - uv run ruff format .
+
+  format-check:
+    desc: Check formatting without writing
+    cmds:
+      - uv run ruff format --check .
+
+  typecheck:
+    desc: Run mypy strict type checking
+    cmds:
+      - uv run mypy --strict src/
+
+  test:
+    desc: Run pytest with coverage
+    cmds:
+      - uv run pytest --cov
+
+  check:
+    desc: Run all gates (lint, format-check, typecheck, test)
+    cmds:
+      - task: lint
+      - task: format-check
+      - task: typecheck
+      - task: test
+
+  mutmut:
+    desc: Run incremental mutation testing
+    cmds:
+      - uv run python -m mutmut run
+
+  docs:
+    desc: Build MkDocs documentation
+    cmds:
+      - uv run mkdocs build
+
+  docs-serve:
+    desc: Serve MkDocs documentation locally
+    cmds:
+      - uv run mkdocs serve
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -rf dist/ .coverage htmlcov/ .mypy_cache/ .ruff_cache/ __pycache__/
+      - find . -type d -name __pycache__ -exec rm -rf {} +
+      - find . -type f -name "*.pyc" -delete

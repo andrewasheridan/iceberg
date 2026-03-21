@@ -43,7 +43,7 @@ family follow the same conventions:
 These apply to all code written in this repo. Agents inherit these via CLAUDE.md
 and should not restate them in their own system prompts.
 
-- **Language**: Python 3.12+
+- **Language**: Python 3.14+
 - **Types**: All code must pass `mypy --strict`. No untyped functions.
 - **Formatting/linting**: `ruff`. Never suggest changes that would fail ruff.
 - **Docstrings**: Google style. All public functions, classes, and methods.
