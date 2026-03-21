@@ -1,0 +1,57 @@
+site_name: sheridan-iceberg
+site_description: Enforce __all__ correctness in Python modules
+repo_url: https://github.com/sheridan/sheridan-iceberg
+repo_name: sheridan/sheridan-iceberg
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: teal
+    accent: cyan
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+
+markdown_extensions:
+  - pymdownx.snippets:
+      base_path:
+        - .
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            members_order: source
+
+nav:
+  - Home: index.md
+  - API Reference:
+    - ast_walker: api/ast_walker.md
+    - reporter: api/reporter.md
+    - fixer: api/fixer.md
+    - cli: api/cli.md
+  - Decisions:
+    - "0001 Sheridan namespace package": decisions/0001-sheridan-namespace-package.md
+    - "0002 Static analysis only": decisions/0002-static-analysis-only.md
+    - "0003 __all__ authoritative with AST fallback": decisions/0003-all-authoritative-with-ast-fallback.md
+    - "0004 No git awareness": decisions/0004-no-git-awareness.md
+    - "0005 Taskfile task runner": decisions/0005-taskfile-task-runner.md
+    - "0006 Typer CLI": decisions/0006-typer-cli.md
+    - "0007 Python 3.14": decisions/0007-python-3-14.md
+    - "0008 Curated agent roster": decisions/0008-curated-agent-roster.md
+    - "0009 uv lock not committed": decisions/0009-uv-lock-not-committed.md
+    - "0010 Exclude Claude worktrees from ruff": decisions/0010-exclude-claude-worktrees-from-ruff.md
+    - "0011 Thin CLI shell": decisions/0011-thin-cli-shell.md
+    - "0012 __all__ above imports": decisions/0012-all-above-imports.md
+    - "0013 __init__ re-export inference": decisions/0013-init-reexport-inference.md
+    - "0014 Exclude test modules": decisions/0014-exclude-test-modules.md
+    - "0015 IB error codes": decisions/0015-ib-error-codes.md
+    - "0016 __init__ explicit gatekeeper": decisions/0016-init-explicit-gatekeeper.md
