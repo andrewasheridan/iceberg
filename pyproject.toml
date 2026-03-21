@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.29.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -19,28 +19,28 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Quality Assurance",
 ]
-dependencies = ["typer>=0.12"]
+dependencies = []
 
 [project.optional-dependencies]
 dev = [
-    "ruff>=0.4",
-    "mypy>=1.10",
-    "pytest>=8.0",
-    "pytest-cov>=5.0",
-    "mutmut>=2.0",
-    "commitizen>=3.0",
-    "pre-commit>=3.0",
-    "bandit[toml]>=1.7",
-    "mkdocs>=1.6",
-    "mkdocs-material>=9.0",
-    "mkdocstrings[python]>=0.25",
+    "ruff>=0.15.7",
+    "mypy>=1.19.1",
+    "pytest>=9.0.2",
+    "pytest-cov>=7.1.0",
+    "mutmut>=3.5.0",
+    "commitizen>=4.13.9",
+    "pre-commit>=4.5.1",
+    "bandit[toml]>=1.9.4",
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.7.6",
+    "mkdocstrings[python]>=1.0.3",
 ]
 
 [project.scripts]
-iceberg = "sheridan.iceberg.cli:app"
+iceberg = "sheridan.iceberg.cli:main"
 
 [project.entry-points."pre-commit"]
-iceberg = "sheridan.iceberg.cli:app"
+iceberg = "sheridan.iceberg.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sheridan"]
