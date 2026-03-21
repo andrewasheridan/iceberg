@@ -1,13 +1,16 @@
 """Auto-fix __all__ declarations in Python source files."""
 
-import ast
-import re
-
-from sheridan.iceberg.ast_walker import ModuleInfo
-
 __all__ = [
     "fix_module",
+    "fix_modules",
 ]
+
+import ast
+import re
+from pathlib import Path
+
+from sheridan.iceberg.ast_walker import ModuleInfo
+from sheridan.iceberg.reporter import Issue
 
 _ALL_PATTERN = re.compile(
     r"^__all__\s*=\s*[\[\(].*?[\]\)]",
@@ -126,3 +129,27 @@ def _insert_all(source: str, decl: str) -> str:
 
     new_lines = [*lines[:insert_after], "\n", decl + "\n", *lines[insert_after:]]
     return "".join(new_lines)
+
+
+def fix_modules(modules: list[ModuleInfo], issues: list[Issue]) -> list[Path]:
+    """Apply ``__all__`` fixes for a list of issues.
+
+    Matches each issue to its :class:`~sheridan.iceberg.ast_walker.ModuleInfo`
+    and rewrites the file. Issues whose module cannot be found are skipped.
+
+    Args:
+        modules: Parsed module information used to look up each affected file.
+        issues: Issues to fix.
+
+    Returns:
+        Paths of files that were actually modified.
+    """
+    module_by_path = {m.path: m for m in modules}
+    fixed: list[Path] = []
+    for issue in issues:
+        info = module_by_path.get(issue.path)
+        if info is None:
+            continue
+        if fix_module(info, issue.expected):
+            fixed.append(issue.path)
+    return fixed

@@ -38,6 +38,13 @@ family follow the same conventions:
 - Fall back to AST inference (non-underscore top-level names) when absent
 - Output should be machine-readable (JSON) and human-readable (text)
 - Must work as a pre-commit hook, a CLI tool, and optionally a GitHub Action
+- **CLI is a thin shell**: `cli.py` handles argument parsing, output formatting,
+  and exit codes only. All reusable logic lives in library modules and is
+  accessible programmatically. This applies to all `sheridan.*` tools. (ADR 0011)
+- **`__all__` at the top**: `__all__` is declared immediately after the module
+  docstring (and any shebang/comments), before all imports. It is the first
+  executable statement in every module. iceberg does not enforce this position —
+  it is a project style convention. (ADR 0012)
 
 ## Code conventions
 These apply to all code written in this repo. Agents inherit these via CLAUDE.md

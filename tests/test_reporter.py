@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from sheridan.iceberg.ast_walker import ModuleInfo
-from sheridan.iceberg.reporter import Issue, IssueKind, report
+from sheridan.iceberg.reporter import Issue, IssueKind, check_modules, report
 
 # ---------------------------------------------------------------------------
 # IssueKind
@@ -88,6 +88,41 @@ class TestIssueToDictAndToText:
         text = issue.to_text()
         assert "not sorted" in text
         assert "Alpha" in text
+
+
+# ---------------------------------------------------------------------------
+# check_modules() — pure issue detection
+# ---------------------------------------------------------------------------
+
+
+class TestCheckModules:
+    def _make_info(self, tmp_path: Path, declared: list[str] | None, inferred: list[str]) -> ModuleInfo:
+        return ModuleInfo(path=tmp_path / "mod.py", declared_all=declared, inferred_all=inferred)
+
+    def test_no_issues_when_all_correct(self, tmp_path: Path) -> None:
+        info = self._make_info(tmp_path, ["Foo", "bar"], ["bar", "Foo"])
+        assert check_modules([info]) == []
+
+    def test_missing_all_reported(self, tmp_path: Path) -> None:
+        info = self._make_info(tmp_path, None, ["Foo"])
+        issues = check_modules([info])
+        assert len(issues) == 1
+        assert issues[0].kind == IssueKind.MISSING
+
+    def test_incorrect_all_reported(self, tmp_path: Path) -> None:
+        info = self._make_info(tmp_path, ["Wrong"], ["Correct"])
+        issues = check_modules([info])
+        assert len(issues) == 1
+        assert issues[0].kind == IssueKind.INCORRECT
+
+    def test_empty_module_list_returns_empty(self) -> None:
+        assert check_modules([]) == []
+
+    def test_multiple_modules_aggregated(self, tmp_path: Path) -> None:
+        info1 = self._make_info(tmp_path, None, ["Foo"])
+        info2 = ModuleInfo(path=tmp_path / "b.py", declared_all=["Bad"], inferred_all=["Good"])
+        issues = check_modules([info1, info2])
+        assert len(issues) == 2
 
 
 # ---------------------------------------------------------------------------

@@ -1,17 +1,18 @@
 """Issue detection and reporting for __all__ correctness."""
 
+__all__ = [
+    "Issue",
+    "IssueKind",
+    "check_modules",
+    "report",
+]
+
 import json
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
 from sheridan.iceberg.ast_walker import ModuleInfo
-
-__all__ = [
-    "Issue",
-    "IssueKind",
-    "report",
-]
 
 
 class IssueKind(StrEnum):
@@ -120,6 +121,24 @@ def _check_module(info: ModuleInfo) -> list[Issue]:
     return issues
 
 
+def check_modules(modules: list[ModuleInfo]) -> list[Issue]:
+    """Check a list of modules for ``__all__`` issues.
+
+    The programmatic entry point for issue detection. Returns issues only,
+    with no formatting — callers decide how to render or handle them.
+
+    Args:
+        modules: Parsed module information to check.
+
+    Returns:
+        List of issues found across all modules (empty if all are clean).
+    """
+    all_issues: list[Issue] = []
+    for info in modules:
+        all_issues.extend(_check_module(info))
+    return all_issues
+
+
 def report(
     modules: list[ModuleInfo],
     fmt: str = "text",
@@ -139,9 +158,7 @@ def report(
     if fmt not in {"text", "json"}:
         raise ValueError(f"Unknown format {fmt!r}; expected 'text' or 'json'")
 
-    all_issues: list[Issue] = []
-    for info in modules:
-        all_issues.extend(_check_module(info))
+    all_issues = check_modules(modules)
 
     if fmt == "json":
         output = json.dumps([i.to_dict() for i in all_issues], indent=2)

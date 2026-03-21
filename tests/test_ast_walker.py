@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from sheridan.iceberg.ast_walker import ModuleInfo, walk_module, walk_path
+from sheridan.iceberg.ast_walker import ModuleInfo, load_modules, walk_module, walk_path
 
 # ---------------------------------------------------------------------------
 # ModuleInfo
@@ -245,3 +245,28 @@ class TestWalkPath:
         results = walk_path(tmp_path)
         result_paths = [r.path for r in results]
         assert result_paths == sorted(result_paths)
+
+
+# ---------------------------------------------------------------------------
+# load_modules
+# ---------------------------------------------------------------------------
+
+
+class TestLoadModules:
+    def test_single_file_returns_one_element_list(self, tmp_path: Path) -> None:
+        p = tmp_path / "mod.py"
+        p.write_text("x = 1\n", encoding="utf-8")
+        results = load_modules(p)
+        assert len(results) == 1
+        assert results[0].path == p
+
+    def test_directory_returns_all_py_files(self, tmp_path: Path) -> None:
+        (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
+        (tmp_path / "b.py").write_text("y = 2\n", encoding="utf-8")
+        results = load_modules(tmp_path)
+        paths = {r.path for r in results}
+        assert tmp_path / "a.py" in paths
+        assert tmp_path / "b.py" in paths
+
+    def test_empty_directory_returns_empty_list(self, tmp_path: Path) -> None:
+        assert load_modules(tmp_path) == []

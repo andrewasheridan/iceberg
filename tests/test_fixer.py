@@ -5,7 +5,8 @@ from pathlib import Path
 import pytest
 
 from sheridan.iceberg.ast_walker import walk_module
-from sheridan.iceberg.fixer import fix_module
+from sheridan.iceberg.fixer import fix_module, fix_modules
+from sheridan.iceberg.reporter import IssueKind, check_modules
 
 
 def _write(path: Path, source: str) -> Path:
@@ -198,3 +199,46 @@ def test_fix_module_change_detection(
     info = walk_module(p)
     changed = fix_module(info, expected)
     assert changed is should_change
+
+
+# ---------------------------------------------------------------------------
+# fix_modules
+# ---------------------------------------------------------------------------
+
+
+class TestFixModules:
+    def test_fixes_all_issues_and_returns_modified_paths(self, tmp_path: Path) -> None:
+        p = _write(tmp_path / "mod.py", "def Foo(): ...\n")
+        modules = [walk_module(p)]
+        issues = check_modules(modules)
+        fixed = fix_modules(modules, issues)
+        assert fixed == [p]
+        assert "__all__" in p.read_text(encoding="utf-8")
+
+    def test_returns_empty_when_no_issues(self, tmp_path: Path) -> None:
+        p = _write(tmp_path / "mod.py", '__all__ = [\n    "Foo",\n]\ndef Foo(): ...\n')
+        modules = [walk_module(p)]
+        fixed = fix_modules(modules, [])
+        assert fixed == []
+
+    def test_skips_issues_with_unknown_path(self, tmp_path: Path) -> None:
+        from sheridan.iceberg.reporter import Issue
+
+        p = _write(tmp_path / "mod.py", "def Foo(): ...\n")
+        modules = [walk_module(p)]
+        ghost_issue = Issue(
+            path=tmp_path / "ghost.py",
+            kind=IssueKind.MISSING,
+            declared=None,
+            expected=["Foo"],
+        )
+        fixed = fix_modules(modules, [ghost_issue])
+        assert fixed == []
+
+    def test_multiple_files_all_fixed(self, tmp_path: Path) -> None:
+        p1 = _write(tmp_path / "a.py", "def Alpha(): ...\n")
+        p2 = _write(tmp_path / "b.py", "def Beta(): ...\n")
+        modules = [walk_module(p1), walk_module(p2)]
+        issues = check_modules(modules)
+        fixed = fix_modules(modules, issues)
+        assert set(fixed) == {p1, p2}

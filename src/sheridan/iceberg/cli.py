@@ -1,18 +1,18 @@
 """Command-line interface for sheridan-iceberg."""
 
+__all__ = [
+    "main",
+]
+
 import argparse
 import json
 import sys
 from enum import StrEnum
 from pathlib import Path
 
-from sheridan.iceberg.ast_walker import ModuleInfo, walk_module, walk_path
-from sheridan.iceberg.fixer import fix_module
-from sheridan.iceberg.reporter import Issue, IssueKind, report
-
-__all__ = [
-    "main",
-]
+from sheridan.iceberg.ast_walker import load_modules
+from sheridan.iceberg.fixer import fix_modules
+from sheridan.iceberg.reporter import Issue, IssueKind, check_modules
 
 
 class OutputFormat(StrEnum):
@@ -20,20 +20,6 @@ class OutputFormat(StrEnum):
 
     text = "text"
     json = "json"
-
-
-def _load_modules(path: Path) -> list[ModuleInfo]:
-    """Load module info from a file or directory.
-
-    Args:
-        path: A ``.py`` file or a directory to walk recursively.
-
-    Returns:
-        List of parsed :class:`~sheridan.iceberg.ast_walker.ModuleInfo`.
-    """
-    if path.is_dir():
-        return walk_path(path)
-    return [walk_module(path)]
 
 
 def _render(issues: list[Issue], fmt: OutputFormat) -> str:
@@ -58,7 +44,7 @@ def _check(args: argparse.Namespace) -> int:
         args: Parsed argument namespace.
 
     Returns:
-        Exit code — 0 if no issues, 1 if issues found.
+        Exit code — 0 if no issues, 1 if issues found, 2 if path missing.
     """
     path = Path(args.path)
     if not path.exists():
@@ -66,8 +52,7 @@ def _check(args: argparse.Namespace) -> int:
         return 2
 
     fmt = OutputFormat(args.format)
-    modules = _load_modules(path)
-    issues, _ = report(modules, fmt=fmt.value)
+    issues = check_modules(load_modules(path))
 
     if args.ignore_missing:
         issues = [i for i in issues if i.kind != IssueKind.MISSING]
@@ -93,28 +78,21 @@ def _fix(args: argparse.Namespace) -> int:
         print(f"error: path does not exist: {path}", file=sys.stderr)
         return 2
 
-    modules = _load_modules(path)
-    issues, _ = report(modules)
+    modules = load_modules(path)
+    issues = check_modules(modules)
 
     if not issues:
         print("No issues found.")
         return 0
 
-    module_by_path = {m.path: m for m in modules}
-    fixed = 0
-
-    for issue in issues:
-        info = module_by_path.get(issue.path)
-        if info is None:
-            continue
-        if args.dry_run:
+    if args.dry_run:
+        for issue in issues:
             print(f"Would fix: {issue.path} ({issue.kind.value})")
-        elif fix_module(info, issue.expected):
-            print(f"Fixed: {issue.path}")
-            fixed += 1
-
-    if not args.dry_run:
-        print(f"\n{fixed} file(s) fixed.")
+    else:
+        fixed = fix_modules(modules, issues)
+        for p in fixed:
+            print(f"Fixed: {p}")
+        print(f"\n{len(fixed)} file(s) fixed.")
 
     return 0
 

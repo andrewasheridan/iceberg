@@ -1,15 +1,16 @@
 """AST-based walker for extracting public API surface from Python modules."""
 
+__all__ = [
+    "ModuleInfo",
+    "load_modules",
+    "walk_module",
+    "walk_path",
+]
+
 import ast
 import contextlib
 from dataclasses import dataclass, field
 from pathlib import Path
-
-__all__ = [
-    "ModuleInfo",
-    "walk_module",
-    "walk_path",
-]
 
 
 @dataclass
@@ -96,6 +97,27 @@ def _infer_public_names(tree: ast.Module) -> list[str]:
                     if isinstance(target, ast.Name) and not target.id.startswith("_") and target.id != "__all__":
                         names.append(target.id)
     return sorted(names)
+
+
+def load_modules(path: Path) -> list[ModuleInfo]:
+    """Load module info from a file or directory.
+
+    Convenience wrapper: if ``path`` is a file, returns a single-element list;
+    if it is a directory, delegates to :func:`walk_path`.
+
+    Args:
+        path: A ``.py`` file or a directory to walk recursively.
+
+    Returns:
+        List of parsed :class:`ModuleInfo`.
+
+    Raises:
+        SyntaxError: If a single file cannot be parsed.
+        OSError: If a single file cannot be read.
+    """
+    if path.is_dir():
+        return walk_path(path)
+    return [walk_module(path)]
 
 
 def walk_module(path: Path) -> ModuleInfo:
