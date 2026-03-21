@@ -1,7 +1,7 @@
 """sheridan-iceberg: enforce __all__ correctness in Python modules."""
 
 from sheridan.iceberg.ast_walker import ModuleInfo, load_modules, walk_module, walk_path
-from sheridan.iceberg.fixer import fix_module
+from sheridan.iceberg.fixer import fix_module, fix_modules
 from sheridan.iceberg.reporter import Issue, IssueKind, check_modules, report
 
 __all__ = [
@@ -10,6 +10,7 @@ __all__ = [
     "ModuleInfo",
     "check_modules",
     "fix_module",
+    "fix_modules",
     "load_modules",
     "report",
     "walk_module",

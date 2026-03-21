@@ -7,7 +7,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from sheridan.iceberg.ast_walker import load_modules
-from sheridan.iceberg.fixer import fix_module
+from sheridan.iceberg.fixer import fix_modules
 from sheridan.iceberg.reporter import Issue, IssueKind, check_modules
 
 __all__ = [
@@ -85,21 +85,14 @@ def _fix(args: argparse.Namespace) -> int:
         print("No issues found.")
         return 0
 
-    module_by_path = {m.path: m for m in modules}
-    fixed = 0
-
-    for issue in issues:
-        info = module_by_path.get(issue.path)
-        if info is None:
-            continue
-        if args.dry_run:
+    if args.dry_run:
+        for issue in issues:
             print(f"Would fix: {issue.path} ({issue.kind.value})")
-        elif fix_module(info, issue.expected):
-            print(f"Fixed: {issue.path}")
-            fixed += 1
-
-    if not args.dry_run:
-        print(f"\n{fixed} file(s) fixed.")
+    else:
+        fixed = fix_modules(modules, issues)
+        for p in fixed:
+            print(f"Fixed: {p}")
+        print(f"\n{len(fixed)} file(s) fixed.")
 
     return 0
 

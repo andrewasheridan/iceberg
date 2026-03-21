@@ -37,6 +37,7 @@ class TestPublicApi:
             "ModuleInfo",
             "check_modules",
             "fix_module",
+            "fix_modules",
             "load_modules",
             "report",
             "walk_module",
