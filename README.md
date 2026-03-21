@@ -32,13 +32,13 @@ pip install sheridan-iceberg
 
 ```bash
 # Check a project
-sheridan-iceberg check src/
+iceberg check src/
 
 # Auto-fix __all__ declarations
-sheridan-iceberg fix src/
+iceberg fix src/
 
 # JSON output
-sheridan-iceberg check src/ --format json
+iceberg check src/ --format json
 ```
 
 ## As a pre-commit hook
