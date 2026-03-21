@@ -38,6 +38,9 @@ family follow the same conventions:
 - Fall back to AST inference (non-underscore top-level names) when absent
 - Output should be machine-readable (JSON) and human-readable (text)
 - Must work as a pre-commit hook, a CLI tool, and optionally a GitHub Action
+- **CLI is a thin shell**: `cli.py` handles argument parsing, output formatting,
+  and exit codes only. All reusable logic lives in library modules and is
+  accessible programmatically. This applies to all `sheridan.*` tools. (ADR 0011)
 
 ## Code conventions
 These apply to all code written in this repo. Agents inherit these via CLAUDE.md
