@@ -1,6 +1,11 @@
 version: "3"
 
 tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+
   install:
     desc: Install all dependencies
     cmds:
@@ -30,6 +35,11 @@ tasks:
     desc: Run pytest with coverage
     cmds:
       - uv run pytest --cov
+
+  iceberg:
+    desc: Run iceberg on itself (dogfooding)
+    cmds:
+      - uv run iceberg check src/
 
   check:
     desc: Run all gates (lint, format-check, typecheck, test)
