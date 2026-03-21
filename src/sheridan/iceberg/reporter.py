@@ -19,14 +19,28 @@ class IssueKind(StrEnum):
     """Categories of __all__ issues that iceberg detects.
 
     Attributes:
-        MISSING: Module has no ``__all__`` declaration.
-        INCORRECT: ``__all__`` exists but does not match the inferred public API.
-        UNSORTED: ``__all__`` is correct but not in sorted order.
+        MISSING: Module has no ``__all__`` declaration.  ``IB001``
+        INCORRECT: ``__all__`` exists but does not match the inferred public API.  ``IB002``
+        UNSORTED: ``__all__`` is correct but not in sorted order.  ``IB003``
     """
 
     MISSING = "missing"
     INCORRECT = "incorrect"
     UNSORTED = "unsorted"
+
+    @property
+    def code(self) -> str:
+        """Return the short error code for this issue kind.
+
+        Returns:
+            A ruff-style error code string, e.g. ``"IB001"``.
+        """
+        _codes: dict[IssueKind, str] = {
+            IssueKind.MISSING: "IB001",
+            IssueKind.INCORRECT: "IB002",
+            IssueKind.UNSORTED: "IB003",
+        }
+        return _codes[self]
 
 
 @dataclass
@@ -49,9 +63,10 @@ class Issue:
         """Serialize to a JSON-compatible dictionary.
 
         Returns:
-            Dictionary with ``path``, ``kind``, ``declared``, and ``expected``.
+            Dictionary with ``code``, ``path``, ``kind``, ``declared``, and ``expected``.
         """
         return {
+            "code": self.kind.code,
             "path": str(self.path),
             "kind": self.kind.value,
             "declared": self.declared,
@@ -64,13 +79,14 @@ class Issue:
         Returns:
             A message string suitable for terminal output.
         """
+        code = self.kind.code
         match self.kind:
             case IssueKind.MISSING:
-                return f"{self.path}: missing __all__ (expected {self.expected!r})"
+                return f"{self.path}: {code} missing __all__ (expected {self.expected!r})"
             case IssueKind.INCORRECT:
-                return f"{self.path}: incorrect __all__ (declared {self.declared!r}, expected {self.expected!r})"
+                return f"{self.path}: {code} incorrect __all__ (declared {self.declared!r}, expected {self.expected!r})"
             case IssueKind.UNSORTED:
-                return f"{self.path}: __all__ is not sorted (expected {self.expected!r})"
+                return f"{self.path}: {code} __all__ is not sorted (expected {self.expected!r})"
 
 
 def _check_module(info: ModuleInfo) -> list[Issue]:
