@@ -82,7 +82,7 @@ jobs:
       - name: Open and auto-merge version bump PR
         if: steps.guard.outputs.skip == 'false' && steps.bump.outputs.bumped == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           NEW_VERSION: ${{ steps.bump.outputs.new_version }}
         run: |
           gh pr create \
