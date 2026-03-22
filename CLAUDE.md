@@ -64,11 +64,10 @@ These apply across all `sheridan.*` repos. Do not deviate without good reason.
 | Tool | Purpose |
 |---|---|
 | `uv` | Dependency management and Python version management |
-| `pyproject.toml` | Single config file for all tools — ruff, mypy, pytest, coverage, mutmut, commitizen |
+| `pyproject.toml` | Single config file for all tools — ruff, mypy, pytest, coverage, commitizen |
 | `ruff` | Lint and formatting |
 | `mypy --strict` | Type checking |
 | `pytest` + `pytest-cov` | Tests, 90% coverage minimum |
-| `mutmut` | Mutation testing (incremental — see below) |
 | `pre-commit` | Local hooks: ruff, mypy, iceberg before push |
 | `commitizen` | Enforces conventional commits (`feat:`, `fix:`, `chore:`) |
 | `Taskfile.yaml` | Task runner. Never use `make`. Use `task <name>` |
@@ -80,12 +79,9 @@ These apply across all `sheridan.*` repos. Do not deviate without good reason.
 | README badge wall | CI status, coverage %, mutation score, license |
 
 ## Mutation testing strategy
-Mutation testing runs on a schedule or manually — **not as a push gate**.
-
-Each run receives a `run_id`. Source files are deterministically shuffled via
-`md5(f"{run_id}:{filename}")` and a fixed-size slice (3 files) is selected.
-Results accumulate in `mutmut-results.json` checked into the repo, so the
-mutation score improves over time without any single run being slow.
+Mutation testing is currently deferred — see ADR 0017. Both mutmut 2.x and 3.x
+are incompatible with Python 3.14. Revisit when mutmut ships a fix for
+https://github.com/boxed/mutmut/issues/466.
 
 ## CI pipeline
 All checks run in parallel. Each check runs in its own container.
@@ -98,7 +94,7 @@ All checks run in parallel. Each check runs in its own container.
 | Tests + coverage | pytest --cov (90% min) | Every push |
 | Security lint | bandit | Every push |
 | Doc generation | mkdocs build | Every push |
-| Mutation testing | mutmut (incremental) | Scheduled / manual |
+| Mutation testing | deferred — see ADR 0017 | N/A |
 | Dependency updates | Renovate | Automated PRs |
 | Secret scanning | GitHub native | Always on |
 
@@ -113,7 +109,6 @@ Every `sheridan.*` repo should expose these tasks:
 | `task typecheck` | `uv run mypy --strict .` |
 | `task test` | `uv run pytest --cov` |
 | `task check` | lint + format + typecheck + test (all gates) |
-| `task mutmut` | incremental mutation test run |
 | `task docs` | `uv run mkdocs build` |
 | `task docs-serve` | `uv run mkdocs serve` |
 

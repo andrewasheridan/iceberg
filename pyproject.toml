@@ -27,7 +27,6 @@ dev = [
     "mypy>=1.19.1",
     "pytest>=9.0.2",
     "pytest-cov>=7.1.0",
-    "mutmut>=3.5.0",
     "commitizen>=4.13.9",
     "pre-commit>=4.5.1",
     "bandit[toml]>=1.9.4",
@@ -103,14 +102,6 @@ omit = ["tests/*"]
 [tool.coverage.report]
 show_missing = true
 fail_under = 90
-
-# ---------------------------------------------------------------------------
-# mutmut
-# ---------------------------------------------------------------------------
-[tool.mutmut]
-paths_to_mutate = "src/sheridan/iceberg/"
-tests_dir = "tests/"
-runner = "python -m pytest"
 
 # ---------------------------------------------------------------------------
 # commitizen
