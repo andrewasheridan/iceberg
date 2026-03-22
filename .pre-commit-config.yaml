@@ -11,7 +11,7 @@ repos:
     hooks:
       - id: mypy
         args: [--strict]
-        additional_dependencies: [click>=8.0]
+        additional_dependencies: [click>=8.0, pytest]
         exclude: ^ci/
 
   - repo: local

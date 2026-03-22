@@ -7,6 +7,7 @@ __all__ = [
     "check_modules",
     "fix_module",
     "fix_modules",
+    "fix_needed",
     "load_modules",
     "report",
     "walk_module",
@@ -14,5 +15,5 @@ __all__ = [
 ]
 
 from sheridan.iceberg.ast_walker import ModuleInfo, load_modules, walk_module, walk_path
-from sheridan.iceberg.fixer import fix_module, fix_modules
+from sheridan.iceberg.fixer import fix_module, fix_modules, fix_needed
 from sheridan.iceberg.reporter import Issue, IssueKind, check_modules, report

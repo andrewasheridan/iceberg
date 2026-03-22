@@ -15,9 +15,9 @@ from sheridan.iceberg.reporter import Issue, IssueKind, check_modules, report
 
 class TestIssueKind:
     def test_values(self) -> None:
-        assert IssueKind.MISSING == "missing"
-        assert IssueKind.INCORRECT == "incorrect"
-        assert IssueKind.UNSORTED == "unsorted"
+        assert IssueKind.MISSING.value == "missing"
+        assert IssueKind.INCORRECT.value == "incorrect"
+        assert IssueKind.UNSORTED.value == "unsorted"
 
 
 # ---------------------------------------------------------------------------
@@ -73,8 +73,7 @@ class TestIssueToDictAndToText:
         p = tmp_path / "mod.py"
         issue = Issue(path=p, kind=IssueKind.INCORRECT, declared=["Bar"], expected=["Foo"])
         text = issue.to_text()
-        assert "incorrect __all__" in text
-        assert "Bar" in text
+        assert "missing from __all__" in text
         assert "Foo" in text
 
     def test_to_text_unsorted(self, tmp_path: Path) -> None:
@@ -124,6 +123,23 @@ class TestCheckModules:
         issues = check_modules([info1, info2])
         assert len(issues) == 2
 
+    def test_ib002_and_ib003_both_fire(self, tmp_path: Path) -> None:
+        # declared is unsorted AND missing a public name
+        info = self._make_info(tmp_path, ["Z", "A"], ["A", "B", "Z"])
+        issues = check_modules([info])
+        kinds = [i.kind for i in issues]
+        assert IssueKind.INCORRECT in kinds  # B is in AST but not in __all__
+        assert IssueKind.UNSORTED in kinds  # ["Z", "A"] is not sorted
+
+    def test_phantom_only_no_ib002(self, tmp_path: Path) -> None:
+        # "Ghost" is in __all__ but not in AST — no IB002
+        info = self._make_info(tmp_path, ["Ghost", "Real"], ["Real"])
+        issues = check_modules([info])
+        kinds = [i.kind for i in issues]
+        assert IssueKind.INCORRECT not in kinds
+        # sorted ["Ghost", "Real"] == ["Ghost", "Real"] → no IB003 either
+        assert issues == []
+
 
 # ---------------------------------------------------------------------------
 # report() — issue detection
@@ -166,12 +182,12 @@ class TestReport:
         issues, _ = report([info])
         assert issues == []
 
-    def test_incorrect_takes_precedence_over_unsorted(self, tmp_path: Path) -> None:
-        # Declared has wrong names AND is unsorted — should be INCORRECT not UNSORTED
-        info = self._make_info(tmp_path, ["Z", "A", "Extra"], ["A", "Z"])
+    def test_phantom_names_in_all_do_not_trigger_ib002(self, tmp_path: Path) -> None:
+        # "Extra" is in __all__ but not in AST — not an IB002 (one-directional check)
+        info = self._make_info(tmp_path, ["A", "Extra", "Z"], ["A", "Z"])
         issues, _ = report([info])
-        assert len(issues) == 1
-        assert issues[0].kind == IssueKind.INCORRECT
+        kinds = {i.kind for i in issues}
+        assert IssueKind.INCORRECT not in kinds
 
     def test_multiple_modules_multiple_issues(self, tmp_path: Path) -> None:
         info1 = self._make_info(tmp_path, None, ["Foo"])

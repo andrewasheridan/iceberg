@@ -20,7 +20,7 @@ class IssueKind(StrEnum):
 
     Attributes:
         MISSING: Module has no ``__all__`` declaration.  ``IB001``
-        INCORRECT: ``__all__`` exists but does not match the inferred public API.  ``IB002``
+        INCORRECT: Names the AST considers public are absent from ``__all__``.  ``IB002``
         UNSORTED: ``__all__`` is correct but not in sorted order.  ``IB003``
     """
 
@@ -84,13 +84,18 @@ class Issue:
             case IssueKind.MISSING:
                 return f"{self.path}: {code} missing __all__ (expected {self.expected!r})"
             case IssueKind.INCORRECT:
-                return f"{self.path}: {code} incorrect __all__ (declared {self.declared!r}, expected {self.expected!r})"
+                missing = sorted(set(self.expected) - set(self.declared or []))
+                return f"{self.path}: {code} names appear public but missing from __all__: {missing!r}"
             case IssueKind.UNSORTED:
                 return f"{self.path}: {code} __all__ is not sorted (expected {self.expected!r})"
 
 
 def _check_module(info: ModuleInfo) -> list[Issue]:
     """Check a single module for __all__ issues.
+
+    IB002 fires when names the AST considers public are absent from ``__all__``
+    (one-directional: names in ``__all__`` that don't exist in the AST are not
+    reported).  IB003 is independent and can fire on the same module as IB002.
 
     Args:
         info: Parsed module information.
@@ -102,29 +107,23 @@ def _check_module(info: ModuleInfo) -> list[Issue]:
     expected = sorted(info.inferred_all)
 
     if info.declared_all is None:
-        issues.append(
-            Issue(
-                path=info.path,
-                kind=IssueKind.MISSING,
-                declared=None,
-                expected=expected,
-            )
-        )
+        issues.append(Issue(path=info.path, kind=IssueKind.MISSING, declared=None, expected=expected))
         return issues
 
-    declared_set = set(info.declared_all)
-    expected_set = set(expected)
-
-    if declared_set != expected_set:
+    # IB002: names the AST considers public but absent from __all__
+    missing_from_all = sorted(set(info.inferred_all) - set(info.declared_all))
+    if missing_from_all:
         issues.append(
             Issue(
                 path=info.path,
                 kind=IssueKind.INCORRECT,
                 declared=info.declared_all,
-                expected=expected,
+                expected=expected,  # full inferred list — fixer uses this
             )
         )
-    elif info.declared_all != sorted(info.declared_all):
+
+    # IB003: __all__ is not sorted (independent of IB002)
+    if info.declared_all != sorted(info.declared_all):
         issues.append(
             Issue(
                 path=info.path,

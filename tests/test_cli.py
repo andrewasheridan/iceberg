@@ -9,7 +9,7 @@ import pytest
 from sheridan.iceberg import cli
 
 
-def _run(args: list[str], capsys: pytest.CaptureFixture[str]) -> int:  # type: ignore[type-arg]
+def _run(args: list[str], capsys: pytest.CaptureFixture[str]) -> int:
     """Run main() with the given argv, capture output, and return exit code."""
     sys.argv = ["iceberg", *args]
     exit_code = 0
@@ -55,7 +55,7 @@ class TestCheckSubcommand:
         p = _write(tmp_path / "mod.py", '__all__ = ["Wrong"]\ndef Correct(): ...\n')
         _run(["check", str(p)], capsys)
         captured = capsys.readouterr()
-        assert "incorrect __all__" in captured.out
+        assert "missing from __all__" in captured.out
 
     def test_check_directory(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         _write(tmp_path / "mod.py", "def Foo(): ...\n")
@@ -167,6 +167,14 @@ class TestFixSubcommand:
         captured = capsys.readouterr()
         assert "does not exist" in captured.err
 
+    def test_fix_removes_phantom_names(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        # __all__ has "Ghost" which doesn't exist in AST — fix should remove it
+        p = _write(tmp_path / "mod.py", '__all__ = ["Foo", "Ghost"]\ndef Foo(): ...\n')
+        _run(["fix", str(p)], capsys)
+        new_source = p.read_text(encoding="utf-8")
+        assert "Ghost" not in new_source
+        assert "Foo" in new_source
+
 
 # ---------------------------------------------------------------------------
 # fix — --dry-run
@@ -217,3 +225,89 @@ class TestCliParser:
         with pytest.raises(SystemExit) as exc_info:
             cli.main()
         assert exc_info.value.code != 0
+
+
+# ---------------------------------------------------------------------------
+# show subcommand
+# ---------------------------------------------------------------------------
+
+
+class TestShowSubcommand:
+    def test_exits_0_on_valid_file(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        p = _write(tmp_path / "mod.py", '__all__ = ["Foo"]\ndef Foo(): ...\n')
+        code = _run(["show", str(p)], capsys)
+        assert code == 0
+
+    def test_exits_2_when_path_does_not_exist(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        code = _run(["show", str(tmp_path / "ghost.py")], capsys)
+        assert code == 2
+
+    def test_tree_output_contains_module_name(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        p = _write(tmp_path / "mymod.py", '__all__ = ["Alpha"]\ndef Alpha(): ...\n')
+        _run(["show", str(p)], capsys)
+        captured = capsys.readouterr()
+        assert "mymod" in captured.out
+
+    def test_tree_output_contains_public_name(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        p = _write(tmp_path / "mymod.py", '__all__ = ["Alpha"]\ndef Alpha(): ...\n')
+        _run(["show", str(p)], capsys)
+        captured = capsys.readouterr()
+        assert "Alpha" in captured.out
+
+    def test_tree_output_respects_all_by_default(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        # __all__ = ["Declared"] but AST also has "Hidden"
+        # Default: __all__ is authoritative — only "Declared" should appear
+        p = _write(tmp_path / "mod.py", '__all__ = ["Declared"]\ndef Declared(): ...\ndef Hidden(): ...\n')
+        _run(["show", str(p)], capsys)
+        captured = capsys.readouterr()
+        assert "Declared" in captured.out
+        assert "Hidden" not in captured.out
+
+    def test_use_ast_ignores_all(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        p = _write(tmp_path / "mod.py", '__all__ = ["Declared"]\ndef Declared(): ...\ndef Hidden(): ...\n')
+        _run(["show", "--use-ast", str(p)], capsys)
+        captured = capsys.readouterr()
+        assert "Declared" in captured.out
+        assert "Hidden" in captured.out
+
+    def test_json_format_valid(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        p = _write(tmp_path / "mod.py", '__all__ = ["Foo"]\ndef Foo(): ...\n')
+        _run(["show", "--format", "json", str(p)], capsys)
+        captured = capsys.readouterr()
+        parsed = json.loads(captured.out)
+        assert isinstance(parsed, list)
+        assert parsed[0]["names"] == ["Foo"]
+
+    def test_json_source_is_all_when_declared(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        p = _write(tmp_path / "mod.py", '__all__ = ["Foo"]\ndef Foo(): ...\n')
+        _run(["show", "--format", "json", str(p)], capsys)
+        captured = capsys.readouterr()
+        parsed = json.loads(captured.out)
+        assert parsed[0]["source"] == "__all__"
+
+    def test_json_source_is_ast_when_use_ast(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        p = _write(tmp_path / "mod.py", '__all__ = ["Foo"]\ndef Foo(): ...\n')
+        _run(["show", "--format", "json", "--use-ast", str(p)], capsys)
+        captured = capsys.readouterr()
+        parsed = json.loads(captured.out)
+        assert parsed[0]["source"] == "ast"
+
+    def test_json_source_is_ast_when_no_all(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        p = _write(tmp_path / "mod.py", "def Foo(): ...\n")
+        _run(["show", "--format", "json", str(p)], capsys)
+        captured = capsys.readouterr()
+        parsed = json.loads(captured.out)
+        assert parsed[0]["source"] == "ast"
+
+    def test_tree_directory_shows_root_header(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        _write(tmp_path / "mod.py", '__all__ = ["Foo"]\ndef Foo(): ...\n')
+        _run(["show", str(tmp_path)], capsys)
+        captured = capsys.readouterr()
+        # First line should be the directory name with trailing slash
+        first_line = captured.out.splitlines()[0]
+        assert first_line == f"{tmp_path.name}/"
+
+    def test_stderr_on_missing_path(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        _run(["show", str(tmp_path / "ghost.py")], capsys)
+        captured = capsys.readouterr()
+        assert "does not exist" in captured.err
