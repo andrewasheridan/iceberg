@@ -3,7 +3,7 @@
 # Prerequisites — register this repo as a trusted publisher on pypi.org:
 #   pypi.org → Account Settings → Publishing → Add a new pending publisher
 #     Owner:      andrewasheridan
-#     Repository: sheridan-iceberg
+#     Repository: iceberg
 #     Workflow:   publish.yaml
 #     Environment: pypi   (must match the `environment:` name on the publish job)
 #

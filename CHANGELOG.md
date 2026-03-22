@@ -62,5 +62,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Resolved all `ruff`, `mypy`, and coverage issues to bring the project to a
   clean passing state on all checks.
 
-[Unreleased]: https://github.com/andrewasheridan/sheridan-iceberg/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/andrewasheridan/sheridan-iceberg/releases/tag/v0.1.0
+[Unreleased]: https://github.com/andrewasheridan/iceberg/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/andrewasheridan/iceberg/releases/tag/v0.1.0

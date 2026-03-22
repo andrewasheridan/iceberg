@@ -21,9 +21,9 @@ classifiers = [
 ]
 
 [project.urls]
-Repository = "https://github.com/andrewasheridan/sheridan-iceberg"
-Issues = "https://github.com/andrewasheridan/sheridan-iceberg/issues"
-Changelog = "https://github.com/andrewasheridan/sheridan-iceberg/blob/main/CHANGELOG.md"
+Repository = "https://github.com/andrewasheridan/iceberg"
+Issues = "https://github.com/andrewasheridan/iceberg/issues"
+Changelog = "https://github.com/andrewasheridan/iceberg/blob/main/CHANGELOG.md"
 
 dependencies = []
 
