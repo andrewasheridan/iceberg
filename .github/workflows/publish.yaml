@@ -8,11 +8,17 @@
 #     Environment: pypi   (must match the `environment:` name on the publish job)
 #
 # Once registered, PyPI trusts GitHub's OIDC token — no API token secrets needed.
+#
+# Triggered by tag-on-merge.yaml pushing a v* tag. Using push.tags (not
+# workflow_call) so GitHub issues a first-party OIDC token — workflow_call
+# produces a reusable-workflow token that PyPI's trusted publisher rejects.
 
 name: Publish
 
 on:
-  workflow_call:   # Called directly from tag-on-merge.yaml
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:  # Allows manual re-runs via gh CLI or UI
 
 jobs:
