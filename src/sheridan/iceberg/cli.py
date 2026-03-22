@@ -1,6 +1,6 @@
 """Command-line interface for sheridan-iceberg."""
 
-__all__: list[str] = []
+__all__ = ["main"]
 
 import argparse
 import json
