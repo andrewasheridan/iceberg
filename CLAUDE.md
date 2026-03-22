@@ -71,7 +71,7 @@ These apply across all `sheridan.*` repos. Do not deviate without good reason.
 | `pre-commit` | Local hooks: ruff, mypy, iceberg before push |
 | `commitizen` | Enforces conventional commits (`feat:`, `fix:`, `chore:`) |
 | `Taskfile.yaml` | Task runner. Never use `make`. Use `task <name>` |
-| `MkDocs` + Material + MkDocstrings | Documentation site |
+| `Zensical` + MkDocstrings | Documentation site |
 | `CLAUDE.md` | Repo-specific context for Claude Code sessions |
 | Devcontainer config | One-command dev environment |
 | ADRs in `/docs/decisions/` | Architecture Decision Records — document the *why* |
@@ -103,7 +103,7 @@ GitHub Actions runs the same pipeline via `dagger/dagger-action@v3` (Docker defa
 | Type check | mypy --strict | Every push |
 | Tests + coverage | pytest --cov (90% min) | Every push |
 | Security lint | bandit | Every push |
-| Doc generation | mkdocs build | Every push |
+| Doc generation | zensical build | Every push |
 | Iceberg self-check | iceberg check src/ | Every push |
 | Mutation testing | deferred — see ADR 0017 | N/A |
 | Dependency updates | Renovate | Automated PRs |
@@ -127,8 +127,8 @@ Read-only / check variants are namespaced with a colon (`lint:check`, `format:ch
 | `task check` | `lint:check` + `format:check` + `typecheck` + `test` + `iceberg` |
 | `task ci-init` | `dagger develop` (run once after clone) |
 | `task ci` | `dagger call check --source=.` |
-| `task docs` | `uv run mkdocs build` |
-| `task docs-serve` | `uv run mkdocs serve` |
+| `task docs` | `uv run zensical build` |
+| `task docs-serve` | `uv run zensical serve` |
 
 ## Agent architecture
 
@@ -192,6 +192,7 @@ sheridan-iceberg/
 ├── Taskfile.yaml
 ├── dagger.json
 ├── pyproject.toml
+├── zensical.toml
 ├── .pre-commit-config.yaml
 ├── .pre-commit-hooks.yaml
 ├── .github/
