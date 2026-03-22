@@ -12,9 +12,8 @@
 name: Publish
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  workflow_call:   # Called directly from tag-on-merge.yaml
+  workflow_dispatch:  # Allows manual re-runs via gh CLI or UI
 
 jobs:
   build:
