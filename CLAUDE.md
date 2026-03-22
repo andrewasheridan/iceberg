@@ -84,7 +84,17 @@ are incompatible with Python 3.14. Revisit when mutmut ships a fix for
 https://github.com/boxed/mutmut/issues/466.
 
 ## CI pipeline
-All checks run in parallel. Each check runs in its own container.
+All checks run in parallel inside containers via [Dagger](https://dagger.io) (ADR 0018).
+Podman is the default local runtime; Docker is supported via `CONTAINER_RUNTIME=docker`.
+
+```bash
+podman machine start  # macOS — start runtime once
+task ci-init          # first-time setup: generates ci/sdk/ (run once after clone)
+task ci               # run full pipeline locally
+CONTAINER_RUNTIME=docker task ci  # use Docker instead
+```
+
+GitHub Actions runs the same pipeline via `dagger/dagger-action@v3` (Docker default on runners).
 
 | Check | Tool | Gate |
 |---|---|---|
@@ -94,21 +104,29 @@ All checks run in parallel. Each check runs in its own container.
 | Tests + coverage | pytest --cov (90% min) | Every push |
 | Security lint | bandit | Every push |
 | Doc generation | mkdocs build | Every push |
+| Iceberg self-check | iceberg check src/ | Every push |
 | Mutation testing | deferred — see ADR 0017 | N/A |
 | Dependency updates | Renovate | Automated PRs |
 | Secret scanning | GitHub native | Always on |
 
 ## Standard Taskfile tasks
-Every `sheridan.*` repo should expose these tasks:
+Every `sheridan.*` repo should expose these tasks.
+Tasks that mutate files use bare names (`lint`, `format`).
+Read-only / check variants are namespaced with a colon (`lint:check`, `format:check`).
 
 | Task | Command |
 |---|---|
 | `task install` | `uv sync --all-extras --dev` |
-| `task lint` | `uv run ruff check .` |
+| `task lint` | `uv run ruff check --fix .` |
+| `task lint:check` | `uv run ruff check .` (read-only) |
 | `task format` | `uv run ruff format .` |
+| `task format:check` | `uv run ruff format --check .` (read-only) |
 | `task typecheck` | `uv run mypy --strict .` |
 | `task test` | `uv run pytest --cov` |
-| `task check` | lint + format + typecheck + test (all gates) |
+| `task iceberg` | `uv run iceberg check src/` (dogfood self-check) |
+| `task check` | `lint:check` + `format:check` + `typecheck` + `test` + `iceberg` |
+| `task ci-init` | `dagger develop` (run once after clone) |
+| `task ci` | `dagger call check --source=.` |
 | `task docs` | `uv run mkdocs build` |
 | `task docs-serve` | `uv run mkdocs serve` |
 
@@ -172,9 +190,13 @@ sheridan-iceberg/
 ├── LICENSE
 ├── README.md
 ├── Taskfile.yaml
+├── dagger.json
 ├── pyproject.toml
 ├── .pre-commit-config.yaml
 ├── .pre-commit-hooks.yaml
+├── .github/
+│   └── workflows/
+│       └── ci.yml
 ├── .claude/
 │   └── agents/
 │       ├── code-writer.md
@@ -188,6 +210,10 @@ sheridan-iceberg/
 │       ├── adr-writer.md
 │       ├── changelog-writer.md
 │       └── dependency-auditor.md
+├── ci/
+│   ├── pyproject.toml
+│   └── src/main/
+│       └── __init__.py   # Dagger pipeline (SheridanIcebergCi)
 ├── docs/
 │   └── decisions/
 ├── src/
@@ -208,5 +234,7 @@ sheridan-iceberg/
 - `__all__` is authoritative; AST inference is the fallback
 - `iceberg` has no git awareness — that belongs to `diffract`
 - Task runner: `task` (Taskfile.yaml) — never `make` or `just`
+- Task naming: mutating tasks use bare names (`lint`, `format`); read-only variants use colon namespacing (`lint:check`, `format:check`)
+- CI engine: Dagger with Podman default, Docker optional via `CONTAINER_RUNTIME=docker` (ADR 0018)
 - Agents are curated, not generated — missing agent = stop with error
 - Agent conventions come from CLAUDE.md, not from agent system prompts

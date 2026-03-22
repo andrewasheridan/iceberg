@@ -12,6 +12,7 @@ repos:
       - id: mypy
         args: [--strict]
         additional_dependencies: [click>=8.0]
+        exclude: ^ci/
 
   - repo: local
     hooks:

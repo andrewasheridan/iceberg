@@ -113,14 +113,40 @@ repos:
 # Install dependencies
 task install
 
-# Run all checks
+# Run all checks (lint, format, typecheck, test, iceberg)
 task check
+
+# Run individual checks
+task lint:check   # ruff — read-only
+task lint         # ruff — autofix
+task format:check # formatter — read-only
+task format       # formatter — write
+task typecheck    # mypy --strict
+task test         # pytest --cov
+task iceberg      # dogfood: run iceberg on itself
 
 # Run tests
 task test
 
 # Build docs
 task docs-serve
+```
+
+### CI pipeline (Dagger)
+
+The full CI pipeline runs each gate in its own container via [Dagger](https://dagger.io).
+Podman is the default runtime; Docker is supported via `CONTAINER_RUNTIME=docker`.
+
+```bash
+# First-time setup (generates ci/sdk/ — run once after clone)
+podman machine start   # macOS only
+task ci-init
+
+# Run the full CI pipeline locally
+task ci
+
+# Use Docker instead
+CONTAINER_RUNTIME=docker task ci
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
