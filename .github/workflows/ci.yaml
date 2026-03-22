@@ -12,9 +12,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Restore Dagger engine cache
+        id: cache-dagger
+        uses: actions/cache@v4
+        with:
+          path: /tmp/dagger-engine.tar
+          key: dagger-engine-v0.20.3
+
+      - name: Load Dagger engine image
+        if: steps.cache-dagger.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/dagger-engine.tar
+
       - name: Run CI pipeline
         uses: dagger/dagger-action@v3
         with:
           version: "0.20.3"
           cmds: |
             call check --source=.
+
+      - name: Save Dagger engine image
+        if: steps.cache-dagger.outputs.cache-hit != 'true'
+        run: docker save registry.dagger.io/engine:v0.20.3 -o /tmp/dagger-engine.tar
