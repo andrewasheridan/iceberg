@@ -19,13 +19,12 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Quality Assurance",
 ]
+dependencies = []
 
 [project.urls]
 Repository = "https://github.com/andrewasheridan/iceberg"
 Issues = "https://github.com/andrewasheridan/iceberg/issues"
 Changelog = "https://github.com/andrewasheridan/iceberg/blob/main/CHANGELOG.md"
-
-dependencies = []
 
 [project.optional-dependencies]
 dev = [
