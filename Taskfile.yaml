@@ -100,14 +100,14 @@ tasks:
       - dagger call check --source=.
 
   docs:
-    desc: Build MkDocs documentation
+    desc: Build Zensical documentation
     cmds:
-      - uv run mkdocs build
+      - uv run zensical build
 
   docs-serve:
-    desc: Serve MkDocs documentation locally
+    desc: Serve Zensical documentation locally
     cmds:
-      - uv run mkdocs serve
+      - uv run zensical serve
 
   clean:
     desc: Remove build artifacts
