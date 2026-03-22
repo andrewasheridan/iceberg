@@ -15,8 +15,10 @@ that waterline by making `__all__` explicit and correct in every module.
 2. For each module, determine the public API surface:
    - Use `__all__` if present (authoritative)
    - Fall back to inferring non-underscore top-level names if absent
-3. Report missing, incorrect, or unsorted `__all__` declarations
-4. Optionally auto-fix by writing the correct `__all__` to each module
+   - Optionally bypass `__all__` and always use the AST (`--use-ast`)
+3. **Report** the public API surface per module (`show` command — primary)
+4. **Check** `__all__` against the AST — report names that appear public but are absent from `__all__` (IB002, one-directional), unsorted `__all__` (IB003), and optionally missing `__all__` (IB001) (`check` command — secondary)
+5. **Fix** `__all__` in place, fully synchronising it with the AST in both directions (`fix` command — secondary)
 
 ## Relationship to sheridan-diffract
 `iceberg` is a dependency of `sheridan-diffract`, a sibling tool that diffs the
@@ -37,6 +39,8 @@ family follow the same conventions:
 - `__all__` is the authoritative source of public API when present
 - Fall back to AST inference (non-underscore top-level names) when absent
 - Output should be machine-readable (JSON) and human-readable (text)
+- **`show` is the primary command**: `iceberg show` reports the effective public API. `check` and `fix` are secondary enforcement and repair tools. (ADR 0019)
+- **IB002 is one-directional**: IB002 reports names the AST considers public that are absent from `__all__`. Phantom exports (in `__all__` but not in AST) are not flagged by `check` — `fix` removes them. (ADR 0020)
 - Must work as a pre-commit hook, a CLI tool, and optionally a GitHub Action
 - **CLI is a thin shell**: `cli.py` handles argument parsing, output formatting,
   and exit codes only. All reusable logic lives in library modules and is
@@ -169,7 +173,8 @@ Read-only / check variants are namespaced with a colon (`lint:check`, `format:ch
 2. `docstring-writer` — document
 3. `type-annotator` — annotate (if not already done by code-writer)
 4. `test-writer` — test
-5. `reviewer` — advisory review
+5. `reviewer` — advisory review, including flagging whether README or CLAUDE.md need updating
+6. Update README.md and CLAUDE.md in the main session if APIs, CLI flags, or conventions changed
 
 **Architectural decision:**
 1. Make the decision in the main session
@@ -181,6 +186,10 @@ Read-only / check variants are namespaced with a colon (`lint:check`, `format:ch
 
 **Releasing:**
 1. `changelog-writer` — draft changelog from commits
+
+**After any user-facing change:**
+1. `reviewer` — advisory review
+2. Update README.md and CLAUDE.md in the main session if needed
 
 ## Project structure (intended)
 ```
@@ -238,3 +247,5 @@ sheridan-iceberg/
 - CI engine: Dagger with Podman default, Docker optional via `CONTAINER_RUNTIME=docker` (ADR 0018)
 - Agents are curated, not generated — missing agent = stop with error
 - Agent conventions come from CLAUDE.md, not from agent system prompts
+- `show` is the primary command — API reporting first, enforcement second (ADR 0019)
+- IB002 is one-directional: AST→`__all__` only; `fix` uses full bidirectional comparison (ADR 0020)

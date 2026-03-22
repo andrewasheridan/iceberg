@@ -1,7 +1,7 @@
 """Tests for sheridan.iceberg public API surface (__init__.py)."""
 
 import sheridan.iceberg as iceberg
-from sheridan.iceberg import Issue, IssueKind, ModuleInfo, fix_module, report, walk_module, walk_path
+from sheridan.iceberg import Issue, IssueKind, ModuleInfo, fix_module, fix_needed, report, walk_module, walk_path
 
 
 class TestPublicApi:
@@ -21,6 +21,9 @@ class TestPublicApi:
     def test_fix_module_is_exported(self) -> None:
         assert fix_module is iceberg.fix_module
 
+    def test_fix_needed_is_exported(self) -> None:
+        assert fix_needed is iceberg.fix_needed
+
     def test_report_is_exported(self) -> None:
         assert report is iceberg.report
 
@@ -38,6 +41,7 @@ class TestPublicApi:
             "check_modules",
             "fix_module",
             "fix_modules",
+            "fix_needed",
             "load_modules",
             "report",
             "walk_module",

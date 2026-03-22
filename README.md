@@ -14,12 +14,12 @@ no importing of user code.
 
 ## Features
 
+- **`show`** — inspect and report the effective public API of any module or project; uses `__all__` when present, falls back to AST inference; `--use-ast` forces AST-only regardless of `__all__`
+- **`check`** — enforce `__all__` correctness; IB002 is one-directional (names that appear public in the AST but are absent from `__all__`), so deliberate re-exports are never flagged as phantom names
+- **`fix`** — auto-repair `__all__` in place; uses full bidirectional comparison, removing phantom exports as well as adding missing ones
 - Walks a Python project's modules via AST (safe, no imports)
-- Uses `__all__` as the authoritative public API surface when present
-- Falls back to inferring non-underscore top-level names when absent
-- Reports missing, incorrect, or unsorted `__all__` declarations
-- Optionally auto-fixes `__all__` in place
-- Machine-readable JSON output and human-readable text output
+- Uses `__all__` as the authoritative public API surface when present; falls back to inferring non-underscore top-level names when absent
+- Machine-readable JSON output and human-readable text/tree output
 - Works as a pre-commit hook, CLI tool, or GitHub Action
 
 ## Installation
@@ -31,17 +31,26 @@ pip install sheridan-iceberg
 ## Usage
 
 ```bash
-# Check a project
+# Report the public API of a project
+iceberg show src/
+
+# Show as JSON (machine-readable)
+iceberg show src/ --format json
+
+# Ignore __all__ entirely — always use AST inference
+iceberg show src/ --use-ast
+
+# Check __all__ declarations against the AST
 iceberg check src/
 
-# Auto-fix __all__ declarations
-iceberg fix src/
+# Suppress IB001 (missing __all__) — only report IB002 and IB003
+iceberg check src/ --ignore-missing
 
-# JSON output
+# Check with JSON output
 iceberg check src/ --format json
 
-# Ignore modules that are missing __all__ entirely
-iceberg check src/ --ignore-missing
+# Auto-fix __all__ declarations (bidirectional — also removes phantom exports)
+iceberg fix src/
 
 # Preview what fix would change without writing
 iceberg fix src/ --dry-run
@@ -49,15 +58,62 @@ iceberg fix src/ --dry-run
 
 ### Example output
 
+`iceberg show` produces an indented tree by default:
+
+```
+# iceberg show src/mypackage/
+
+mypackage/
+  __init__
+    Role
+    User
+    helper
+  core
+    Alpha
+    Beta
+    Gamma
+  utils
+    helper
+    parse
+```
+
+`iceberg check` reports violations:
+
 ```
 src/mypackage/utils.py: IB001 missing __all__ (expected ['helper', 'parse'])
-src/mypackage/models.py: IB002 incorrect __all__ (declared ['User'], expected ['Role', 'User'])
+src/mypackage/models.py: IB002 names appear public but missing from __all__: ['Role']
 src/mypackage/core.py: IB003 __all__ is not sorted (expected ['Alpha', 'Beta', 'Gamma'])
 ```
 
-Exit codes: `0` — no issues, `1` — issues found, `2` — path does not exist.
+Exit codes:
+- `show`: `0` always (path existence aside)
+- `check`: `0` no issues, `1` issues found, `2` path not found
+- `fix`: `0` success, `2` path not found
 
 ### JSON output
+
+`iceberg show --format json`:
+
+```json
+[
+  {
+    "module": "mypackage.utils",
+    "path": "src/mypackage/utils.py",
+    "source": "ast",
+    "names": ["helper", "parse"]
+  },
+  {
+    "module": "mypackage.models",
+    "path": "src/mypackage/models.py",
+    "source": "__all__",
+    "names": ["Role", "User"]
+  }
+]
+```
+
+The `source` field is `"__all__"` when the module has an `__all__` (and `--use-ast` is not set), `"ast"` otherwise.
+
+`iceberg check --format json`:
 
 ```json
 [

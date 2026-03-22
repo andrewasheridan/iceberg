@@ -13,6 +13,7 @@ Focus areas (in priority order):
 3. Type safety — places where mypy might pass but runtime behavior is wrong
 4. Clarity — confusing names, misleading comments, unintuitive control flow
 5. Efficiency — obvious O(n²) in O(n) clothing, redundant passes
+6. Documentation accuracy — if any CLI flags, commands, behaviors, or public API surface changed, flag whether README.md or CLAUDE.md need updating
 
 Format your review as a bulleted list grouped by file. For each item:
 - State the file and approximate line range

@@ -3,6 +3,7 @@
 __all__ = [
     "fix_module",
     "fix_modules",
+    "fix_needed",
 ]
 
 import ast
@@ -10,7 +11,7 @@ import re
 from pathlib import Path
 
 from sheridan.iceberg.ast_walker import ModuleInfo
-from sheridan.iceberg.reporter import Issue
+from sheridan.iceberg.reporter import Issue, IssueKind
 
 _ALL_PATTERN = re.compile(
     r"^__all__\s*=\s*[\[\(].*?[\]\)]",
@@ -153,3 +154,32 @@ def fix_modules(modules: list[ModuleInfo], issues: list[Issue]) -> list[Path]:
         if fix_module(info, issue.expected):
             fixed.append(issue.path)
     return fixed
+
+
+def fix_needed(modules: list[ModuleInfo]) -> list[Issue]:
+    """Return issues for all modules where ``__all__`` needs updating.
+
+    Uses full bidirectional comparison: any module where ``declared_all``
+    differs from ``sorted(inferred_all)`` needs fixing.  This includes both
+    modules missing ``__all__`` entirely and modules whose ``__all__`` contains
+    phantom names (present in ``__all__`` but absent from the AST).
+
+    Unlike :func:`~sheridan.iceberg.reporter.check_modules`, which only reports
+    names the AST considers public that are absent from ``__all__``, this
+    function is used by the ``fix`` command to ensure ``__all__`` is fully
+    synchronised with the AST in both directions.
+
+    Args:
+        modules: Parsed module information.
+
+    Returns:
+        List of :class:`~sheridan.iceberg.reporter.Issue` objects for modules
+        that need their ``__all__`` rewritten.
+    """
+    targets: list[Issue] = []
+    for info in modules:
+        correct = sorted(info.inferred_all)
+        if info.declared_all != correct:
+            kind = IssueKind.MISSING if info.declared_all is None else IssueKind.INCORRECT
+            targets.append(Issue(path=info.path, kind=kind, declared=info.declared_all, expected=correct))
+    return targets
