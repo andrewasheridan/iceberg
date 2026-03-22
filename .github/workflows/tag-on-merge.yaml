@@ -38,5 +38,6 @@ jobs:
         env:
           VERSION: ${{ steps.extract.outputs.version }}
         run: |
+          git remote set-url origin "https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/${{ github.repository }}.git"
           git tag -a "v$VERSION" "${{ github.event.pull_request.merge_commit_sha }}" -m "Version $VERSION"
           git push origin "v$VERSION"
