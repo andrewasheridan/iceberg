@@ -1,0 +1,73 @@
+name: Bump version
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  bump:
+    name: Commitizen bump
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check for bump commit (infinite loop guard)
+        id: guard
+        env:
+          HEAD_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          if [[ "$HEAD_MSG" == bump:* ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.skip == 'false'
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.14
+        if: steps.guard.outputs.skip == 'false'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Set up uv
+        if: steps.guard.outputs.skip == 'false'
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        if: steps.guard.outputs.skip == 'false'
+        run: uv sync --all-extras --dev
+
+      - name: Configure git identity
+        if: steps.guard.outputs.skip == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version
+        if: steps.guard.outputs.skip == 'false'
+        id: bump
+        run: |
+          set +e
+          uv run cz bump --yes
+          code=$?
+          set -e
+          if [[ $code -eq 0 ]]; then
+            echo "bumped=true" >> "$GITHUB_OUTPUT"
+          elif [[ $code -eq 21 ]]; then
+            echo "No releasable commits — nothing to bump."
+            echo "bumped=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "cz bump failed with exit code $code."
+            exit $code
+          fi
+        env:
+          FORCE_COLOR: "1"
+
+      - name: Push bump commit and tag
+        if: steps.guard.outputs.skip == 'false' && steps.bump.outputs.bumped == 'true'
+        run: git push --follow-tags origin main

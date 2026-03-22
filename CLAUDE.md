@@ -61,6 +61,7 @@ and should not restate them in their own system prompts.
 - **Tests**: `pytest`. Written after implementation. 90% coverage minimum.
 - **Imports**: Absolute imports only. No relative imports.
 - **Dependencies**: Propose before adding. Run past `dependency-auditor` agent.
+- **YAML files**: Always use the `.yaml` extension. Never `.yml`.
 
 ## Tooling conventions
 These apply across all `sheridan.*` repos. Do not deviate without good reason.
@@ -81,6 +82,7 @@ These apply across all `sheridan.*` repos. Do not deviate without good reason.
 | ADRs in `/docs/decisions/` | Architecture Decision Records — document the *why* |
 | `CONTRIBUTING.md` + MIT LICENSE | Standard open source hygiene |
 | README badge wall | CI status, coverage %, mutation score, license |
+| `.yaml` extension | All YAML files use `.yaml`, never `.yml` (ADR 0021) |
 
 ## Mutation testing strategy
 Mutation testing is currently deferred — see ADR 0017. Both mutmut 2.x and 3.x
@@ -110,6 +112,7 @@ GitHub Actions runs the same pipeline via `dagger/dagger-action@v3` (Docker defa
 | Doc generation | zensical build | Every push |
 | Iceberg self-check | iceberg check src/ | Every push |
 | Mutation testing | deferred — see ADR 0017 | N/A |
+| PR title lint | amannn/action-semantic-pull-request (ADR 0022) | Every PR |
 | Dependency updates | Renovate | Automated PRs |
 | Secret scanning | GitHub native | Always on |
 
@@ -207,7 +210,10 @@ sheridan-iceberg/
 ├── .pre-commit-hooks.yaml
 ├── .github/
 │   └── workflows/
-│       └── ci.yml
+│       ├── ci.yaml
+│       ├── bump.yaml
+│       ├── publish.yaml
+│       └── pr-title.yaml
 ├── .claude/
 │   └── agents/
 │       ├── code-writer.md
