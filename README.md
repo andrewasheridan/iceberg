@@ -1,8 +1,9 @@
 # sheridan-iceberg
 
-[![CI](https://github.com/sheridan/sheridan-iceberg/actions/workflows/ci.yml/badge.svg)](https://github.com/sheridan/sheridan-iceberg/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen)](https://github.com/sheridan/sheridan-iceberg)
-[![Mutation Score](https://img.shields.io/badge/mutation-tracked-blue)](https://github.com/sheridan/sheridan-iceberg)
+[![CI](https://github.com/andrewasheridan/sheridan-iceberg/actions/workflows/ci.yaml/badge.svg)](https://github.com/andrewasheridan/sheridan-iceberg/actions/workflows/ci.yaml)
+[![PyPI](https://img.shields.io/pypi/v/sheridan-iceberg)](https://pypi.org/project/sheridan-iceberg/)
+[![Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen)](https://github.com/andrewasheridan/sheridan-iceberg)
+[![Mutation Score](https://img.shields.io/badge/mutation-tracked-blue)](https://github.com/andrewasheridan/sheridan-iceberg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
 
