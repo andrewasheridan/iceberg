@@ -49,11 +49,6 @@ tasks:
       - task: typecheck
       - task: test
 
-  mutmut:
-    desc: Run incremental mutation testing
-    cmds:
-      - uv run python -m mutmut run
-
   docs:
     desc: Build MkDocs documentation
     cmds:
