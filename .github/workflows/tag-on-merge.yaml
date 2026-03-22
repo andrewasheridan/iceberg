@@ -1,0 +1,42 @@
+# When a version-bump PR is squash-merged into main, create an annotated tag on
+# the merge commit and push it — that tag push triggers publish.yaml.
+
+name: Tag on merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  tag-merge-commit:
+    name: Tag merge commit
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'chore/version-bump-')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Extract version from branch name
+        id: extract
+        run: |
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          VERSION="${BRANCH#chore/version-bump-}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        env:
+          VERSION: ${{ steps.extract.outputs.version }}
+        run: |
+          git tag -a "v$VERSION" "${{ github.event.pull_request.merge_commit_sha }}" -m "Version $VERSION"
+          git push origin "v$VERSION"
