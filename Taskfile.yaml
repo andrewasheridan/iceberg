@@ -104,12 +104,12 @@ tasks:
     cmds:
       - dagger call check --source=.
 
-  docs:
+  docs:build:
     desc: Build Zensical documentation
     cmds:
       - uv run zensical build
 
-  docs-serve:
+  docs:serve:
     desc: Serve Zensical documentation locally
     cmds:
       - uv run zensical serve
