@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-03-22
+
+### Added
+
+- First stable release. The `sheridan.iceberg` public API is considered stable
+  and ready for production use. Downstream tools (including `sheridan-diffract`)
+  can now take a stable dependency on this package.
+
+### Fixed
+
+- Dagger engine image is now cached between CI runs, eliminating redundant
+  image pulls and unblocking the full automated release pipeline. The
+  tag-on-merge and publish-to-PyPI chain now operates end-to-end without manual
+  intervention.
+
+## [0.3.0] - 2026-03-22
+
+### Fixed
+
+- Resolved a race condition in the docs workflow that caused duplicate
+  `github-pages` artifacts to be uploaded when multiple jobs completed at the
+  same time.
+
+## [0.2.0] - 2026-03-22
+
+### Added
+
+- Package is now published to PyPI. `pyproject.toml` was hardened with
+  classifiers, project URLs, and a `[project.scripts]` entry point. The build
+  backend was switched to Hatchling and a Trusted Publishing configuration was
+  added so releases are signed and published from CI without stored secrets.
+- CI pipeline now enforces branch protection and uses auto-merge for version
+  bump PRs. Documentation is automatically built and deployed to GitHub Pages on
+  every merge to `main`.
+
+### Changed
+
+- `sheridan.iceberg` public API surface was refined: modules, classes, and
+  functions exported from the package were reviewed and aligned with the
+  intended programmatic interface documented in the API reference.
+
+### Fixed
+
+- `mkdocstrings[python]` is now explicitly installed in the docs workflow,
+  resolving a build failure that prevented the documentation site from being
+  generated in CI.
+
 ## [0.1.0] - 2026-03-22
 
 ### Added
@@ -62,5 +109,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Resolved all `ruff`, `mypy`, and coverage issues to bring the project to a
   clean passing state on all checks.
 
-[Unreleased]: https://github.com/andrewasheridan/iceberg/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/andrewasheridan/iceberg/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/andrewasheridan/iceberg/compare/v0.3.0...v1.0.0
+[0.3.0]: https://github.com/andrewasheridan/iceberg/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/andrewasheridan/iceberg/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/andrewasheridan/iceberg/releases/tag/v0.1.0
