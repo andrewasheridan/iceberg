@@ -14,7 +14,7 @@ from sheridan.iceberg.ast_walker import ModuleInfo
 from sheridan.iceberg.reporter import Issue, IssueKind
 
 _ALL_PATTERN = re.compile(
-    r"^__all__\s*=\s*[\[\(].*?[\]\)]",
+    r"^__all__\s*=\s*[\[(].*?[])]",
     re.MULTILINE | re.DOTALL,
 )
 
