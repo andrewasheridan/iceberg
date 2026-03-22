@@ -8,7 +8,7 @@ __all__ = [
 
 from pathlib import Path
 
-from sheridan.iceberg.ast_walker import load_modules, resolve_show_modules
+from sheridan.iceberg.ast_walker import base_for, load_modules, module_id, resolve_show_modules
 from sheridan.iceberg.fixer import fix_modules, fix_needed
 from sheridan.iceberg.reporter import IssueKind, check_modules
 
@@ -34,17 +34,10 @@ def get_public_api(
     """
     p = Path(path)
     modules = resolve_show_modules(load_modules(p), use_ast)
-    base = p if p.is_dir() else p.parent
+    base = base_for(p)
     result: dict[str, list[str]] = {}
     for info in modules:
-        try:
-            rel = info.path.relative_to(base)
-            module_id = str(rel).removesuffix(".py").replace("/", ".")
-            if module_id.endswith(".__init__"):
-                module_id = module_id[: -len(".__init__")]
-        except ValueError:
-            module_id = str(info.path)
-        result[module_id] = info.inferred_all if use_ast else info.effective_all
+        result[module_id(info.path, base)] = info.inferred_all if use_ast else info.effective_all
     return result
 
 

@@ -63,7 +63,8 @@ class Issue:
         """Serialize to a JSON-compatible dictionary.
 
         Returns:
-            Dictionary with ``code``, ``path``, ``kind``, ``declared``, and ``expected``.
+            Dictionary with ``code``, ``path``, ``kind``, ``declared``,
+            ``expected``, and ``message`` keys.
         """
         return {
             "code": self.kind.code,
@@ -71,6 +72,7 @@ class Issue:
             "kind": self.kind.value,
             "declared": self.declared,
             "expected": self.expected,
+            "message": self.to_text(),
         }
 
     def to_text(self) -> str:

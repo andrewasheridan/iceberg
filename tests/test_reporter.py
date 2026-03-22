@@ -38,6 +38,7 @@ class TestIssueToDictAndToText:
         assert d["declared"] is None
         assert d["expected"] == ["Foo"]
         assert d["path"] == str(tmp_path / "mod.py")
+        assert "message" in d
 
     def test_to_dict_incorrect(self, tmp_path: Path) -> None:
         issue = Issue(

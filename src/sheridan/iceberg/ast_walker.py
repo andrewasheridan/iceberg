@@ -2,7 +2,9 @@
 
 __all__ = [
     "ModuleInfo",
+    "base_for",
     "load_modules",
+    "module_id",
     "resolve_show_modules",
     "walk_module",
     "walk_path",
@@ -169,6 +171,44 @@ def walk_module(path: Path) -> ModuleInfo:
     declared = _extract_declared_all(tree)
     inferred = _infer_public_names(tree, is_init=path.name == "__init__.py")
     return ModuleInfo(path=path, declared_all=declared, inferred_all=inferred)
+
+
+def base_for(path: Path) -> Path:
+    """Return the base directory for computing relative module paths.
+
+    Args:
+        path: A file or directory path supplied as the root of a walk.
+
+    Returns:
+        ``path`` itself when it is a directory, otherwise its parent.
+    """
+    return path if path.is_dir() else path.parent
+
+
+def module_id(path: Path, base: Path) -> str:
+    """Convert a module file path to a dotted module identifier.
+
+    Strips the ``.py`` suffix, replaces path separators with dots, and
+    collapses ``.__init__`` suffixes so that package init files are
+    identified by their package name rather than ``pkg.__init__``.
+
+    Args:
+        path: Absolute path to the ``.py`` file.
+        base: Root directory used as the anchor for relative path computation.
+
+    Returns:
+        Dotted module identifier, e.g. ``"sheridan.iceberg"`` for
+        ``src/sheridan/iceberg/__init__.py`` with ``base=src/``.
+        Falls back to ``str(path)`` if ``path`` is not relative to ``base``.
+    """
+    try:
+        rel = path.relative_to(base)
+        mid = str(rel).removesuffix(".py").replace("/", ".")
+        if mid.endswith(".__init__"):
+            mid = mid[: -len(".__init__")]
+        return mid
+    except ValueError:
+        return str(path)
 
 
 def resolve_show_modules(modules: list[ModuleInfo], use_ast: bool = False) -> list[ModuleInfo]:
