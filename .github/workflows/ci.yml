@@ -15,5 +15,6 @@ jobs:
       - name: Run CI pipeline
         uses: dagger/dagger-action@v3
         with:
-          verb: call
-          args: check --source=.
+          version: "0.20.3"
+          cmds: |
+            call check --source=.
