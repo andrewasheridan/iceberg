@@ -30,6 +30,7 @@ mutmut-results.json
 
 # Documentation
 site/
+docs/index.md
 
 # IDE
 .idea/

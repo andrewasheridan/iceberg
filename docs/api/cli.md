@@ -1,3 +1,0 @@
-# cli
-
-::: sheridan.iceberg.cli

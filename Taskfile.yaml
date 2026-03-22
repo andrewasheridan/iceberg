@@ -107,11 +107,13 @@ tasks:
   docs:build:
     desc: Build Zensical documentation
     cmds:
+      - cp README.md docs/index.md
       - uv run zensical build
 
   docs:serve:
     desc: Serve Zensical documentation locally
     cmds:
+      - cp README.md docs/index.md
       - uv run zensical serve
 
   clean:
