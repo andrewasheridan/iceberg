@@ -1,5 +1,5 @@
 # When a version-bump PR is squash-merged into main, create an annotated tag on
-# the merge commit and push it — that tag push triggers publish.yaml.
+# the merge commit and call publish.yaml directly via workflow_call.
 
 name: Tag on merge
 
@@ -41,3 +41,11 @@ jobs:
           git remote set-url origin "https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/${{ github.repository }}.git"
           git tag -a "v$VERSION" "${{ github.event.pull_request.merge_commit_sha }}" -m "Version $VERSION"
           git push origin "v$VERSION"
+
+  publish:
+    name: Publish to PyPI
+    needs: tag-merge-commit
+    uses: ./.github/workflows/publish.yaml
+    permissions:
+      contents: read
+      id-token: write
