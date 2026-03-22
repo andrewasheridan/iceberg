@@ -1,3 +1,0 @@
-# fixer
-
-::: sheridan.iceberg.fixer

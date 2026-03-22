@@ -154,6 +154,7 @@ Read-only / check variants are namespaced with a colon (`lint:check`, `format:ch
 
 | Agent | File | Role |
 |---|---|---|
+| `orchestrator` | `.claude/agents/orchestrator.md` | **Default agent.** Routes tasks to specialist subagents and loops until complete |
 | `code-writer` | `.claude/agents/code-writer.md` | Writes implementation code from a spec or description |
 | `test-writer` | `.claude/agents/test-writer.md` | Writes pytest tests for existing implementation |
 | `docstring-writer` | `.claude/agents/docstring-writer.md` | Adds or fixes Google-style docstrings |

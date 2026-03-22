@@ -57,21 +57,26 @@ tasks:
   test:
     desc: Run pytest with coverage
     cmds:
-      - uv run pytest --cov
+      - uv run pytest --cov {{.CLI_ARGS}}
 
-  iceberg:
-    desc: Run iceberg on itself (dogfooding)
+  iceberg:check:
+    desc: Run iceberg check on itself (dogfooding)
     cmds:
-      - uv run iceberg check src/
+      - uv run iceberg check src/ {{.CLI_ARGS}}
+
+  iceberg:show:
+    desc: Show iceberg's own public API surface
+    cmds:
+      - uv run iceberg show src/ {{.CLI_ARGS}}
 
   check:
-    desc: Run all gates (lint:check, format:check, typecheck, test, iceberg)
+    desc: Run all gates (lint:check, format:check, typecheck, test, iceberg:check)
     cmds:
       - task: lint:check
       - task: format:check
       - task: typecheck
       - task: test
-      - task: iceberg
+      - task: iceberg:check
 
   ci-init:
     desc: Initialise the Dagger module (run once; generates ci/sdk/ and pins engineVersion)
@@ -99,14 +104,16 @@ tasks:
     cmds:
       - dagger call check --source=.
 
-  docs:
+  docs:build:
     desc: Build Zensical documentation
     cmds:
+      - cp README.md docs/index.md
       - uv run zensical build
 
-  docs-serve:
+  docs:serve:
     desc: Serve Zensical documentation locally
     cmds:
+      - cp README.md docs/index.md
       - uv run zensical serve
 
   clean:

@@ -1,7 +1,7 @@
 """Tests for sheridan.iceberg public API surface (__init__.py)."""
 
 import sheridan.iceberg as iceberg
-from sheridan.iceberg import Issue, IssueKind, ModuleInfo, fix_module, fix_needed, report, walk_module, walk_path
+from sheridan.iceberg import check_api, fix_api, get_public_api
 
 
 class TestPublicApi:
@@ -9,41 +9,18 @@ class TestPublicApi:
         for name in iceberg.__all__:
             assert hasattr(iceberg, name), f"{name} not found on sheridan.iceberg"
 
-    def test_module_info_is_exported(self) -> None:
-        assert ModuleInfo is iceberg.ModuleInfo
-
-    def test_walk_module_is_exported(self) -> None:
-        assert walk_module is iceberg.walk_module
-
-    def test_walk_path_is_exported(self) -> None:
-        assert walk_path is iceberg.walk_path
-
-    def test_fix_module_is_exported(self) -> None:
-        assert fix_module is iceberg.fix_module
-
-    def test_fix_needed_is_exported(self) -> None:
-        assert fix_needed is iceberg.fix_needed
-
-    def test_report_is_exported(self) -> None:
-        assert report is iceberg.report
-
-    def test_issue_is_exported(self) -> None:
-        assert Issue is iceberg.Issue
-
-    def test_issue_kind_is_exported(self) -> None:
-        assert IssueKind is iceberg.IssueKind
-
     def test_all_list_contents(self) -> None:
         assert set(iceberg.__all__) == {
-            "Issue",
-            "IssueKind",
-            "ModuleInfo",
-            "check_modules",
-            "fix_module",
-            "fix_modules",
-            "fix_needed",
-            "load_modules",
-            "report",
-            "walk_module",
-            "walk_path",
+            "check_api",
+            "fix_api",
+            "get_public_api",
         }
+
+    def test_get_public_api_is_exported(self) -> None:
+        assert get_public_api is iceberg.get_public_api
+
+    def test_check_api_is_exported(self) -> None:
+        assert check_api is iceberg.check_api
+
+    def test_fix_api_is_exported(self) -> None:
+        assert fix_api is iceberg.fix_api

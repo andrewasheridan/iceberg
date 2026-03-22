@@ -2,41 +2,19 @@
 
 __all__ = [
     "ModuleInfo",
+    "base_for",
     "load_modules",
+    "module_id",
+    "resolve_show_modules",
     "walk_module",
     "walk_path",
 ]
 
 import ast
 import contextlib
-from dataclasses import dataclass, field
 from pathlib import Path
 
-
-@dataclass
-class ModuleInfo:
-    """Information extracted from a single Python module.
-
-    Attributes:
-        path: Absolute path to the module file.
-        declared_all: The list declared in __all__, or None if absent.
-        inferred_all: Names inferred from top-level non-underscore definitions.
-    """
-
-    path: Path
-    declared_all: list[str] | None
-    inferred_all: list[str] = field(default_factory=list)
-
-    @property
-    def effective_all(self) -> list[str]:
-        """Return the authoritative public API surface.
-
-        Returns:
-            ``declared_all`` when present, otherwise ``inferred_all``.
-        """
-        if self.declared_all is not None:
-            return self.declared_all
-        return self.inferred_all
+from sheridan.iceberg.models import ModuleInfo
 
 
 def _extract_declared_all(tree: ast.Module) -> list[str] | None:
@@ -168,6 +146,80 @@ def walk_module(path: Path) -> ModuleInfo:
     declared = _extract_declared_all(tree)
     inferred = _infer_public_names(tree, is_init=path.name == "__init__.py")
     return ModuleInfo(path=path, declared_all=declared, inferred_all=inferred)
+
+
+def base_for(path: Path) -> Path:
+    """Return the base directory for computing relative module paths.
+
+    Args:
+        path: A file or directory path supplied as the root of a walk.
+
+    Returns:
+        ``path`` itself when it is a directory, otherwise its parent.
+    """
+    return path if path.is_dir() else path.parent
+
+
+def module_id(path: Path, base: Path) -> str:
+    """Convert a module file path to a dotted module identifier.
+
+    Strips the ``.py`` suffix, replaces path separators with dots, and
+    collapses ``.__init__`` suffixes so that package init files are
+    identified by their package name rather than ``pkg.__init__``.
+
+    Args:
+        path: Absolute path to the ``.py`` file.
+        base: Root directory used as the anchor for relative path computation.
+
+    Returns:
+        Dotted module identifier, e.g. ``"sheridan.iceberg"`` for
+        ``src/sheridan/iceberg/__init__.py`` with ``base=src/``.
+        Falls back to ``str(path)`` if ``path`` is not relative to ``base``.
+    """
+    try:
+        rel = path.relative_to(base)
+        mid = str(rel).removesuffix(".py").replace("/", ".")
+        if mid.endswith(".__init__"):
+            mid = mid[: -len(".__init__")]
+        return mid
+    except ValueError:
+        return str(path)
+
+
+def resolve_show_modules(modules: list[ModuleInfo], use_ast: bool = False) -> list[ModuleInfo]:
+    """Filter modules for the show command, honoring ``__all__`` as package truth.
+
+    When ``use_ast`` is ``False`` (default), any package whose ``__init__.py``
+    declares ``__all__`` is treated as authoritative: only that ``__init__`` is
+    kept and all other modules inside that package directory are dropped.
+    This reflects the principle that ``__all__`` in ``__init__.py`` is the
+    complete public API of the package.
+
+    When ``use_ast`` is ``True``, all modules are returned unchanged so callers
+    see every module's AST-inferred names.
+
+    Args:
+        modules: Parsed module information to filter.
+        use_ast: When ``True``, bypass filtering and return all modules.
+
+    Returns:
+        Filtered list of :class:`ModuleInfo` to display.
+    """
+    if use_ast:
+        return list(modules)
+
+    result: list[ModuleInfo] = []
+    covered_dirs: set[Path] = set()
+
+    for info in sorted(modules, key=lambda m: len(m.path.parts)):
+        parent = info.path.parent
+        if any(parent.is_relative_to(d) for d in covered_dirs):
+            continue
+        if info.path.name == "__init__.py" and info.declared_all is not None:
+            covered_dirs.add(parent)
+        result.append(info)
+
+    return result
 
 
 def walk_path(root: Path) -> list[ModuleInfo]:

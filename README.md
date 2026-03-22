@@ -58,10 +58,24 @@ iceberg fix src/ --dry-run
 
 ### Example output
 
-`iceberg show` produces an indented tree by default:
+`iceberg show` produces an indented tree by default. When `__init__.py`
+declares `__all__`, it is the source of truth for the whole package — only
+that module is shown:
 
 ```
 # iceberg show src/mypackage/
+
+mypackage/
+  __init__
+    Role
+    User
+    helper
+```
+
+Pass `--use-ast` to bypass `__all__` and see every module's inferred names:
+
+```
+# iceberg show src/mypackage/ --use-ast
 
 mypackage/
   __init__
@@ -127,6 +141,34 @@ The `source` field is `"__all__"` when the module has an `__all__` (and `--use-a
 ]
 ```
 
+## Programmatic usage
+
+```python
+from sheridan.iceberg import check_api, fix_api, get_public_api
+
+# Get the public API surface — __init__.__all__ is the source of truth
+api = get_public_api("src/")
+# {"mypackage": ["Role", "User", "helper"]}
+
+# Bypass __all__ and see every module's AST-inferred names
+api = get_public_api("src/", use_ast=True)
+# {"mypackage": [...], "mypackage.core": [...], "mypackage.utils": [...]}
+
+# Check for __all__ issues
+issues = check_api("src/")
+# [{"code": "IB002", "path": "...", "kind": "incorrect", "declared": [...], "expected": [...]}]
+
+# Suppress IB001 (missing __all__) — only surface IB002 and IB003
+issues = check_api("src/", ignore_missing=True)
+
+# Fix __all__ in place — returns paths of modified files
+fixed = fix_api("src/")
+# [PosixPath("src/mypackage/core.py")]
+
+# Preview what would change without writing
+would_fix = fix_api("src/", dry_run=True)
+```
+
 ## How inference works
 
 For regular modules, iceberg infers the public API from top-level definitions —
@@ -179,7 +221,8 @@ task format:check # formatter — read-only
 task format       # formatter — write
 task typecheck    # mypy --strict
 task test         # pytest --cov
-task iceberg      # dogfood: run iceberg on itself
+task iceberg:check # dogfood: run iceberg check on itself
+task iceberg:show  # dogfood: show iceberg's own public API
 
 # Run tests
 task test

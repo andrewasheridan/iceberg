@@ -1,3 +1,0 @@
-# reporter
-
-::: sheridan.iceberg.reporter

@@ -1,47 +1,15 @@
 """Command-line interface for sheridan-iceberg."""
 
-__all__ = [
-    "main",
-]
+__all__ = ["main"]
 
 import argparse
 import json
 import sys
-from enum import StrEnum
 from pathlib import Path
 
-from sheridan.iceberg.ast_walker import ModuleInfo, load_modules
-from sheridan.iceberg.fixer import fix_modules, fix_needed
-from sheridan.iceberg.reporter import Issue, IssueKind, check_modules
-
-
-class _OutputFormat(StrEnum):
-    """Supported output formats for the check command."""
-
-    text = "text"
-    json = "json"
-
-
-class _ShowFormat(StrEnum):
-    """Supported output formats for the show command."""
-
-    tree = "tree"
-    json = "json"
-
-
-def _render(issues: list[Issue], fmt: _OutputFormat) -> str:
-    """Render issues as text or JSON.
-
-    Args:
-        issues: Issues to render.
-        fmt: Output format.
-
-    Returns:
-        Formatted string.
-    """
-    if fmt == _OutputFormat.json:
-        return json.dumps([i.to_dict() for i in issues], indent=2)
-    return "\n".join(i.to_text() for i in issues)
+from sheridan.iceberg.api import check_api, fix_api
+from sheridan.iceberg.ast_walker import ModuleInfo, base_for, load_modules, module_id, resolve_show_modules
+from sheridan.iceberg.enums import OutputFormat, ShowFormat
 
 
 def _check(args: argparse.Namespace) -> int:
@@ -58,13 +26,11 @@ def _check(args: argparse.Namespace) -> int:
         print(f"error: path does not exist: {path}", file=sys.stderr)
         return 2
 
-    fmt = _OutputFormat(args.format)
-    issues = check_modules(load_modules(path))
+    fmt = OutputFormat(args.format)
+    issues = check_api(path, ignore_missing=args.ignore_missing)
 
-    if args.ignore_missing:
-        issues = [i for i in issues if i.kind != IssueKind.MISSING]
+    output = json.dumps(issues, indent=2) if fmt is OutputFormat.json else "\n".join(str(i["message"]) for i in issues)
 
-    output = _render(issues, fmt)
     if output:
         print(output)
 
@@ -90,21 +56,20 @@ def _fix(args: argparse.Namespace) -> int:
         print(f"error: path does not exist: {path}", file=sys.stderr)
         return 2
 
-    modules = load_modules(path)
-    issues = fix_needed(modules)
+    paths = fix_api(path, dry_run=args.dry_run)
 
-    if not issues:
+    if not paths:
         print("No issues found.")
         return 0
 
-    if args.dry_run:
-        for issue in issues:
-            print(f"Would fix: {issue.path} ({issue.kind.value})")
-    else:
-        fixed = fix_modules(modules, issues)
-        for p in fixed:
+    for p in paths:
+        if args.dry_run:
+            print(f"Would fix: {p}")
+        else:
             print(f"Fixed: {p}")
-        print(f"\n{len(fixed)} file(s) fixed.")
+
+    if not args.dry_run:
+        print(f"\n{len(paths)} file(s) fixed.")
 
     return 0
 
@@ -121,7 +86,7 @@ def _format_tree(modules: list[ModuleInfo], root: Path, use_ast: bool) -> str:
         Multi-line string with one entry per line.
     """
     lines: list[str] = []
-    base = root if root.is_dir() else root.parent
+    base = base_for(root)
 
     if root.is_dir():
         lines.append(f"{root.name}/")
@@ -171,21 +136,14 @@ def _format_show_json(modules: list[ModuleInfo], root: Path, use_ast: bool) -> s
         JSON string — an array of objects with ``module``, ``path``,
         ``source``, and ``names`` keys.
     """
-    base = root if root.is_dir() else root.parent
+    base = base_for(root)
     result = []
     for info in modules:
         names = info.inferred_all if use_ast else info.effective_all
         source = "ast" if (use_ast or info.declared_all is None) else "__all__"
-        try:
-            rel = info.path.relative_to(base)
-            module_id = str(rel).removesuffix(".py").replace("/", ".")
-            if module_id.endswith(".__init__"):
-                module_id = module_id[: -len(".__init__")]
-        except ValueError:
-            module_id = str(info.path)
         result.append(
             {
-                "module": module_id,
+                "module": module_id(info.path, base),
                 "path": str(info.path),
                 "source": source,
                 "names": names,
@@ -208,14 +166,14 @@ def _show(args: argparse.Namespace) -> int:
         print(f"error: path does not exist: {path}", file=sys.stderr)
         return 2
 
-    fmt = _ShowFormat(args.format)
+    fmt = ShowFormat(args.format)
     use_ast: bool = args.use_ast
-    modules = load_modules(path)
+    modules = resolve_show_modules(load_modules(path), use_ast)
 
     if not modules:
         return 0
 
-    if fmt == _ShowFormat.json:
+    if fmt is ShowFormat.json:
         print(_format_show_json(modules, path, use_ast))
     else:
         output = _format_tree(modules, path, use_ast)
