@@ -244,6 +244,17 @@ sheridan-iceberg/
 └── tests/
 ```
 
+## Release pipeline
+Tags and PyPI releases are fully automated through three chained workflows:
+
+1. **`bump.yaml`** — triggers on every push to `main`. Commitizen determines if there are releasable commits, bumps `pyproject.toml`, opens a `chore/version-bump-X.Y.Z` PR, and auto-merges it (using `RELEASE_TOKEN` as `GH_TOKEN`).
+2. **`tag-on-merge.yaml`** — triggers when a `chore/version-bump-*` PR is merged. Creates an annotated tag on the merge commit and pushes it using `RELEASE_TOKEN` (passed as `token:` to `actions/checkout` — see ADR 0023).
+3. **`publish.yaml`** — triggers on `push: tags: "v*"`. Builds sdist/wheel and publishes to PyPI via OIDC trusted publishing (no API token needed).
+
+**`RELEASE_TOKEN`** must be a GitHub PAT (classic `repo` scope, or fine-grained with `contents: write` + `pull-requests: write`) stored as a repository secret. An expired or missing PAT causes `tag-on-merge.yaml` to fail loudly at checkout rather than silently falling back to `GITHUB_TOKEN`.
+
+**PAT checkout pattern** — any workflow that pushes a git ref and must trigger a downstream workflow must pass `token: ${{ secrets.RELEASE_TOKEN }}` directly to `actions/checkout`. Never use `git remote set-url` to inject credentials: the credential helper installed by checkout overrides URL-embedded credentials, causing the push to be attributed to `GITHUB_TOKEN`, which suppresses downstream triggers. (ADR 0023)
+
 ## Key decisions already made
 - Namespace: `sheridan`
 - Package name: `sheridan-iceberg` (import as `sheridan.iceberg`)
@@ -257,3 +268,4 @@ sheridan-iceberg/
 - Agent conventions come from CLAUDE.md, not from agent system prompts
 - `show` is the primary command — API reporting first, enforcement second (ADR 0019)
 - IB002 is one-directional: AST→`__all__` only; `fix` uses full bidirectional comparison (ADR 0020)
+- PAT-authenticated git pushes must use `token:` in `actions/checkout`, not `git remote set-url` (ADR 0023)
