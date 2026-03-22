@@ -13,6 +13,7 @@ jobs:
   lint-pr-title:
     name: Lint PR title
     runs-on: ubuntu-latest
+    if: "!startsWith(github.event.pull_request.head.ref, 'chore/version-bump-')"
     permissions:
       pull-requests: read
 
