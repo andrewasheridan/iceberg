@@ -2,6 +2,12 @@
 # the merge commit. publish.yaml listens for the resulting tag push and handles
 # the PyPI release — workflow_call cannot be used because it produces a
 # reusable-workflow OIDC token that PyPI's trusted publisher rejects.
+#
+# RELEASE_TOKEN is passed to actions/checkout so that checkout's git credential
+# helper is wired to the PAT rather than GITHUB_TOKEN. Without this, the helper
+# installed by checkout overrides any credential embedded in the remote URL, the
+# push is attributed to GITHUB_TOKEN, and GitHub suppresses the push.tags event
+# that publish.yaml depends on.
 
 name: Tag on merge
 
@@ -23,6 +29,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}   # wire credential helper to PAT so tag push triggers publish.yaml
 
       - name: Configure git identity
         run: |
@@ -40,6 +47,5 @@ jobs:
         env:
           VERSION: ${{ steps.extract.outputs.version }}
         run: |
-          git remote set-url origin "https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/${{ github.repository }}.git"
           git tag -a "v$VERSION" "${{ github.event.pull_request.merge_commit_sha }}" -m "Version $VERSION"
           git push origin "v$VERSION"
