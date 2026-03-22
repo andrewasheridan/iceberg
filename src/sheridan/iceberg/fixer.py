@@ -180,6 +180,6 @@ def fix_needed(modules: list[ModuleInfo]) -> list[Issue]:
     for info in modules:
         correct = sorted(info.inferred_all)
         if info.declared_all != correct:
-            kind = IssueKind.MISSING if info.declared_all is None else IssueKind.INCORRECT
+            kind = IssueKind.missing if info.declared_all is None else IssueKind.incorrect
             targets.append(Issue(path=info.path, kind=kind, declared=info.declared_all, expected=correct))
     return targets

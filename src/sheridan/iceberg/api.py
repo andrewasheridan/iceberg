@@ -59,7 +59,7 @@ def check_api(
     """
     issues = check_modules(load_modules(Path(path)))
     if ignore_missing:
-        issues = [i for i in issues if i.kind != IssueKind.MISSING]
+        issues = [i for i in issues if i.kind is not IssueKind.missing]
     return [i.to_dict() for i in issues]
 
 

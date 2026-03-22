@@ -8,88 +8,10 @@ __all__ = [
 ]
 
 import json
-from dataclasses import dataclass
-from enum import StrEnum
-from pathlib import Path
 
 from sheridan.iceberg.ast_walker import ModuleInfo
-
-
-class IssueKind(StrEnum):
-    """Categories of __all__ issues that iceberg detects.
-
-    Attributes:
-        MISSING: Module has no ``__all__`` declaration.  ``IB001``
-        INCORRECT: Names the AST considers public are absent from ``__all__``.  ``IB002``
-        UNSORTED: ``__all__`` is correct but not in sorted order.  ``IB003``
-    """
-
-    MISSING = "missing"
-    INCORRECT = "incorrect"
-    UNSORTED = "unsorted"
-
-    @property
-    def code(self) -> str:
-        """Return the short error code for this issue kind.
-
-        Returns:
-            A ruff-style error code string, e.g. ``"IB001"``.
-        """
-        _codes: dict[IssueKind, str] = {
-            IssueKind.MISSING: "IB001",
-            IssueKind.INCORRECT: "IB002",
-            IssueKind.UNSORTED: "IB003",
-        }
-        return _codes[self]
-
-
-@dataclass
-class Issue:
-    """A single __all__ issue found in a module.
-
-    Attributes:
-        path: Path to the affected module.
-        kind: The category of issue.
-        declared: The current ``__all__`` value, or ``None`` if absent.
-        expected: The correct ``__all__`` value that would fix the issue.
-    """
-
-    path: Path
-    kind: IssueKind
-    declared: list[str] | None
-    expected: list[str]
-
-    def to_dict(self) -> dict[str, object]:
-        """Serialize to a JSON-compatible dictionary.
-
-        Returns:
-            Dictionary with ``code``, ``path``, ``kind``, ``declared``,
-            ``expected``, and ``message`` keys.
-        """
-        return {
-            "code": self.kind.code,
-            "path": str(self.path),
-            "kind": self.kind.value,
-            "declared": self.declared,
-            "expected": self.expected,
-            "message": self.to_text(),
-        }
-
-    def to_text(self) -> str:
-        """Format as a human-readable single-line string.
-
-        Returns:
-            A message string suitable for terminal output.
-        """
-        code = self.kind.code
-        match self.kind:
-            case IssueKind.MISSING:
-                return f"{self.path}: {code} missing __all__ (expected {self.expected!r})"
-            case IssueKind.INCORRECT:
-                missing = sorted(set(self.expected) - set(self.declared or []))
-                return f"{self.path}: {code} names appear public but missing from __all__: {missing!r}"
-            case IssueKind.UNSORTED:
-                return f"{self.path}: {code} __all__ is not sorted (expected {self.expected!r})"
+from sheridan.iceberg.enums import IssueKind
+from sheridan.iceberg.models import Issue
 
 
 def _check_module(info: ModuleInfo) -> list[Issue]:
@@ -109,7 +31,7 @@ def _check_module(info: ModuleInfo) -> list[Issue]:
     expected = sorted(info.inferred_all)
 
     if info.declared_all is None:
-        issues.append(Issue(path=info.path, kind=IssueKind.MISSING, declared=None, expected=expected))
+        issues.append(Issue(path=info.path, kind=IssueKind.missing, declared=None, expected=expected))
         return issues
 
     # IB002: names the AST considers public but absent from __all__
@@ -118,7 +40,7 @@ def _check_module(info: ModuleInfo) -> list[Issue]:
         issues.append(
             Issue(
                 path=info.path,
-                kind=IssueKind.INCORRECT,
+                kind=IssueKind.incorrect,
                 declared=info.declared_all,
                 expected=expected,  # full inferred list — fixer uses this
             )
@@ -129,7 +51,7 @@ def _check_module(info: ModuleInfo) -> list[Issue]:
         issues.append(
             Issue(
                 path=info.path,
-                kind=IssueKind.UNSORTED,
+                kind=IssueKind.unsorted,
                 declared=info.declared_all,
                 expected=sorted(info.declared_all),
             )

@@ -15,9 +15,9 @@ from sheridan.iceberg.reporter import Issue, IssueKind, check_modules, report
 
 class TestIssueKind:
     def test_values(self) -> None:
-        assert IssueKind.MISSING.value == "missing"
-        assert IssueKind.INCORRECT.value == "incorrect"
-        assert IssueKind.UNSORTED.value == "unsorted"
+        assert IssueKind.missing.value == "missing"
+        assert IssueKind.incorrect.value == "incorrect"
+        assert IssueKind.unsorted.value == "unsorted"
 
 
 # ---------------------------------------------------------------------------
@@ -29,7 +29,7 @@ class TestIssueToDictAndToText:
     def test_to_dict_missing(self, tmp_path: Path) -> None:
         issue = Issue(
             path=tmp_path / "mod.py",
-            kind=IssueKind.MISSING,
+            kind=IssueKind.missing,
             declared=None,
             expected=["Foo"],
         )
@@ -43,7 +43,7 @@ class TestIssueToDictAndToText:
     def test_to_dict_incorrect(self, tmp_path: Path) -> None:
         issue = Issue(
             path=tmp_path / "mod.py",
-            kind=IssueKind.INCORRECT,
+            kind=IssueKind.incorrect,
             declared=["Bar"],
             expected=["Foo"],
         )
@@ -55,7 +55,7 @@ class TestIssueToDictAndToText:
     def test_to_dict_unsorted(self, tmp_path: Path) -> None:
         issue = Issue(
             path=tmp_path / "mod.py",
-            kind=IssueKind.UNSORTED,
+            kind=IssueKind.unsorted,
             declared=["Beta", "Alpha"],
             expected=["Alpha", "Beta"],
         )
@@ -64,7 +64,7 @@ class TestIssueToDictAndToText:
 
     def test_to_text_missing(self, tmp_path: Path) -> None:
         p = tmp_path / "mod.py"
-        issue = Issue(path=p, kind=IssueKind.MISSING, declared=None, expected=["Foo"])
+        issue = Issue(path=p, kind=IssueKind.missing, declared=None, expected=["Foo"])
         text = issue.to_text()
         assert "missing __all__" in text
         assert str(p) in text
@@ -72,7 +72,7 @@ class TestIssueToDictAndToText:
 
     def test_to_text_incorrect(self, tmp_path: Path) -> None:
         p = tmp_path / "mod.py"
-        issue = Issue(path=p, kind=IssueKind.INCORRECT, declared=["Bar"], expected=["Foo"])
+        issue = Issue(path=p, kind=IssueKind.incorrect, declared=["Bar"], expected=["Foo"])
         text = issue.to_text()
         assert "missing from __all__" in text
         assert "Foo" in text
@@ -81,7 +81,7 @@ class TestIssueToDictAndToText:
         p = tmp_path / "mod.py"
         issue = Issue(
             path=p,
-            kind=IssueKind.UNSORTED,
+            kind=IssueKind.unsorted,
             declared=["Beta", "Alpha"],
             expected=["Alpha", "Beta"],
         )
@@ -107,13 +107,13 @@ class TestCheckModules:
         info = self._make_info(tmp_path, None, ["Foo"])
         issues = check_modules([info])
         assert len(issues) == 1
-        assert issues[0].kind == IssueKind.MISSING
+        assert issues[0].kind == IssueKind.missing
 
     def test_incorrect_all_reported(self, tmp_path: Path) -> None:
         info = self._make_info(tmp_path, ["Wrong"], ["Correct"])
         issues = check_modules([info])
         assert len(issues) == 1
-        assert issues[0].kind == IssueKind.INCORRECT
+        assert issues[0].kind == IssueKind.incorrect
 
     def test_empty_module_list_returns_empty(self) -> None:
         assert check_modules([]) == []
@@ -129,15 +129,15 @@ class TestCheckModules:
         info = self._make_info(tmp_path, ["Z", "A"], ["A", "B", "Z"])
         issues = check_modules([info])
         kinds = [i.kind for i in issues]
-        assert IssueKind.INCORRECT in kinds  # B is in AST but not in __all__
-        assert IssueKind.UNSORTED in kinds  # ["Z", "A"] is not sorted
+        assert IssueKind.incorrect in kinds  # B is in AST but not in __all__
+        assert IssueKind.unsorted in kinds  # ["Z", "A"] is not sorted
 
     def test_phantom_only_no_ib002(self, tmp_path: Path) -> None:
         # "Ghost" is in __all__ but not in AST — no IB002
         info = self._make_info(tmp_path, ["Ghost", "Real"], ["Real"])
         issues = check_modules([info])
         kinds = [i.kind for i in issues]
-        assert IssueKind.INCORRECT not in kinds
+        assert IssueKind.incorrect not in kinds
         # sorted ["Ghost", "Real"] == ["Ghost", "Real"] → no IB003 either
         assert issues == []
 
@@ -164,19 +164,19 @@ class TestReport:
         info = self._make_info(tmp_path, None, ["Foo"])
         issues, _ = report([info])
         assert len(issues) == 1
-        assert issues[0].kind == IssueKind.MISSING
+        assert issues[0].kind == IssueKind.missing
 
     def test_incorrect_all_reported(self, tmp_path: Path) -> None:
         info = self._make_info(tmp_path, ["Wrong"], ["Correct"])
         issues, _ = report([info])
         assert len(issues) == 1
-        assert issues[0].kind == IssueKind.INCORRECT
+        assert issues[0].kind == IssueKind.incorrect
 
     def test_unsorted_all_reported(self, tmp_path: Path) -> None:
         info = self._make_info(tmp_path, ["Beta", "Alpha"], ["Alpha", "Beta"])
         issues, _ = report([info])
         assert len(issues) == 1
-        assert issues[0].kind == IssueKind.UNSORTED
+        assert issues[0].kind == IssueKind.unsorted
 
     def test_unsorted_not_reported_when_already_sorted(self, tmp_path: Path) -> None:
         info = self._make_info(tmp_path, ["Alpha", "Beta"], ["Alpha", "Beta"])
@@ -188,7 +188,7 @@ class TestReport:
         info = self._make_info(tmp_path, ["A", "Extra", "Z"], ["A", "Z"])
         issues, _ = report([info])
         kinds = {i.kind for i in issues}
-        assert IssueKind.INCORRECT not in kinds
+        assert IssueKind.incorrect not in kinds
 
     def test_multiple_modules_multiple_issues(self, tmp_path: Path) -> None:
         info1 = self._make_info(tmp_path, None, ["Foo"])

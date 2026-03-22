@@ -228,7 +228,7 @@ class TestFixModules:
         modules = [walk_module(p)]
         ghost_issue = Issue(
             path=tmp_path / "ghost.py",
-            kind=IssueKind.MISSING,
+            kind=IssueKind.missing,
             declared=None,
             expected=["Foo"],
         )

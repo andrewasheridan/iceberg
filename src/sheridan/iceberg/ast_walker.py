@@ -12,34 +12,9 @@ __all__ = [
 
 import ast
 import contextlib
-from dataclasses import dataclass, field
 from pathlib import Path
 
-
-@dataclass
-class ModuleInfo:
-    """Information extracted from a single Python module.
-
-    Attributes:
-        path: Absolute path to the module file.
-        declared_all: The list declared in __all__, or None if absent.
-        inferred_all: Names inferred from top-level non-underscore definitions.
-    """
-
-    path: Path
-    declared_all: list[str] | None
-    inferred_all: list[str] = field(default_factory=list)
-
-    @property
-    def effective_all(self) -> list[str]:
-        """Return the authoritative public API surface.
-
-        Returns:
-            ``declared_all`` when present, otherwise ``inferred_all``.
-        """
-        if self.declared_all is not None:
-            return self.declared_all
-        return self.inferred_all
+from sheridan.iceberg.models import ModuleInfo
 
 
 def _extract_declared_all(tree: ast.Module) -> list[str] | None:

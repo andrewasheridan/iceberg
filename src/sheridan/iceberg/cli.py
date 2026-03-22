@@ -5,25 +5,11 @@ __all__: list[str] = []
 import argparse
 import json
 import sys
-from enum import StrEnum
 from pathlib import Path
 
 from sheridan.iceberg.api import check_api, fix_api
 from sheridan.iceberg.ast_walker import ModuleInfo, base_for, load_modules, module_id, resolve_show_modules
-
-
-class _OutputFormat(StrEnum):
-    """Supported output formats for the check command."""
-
-    text = "text"
-    json = "json"
-
-
-class _ShowFormat(StrEnum):
-    """Supported output formats for the show command."""
-
-    tree = "tree"
-    json = "json"
+from sheridan.iceberg.enums import OutputFormat, ShowFormat
 
 
 def _check(args: argparse.Namespace) -> int:
@@ -40,10 +26,10 @@ def _check(args: argparse.Namespace) -> int:
         print(f"error: path does not exist: {path}", file=sys.stderr)
         return 2
 
-    fmt = _OutputFormat(args.format)
+    fmt = OutputFormat(args.format)
     issues = check_api(path, ignore_missing=args.ignore_missing)
 
-    output = json.dumps(issues, indent=2) if fmt == _OutputFormat.json else "\n".join(str(i["message"]) for i in issues)
+    output = json.dumps(issues, indent=2) if fmt is OutputFormat.json else "\n".join(str(i["message"]) for i in issues)
 
     if output:
         print(output)
@@ -180,14 +166,14 @@ def _show(args: argparse.Namespace) -> int:
         print(f"error: path does not exist: {path}", file=sys.stderr)
         return 2
 
-    fmt = _ShowFormat(args.format)
+    fmt = ShowFormat(args.format)
     use_ast: bool = args.use_ast
     modules = resolve_show_modules(load_modules(path), use_ast)
 
     if not modules:
         return 0
 
-    if fmt == _ShowFormat.json:
+    if fmt is ShowFormat.json:
         print(_format_show_json(modules, path, use_ast))
     else:
         output = _format_tree(modules, path, use_ast)
