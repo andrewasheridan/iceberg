@@ -10,7 +10,7 @@ import sys
 from enum import StrEnum
 from pathlib import Path
 
-from sheridan.iceberg.ast_walker import ModuleInfo, load_modules
+from sheridan.iceberg.ast_walker import ModuleInfo, load_modules, resolve_show_modules
 from sheridan.iceberg.fixer import fix_modules, fix_needed
 from sheridan.iceberg.reporter import Issue, IssueKind, check_modules
 
@@ -210,7 +210,7 @@ def _show(args: argparse.Namespace) -> int:
 
     fmt = _ShowFormat(args.format)
     use_ast: bool = args.use_ast
-    modules = load_modules(path)
+    modules = resolve_show_modules(load_modules(path), use_ast)
 
     if not modules:
         return 0

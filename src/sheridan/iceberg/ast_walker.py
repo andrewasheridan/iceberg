@@ -3,6 +3,7 @@
 __all__ = [
     "ModuleInfo",
     "load_modules",
+    "resolve_show_modules",
     "walk_module",
     "walk_path",
 ]
@@ -168,6 +169,42 @@ def walk_module(path: Path) -> ModuleInfo:
     declared = _extract_declared_all(tree)
     inferred = _infer_public_names(tree, is_init=path.name == "__init__.py")
     return ModuleInfo(path=path, declared_all=declared, inferred_all=inferred)
+
+
+def resolve_show_modules(modules: list[ModuleInfo], use_ast: bool = False) -> list[ModuleInfo]:
+    """Filter modules for the show command, honoring ``__all__`` as package truth.
+
+    When ``use_ast`` is ``False`` (default), any package whose ``__init__.py``
+    declares ``__all__`` is treated as authoritative: only that ``__init__`` is
+    kept and all other modules inside that package directory are dropped.
+    This reflects the principle that ``__all__`` in ``__init__.py`` is the
+    complete public API of the package.
+
+    When ``use_ast`` is ``True``, all modules are returned unchanged so callers
+    see every module's AST-inferred names.
+
+    Args:
+        modules: Parsed module information to filter.
+        use_ast: When ``True``, bypass filtering and return all modules.
+
+    Returns:
+        Filtered list of :class:`ModuleInfo` to display.
+    """
+    if use_ast:
+        return list(modules)
+
+    result: list[ModuleInfo] = []
+    covered_dirs: set[Path] = set()
+
+    for info in sorted(modules, key=lambda m: len(m.path.parts)):
+        parent = info.path.parent
+        if any(parent.is_relative_to(d) for d in covered_dirs):
+            continue
+        if info.path.name == "__init__.py" and info.declared_all is not None:
+            covered_dirs.add(parent)
+        result.append(info)
+
+    return result
 
 
 def walk_path(root: Path) -> list[ModuleInfo]:

@@ -44,6 +44,7 @@ class TestPublicApi:
             "fix_needed",
             "load_modules",
             "report",
+            "resolve_show_modules",
             "walk_module",
             "walk_path",
         }
