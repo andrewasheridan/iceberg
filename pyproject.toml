@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sheridan-iceberg"
-version = "0.3.0"
+version = "0.4.0"
 description = "Enforces the presence and correctness of __all__ in Python modules"
 readme = "README.md"
 license = { text = "MIT" }
@@ -112,7 +112,7 @@ fail_under = 90
 # ---------------------------------------------------------------------------
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.3.0"
+version = "0.4.0"
 version_files = [
     "pyproject.toml:^version",
 ]
