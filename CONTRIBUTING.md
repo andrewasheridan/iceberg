@@ -9,6 +9,31 @@ task install
 pre-commit install
 ```
 
+### CI pipeline (Dagger)
+
+The CI pipeline runs inside containers via [Dagger](https://dagger.io). You need:
+
+- [Dagger CLI](https://docs.dagger.io/install)
+- [Podman](https://podman.io/get-started) (default) **or** Docker
+
+After cloning, initialise the Dagger module once:
+
+```bash
+# macOS — start the Podman machine first
+podman machine start
+
+task ci-init   # generates ci/sdk/ (gitignored)
+```
+
+Then run the full pipeline locally at any time:
+
+```bash
+task ci
+
+# Prefer Docker?
+CONTAINER_RUNTIME=docker task ci
+```
+
 ## Workflow
 
 1. Create a branch: `git checkout -b feat/your-feature`
@@ -34,11 +59,14 @@ docs: add pre-commit hook example
 ## Running checks
 
 ```bash
-task lint        # ruff check
-task format      # ruff format
-task typecheck   # mypy --strict
-task test        # pytest --cov
-task check       # all of the above
+task lint:check   # ruff check (read-only)
+task lint         # ruff check --fix (autofix)
+task format:check # ruff format --check (read-only)
+task format       # ruff format (write)
+task typecheck    # mypy --strict
+task test         # pytest --cov
+task iceberg      # iceberg check src/ (dogfooding)
+task check        # all gates (read-only: lint:check, format:check, …)
 ```
 
 ## Adding dependencies

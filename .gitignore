@@ -41,3 +41,7 @@ site/
 # uv
 uv.lock
 
+# Dagger
+ci/sdk/
+ci/.venv/
+
