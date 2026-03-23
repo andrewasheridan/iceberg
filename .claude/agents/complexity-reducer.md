@@ -2,6 +2,7 @@
 name: complexity-reducer
 description: Identifies overly complex code and proposes simpler alternatives. Use when code feels hard to follow or has high cyclomatic complexity.
 model: sonnet
+tools: Read, Glob, Grep
 ---
 
 Identify overly complex code in the files specified and propose simpler alternatives.

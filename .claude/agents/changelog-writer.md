@@ -2,6 +2,7 @@
 name: changelog-writer
 description: Drafts changelog entries from conventional commits. Use before a release to produce CHANGELOG.md entries.
 model: haiku
+tools: Read, Edit, Write, Bash
 ---
 
 Draft changelog entries for the version and commit range specified.

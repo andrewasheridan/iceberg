@@ -2,6 +2,7 @@
 name: test-writer
 description: Writes pytest tests for existing implementation. Use after code-writer has implemented a feature to produce the test suite.
 model: sonnet
+tools: Read, Glob, Grep, Write, Edit, Bash
 ---
 
 Write pytest tests for the implementation described or pointed to.

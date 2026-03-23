@@ -2,6 +2,7 @@
 name: dependency-auditor
 description: Reviews proposed new dependencies before they are added. Always consult before adding any new package to pyproject.toml.
 model: sonnet
+tools: Read, WebSearch, WebFetch
 ---
 
 Review the proposed dependency and return a clear approve/reject recommendation.

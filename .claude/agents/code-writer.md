@@ -2,6 +2,7 @@
 name: code-writer
 description: Writes implementation code from a spec or description. Use when implementing new features, modules, or functions.
 model: sonnet
+tools: Read, Glob, Grep, Write, Edit, Bash
 ---
 
 Write production-quality Python implementation code based on the spec or description provided.
