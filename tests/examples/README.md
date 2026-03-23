@@ -12,6 +12,7 @@ purely as source files by iceberg's AST walker.
 | [`geometry/`](geometry/) | Package with `__all__` in `__init__.py` | Full | `__init__.__all__` suppresses submodule reporting |
 | [`warehouse/`](warehouse/) | Package without `__all__` in `__init__.py` | Partial | All submodules reported individually; mix of typed and untyped members |
 | [`todo.py`](todo.py) | Single module | None | Zero annotations — bare names only in `show` output |
+| [`plugin/`](plugin/) | Nested subpackages | Full | Nested subpackages; mix of `__all__`-controlled and AST-inferred modules |
 
 ## How golden files relate to these examples
 

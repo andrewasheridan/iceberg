@@ -1,180 +1,41 @@
 [
   {
-    "module": "todo",
+    "module": "__init__",
     "path": "__PATH__",
     "source": "ast",
     "names": [
-      "Task",
-      "TodoList",
-      "from_lines"
+      "BaseFormat",
+      "JsonFormat",
+      "Plugin",
+      "Registry"
+    ],
+    "detail": {}
+  },
+  {
+    "module": "core",
+    "path": "__PATH__",
+    "source": "__all__",
+    "names": [
+      "Plugin",
+      "Registry"
     ],
     "detail": {
-      "Task": {
-        "kind": "class",
-        "bases": [],
-        "members": [
-          {
-            "name": "DEFAULT_PRIORITY",
-            "kind": "class_var"
-          },
-          {
-            "name": "title",
-            "kind": "instance_attr"
-          },
-          {
-            "name": "description",
-            "kind": "instance_attr"
-          },
-          {
-            "name": "done",
-            "kind": "instance_attr"
-          },
-          {
-            "name": "priority",
-            "kind": "instance_attr"
-          },
-          {
-            "name": "complete",
-            "kind": "method",
-            "signature": {
-              "params": [
-                {
-                  "name": "self",
-                  "annotation": null,
-                  "has_default": false,
-                  "kind": "positional_or_keyword"
-                }
-              ],
-              "return_annotation": null,
-              "is_async": false
-            }
-          },
-          {
-            "name": "reset",
-            "kind": "method",
-            "signature": {
-              "params": [
-                {
-                  "name": "self",
-                  "annotation": null,
-                  "has_default": false,
-                  "kind": "positional_or_keyword"
-                }
-              ],
-              "return_annotation": null,
-              "is_async": false
-            }
-          },
-          {
-            "name": "urgent",
-            "kind": "classmethod",
-            "signature": {
-              "params": [
-                {
-                  "name": "cls",
-                  "annotation": null,
-                  "has_default": false,
-                  "kind": "positional_or_keyword"
-                },
-                {
-                  "name": "title",
-                  "annotation": null,
-                  "has_default": false,
-                  "kind": "positional_or_keyword"
-                }
-              ],
-              "return_annotation": null,
-              "is_async": false
-            }
-          },
-          {
-            "name": "is_valid_title",
-            "kind": "staticmethod",
-            "signature": {
-              "params": [
-                {
-                  "name": "title",
-                  "annotation": null,
-                  "has_default": false,
-                  "kind": "positional_or_keyword"
-                }
-              ],
-              "return_annotation": null,
-              "is_async": false
-            }
-          }
-        ]
-      },
-      "TodoList": {
+      "Plugin": {
         "kind": "class",
         "bases": [],
         "members": [
           {
             "name": "name",
-            "kind": "instance_attr"
+            "kind": "class_var",
+            "annotation": "str"
           },
           {
-            "name": "count",
-            "kind": "property",
-            "signature": {
-              "params": [
-                {
-                  "name": "self",
-                  "annotation": null,
-                  "has_default": false,
-                  "kind": "positional_or_keyword"
-                }
-              ],
-              "return_annotation": null,
-              "is_async": false
-            }
+            "name": "version",
+            "kind": "class_var",
+            "annotation": "str"
           },
           {
-            "name": "add",
-            "kind": "method",
-            "signature": {
-              "params": [
-                {
-                  "name": "self",
-                  "annotation": null,
-                  "has_default": false,
-                  "kind": "positional_or_keyword"
-                },
-                {
-                  "name": "task",
-                  "annotation": null,
-                  "has_default": false,
-                  "kind": "positional_or_keyword"
-                }
-              ],
-              "return_annotation": null,
-              "is_async": false
-            }
-          },
-          {
-            "name": "remove",
-            "kind": "method",
-            "signature": {
-              "params": [
-                {
-                  "name": "self",
-                  "annotation": null,
-                  "has_default": false,
-                  "kind": "positional_or_keyword"
-                },
-                {
-                  "name": "title",
-                  "annotation": null,
-                  "has_default": false,
-                  "kind": "positional_or_keyword"
-                }
-              ],
-              "return_annotation": null,
-              "is_async": false
-            }
-          },
-          {
-            "name": "pending",
+            "name": "load",
             "kind": "method",
             "signature": {
               "params": [
@@ -185,12 +46,12 @@
                   "kind": "positional_or_keyword"
                 }
               ],
-              "return_annotation": null,
+              "return_annotation": "bool",
               "is_async": false
             }
           },
           {
-            "name": "complete_all",
+            "name": "unload",
             "kind": "method",
             "signature": {
               "params": [
@@ -201,26 +62,219 @@
                   "kind": "positional_or_keyword"
                 }
               ],
-              "return_annotation": null,
+              "return_annotation": "None",
               "is_async": false
             }
           }
         ]
       },
-      "from_lines": {
-        "kind": "function",
-        "signature": {
-          "params": [
-            {
-              "name": "lines",
-              "annotation": null,
-              "has_default": false,
-              "kind": "positional_or_keyword"
+      "Registry": {
+        "kind": "class",
+        "bases": [],
+        "members": [
+          {
+            "name": "register",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "plugin",
+                  "annotation": "Plugin",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "None",
+              "is_async": false
             }
-          ],
-          "return_annotation": null,
-          "is_async": false
-        }
+          },
+          {
+            "name": "get",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "name",
+                  "annotation": "str",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "Plugin | None",
+              "is_async": false
+            }
+          },
+          {
+            "name": "all_plugins",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "list[Plugin]",
+              "is_async": false
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "module": "formats",
+    "path": "__PATH__",
+    "source": "ast",
+    "names": [
+      "BaseFormat",
+      "JsonFormat"
+    ],
+    "detail": {}
+  },
+  {
+    "module": "formats.base",
+    "path": "__PATH__",
+    "source": "__all__",
+    "names": [
+      "BaseFormat"
+    ],
+    "detail": {
+      "BaseFormat": {
+        "kind": "class",
+        "bases": [],
+        "members": [
+          {
+            "name": "name",
+            "kind": "class_var",
+            "annotation": "str"
+          },
+          {
+            "name": "serialize",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "data",
+                  "annotation": "object",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "str",
+              "is_async": false
+            }
+          },
+          {
+            "name": "deserialize",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "text",
+                  "annotation": "str",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "object",
+              "is_async": false
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "module": "formats.json_fmt",
+    "path": "__PATH__",
+    "source": "__all__",
+    "names": [
+      "JsonFormat"
+    ],
+    "detail": {
+      "JsonFormat": {
+        "kind": "class",
+        "bases": [
+          "BaseFormat"
+        ],
+        "members": [
+          {
+            "name": "indent",
+            "kind": "class_var",
+            "annotation": "int"
+          },
+          {
+            "name": "serialize",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "data",
+                  "annotation": "object",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "str",
+              "is_async": false
+            }
+          },
+          {
+            "name": "deserialize",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "text",
+                  "annotation": "str",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "object",
+              "is_async": false
+            }
+          }
+        ]
       }
     }
   }

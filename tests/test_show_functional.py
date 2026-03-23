@@ -10,6 +10,7 @@ comparison because filesystem paths are not semantically meaningful.
 
 __all__ = [
     "TestGeometryShow",
+    "TestPluginShow",
     "TestStandaloneShow",
     "TestTodoShow",
     "TestWarehouseShow",
@@ -276,3 +277,49 @@ class TestTodoShow:
         assert exit_code == 0
         masked = _mask_paths(captured.out)
         assert masked == _load_golden("todo_json.json").rstrip("\n")
+
+
+# ---------------------------------------------------------------------------
+# TestPluginShow
+# ---------------------------------------------------------------------------
+
+
+class TestPluginShow:
+    """Golden-file tests for a package with nested subpackages.
+
+    ``plugin/`` has two subpackages: ``core/`` (whose ``__init__.py``
+    declares ``__all__``, making it authoritative for that subpackage) and
+    ``formats/`` (whose ``__init__.py`` has no ``__all__``, so
+    ``formats.base`` and ``formats.json_fmt`` are each reported
+    individually).
+    """
+
+    def test_tree_output(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Tree output shows the nested subpackage structure.
+
+        Demonstrates that module IDs for nested subpackages use dotted
+        notation (``formats.base``, ``formats.json_fmt``) and that
+        ``core/__init__.__all__`` suppresses any sibling modules in ``core/``.
+        """
+        fixture = str(_FIXTURES_DIR / "plugin")
+        exit_code = _run(["show", fixture], capsys)
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        assert captured.out == _load_golden("plugin_tree.txt")
+
+    def test_json_output(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """JSON output has five entries — one per reported module.
+
+        Verifies: root __init__ (ast, no detail), core (source=__all__, full
+        detail for Plugin and Registry), formats (ast, no detail),
+        formats.base (__all__, BaseFormat), formats.json_fmt (__all__,
+        JsonFormat with BaseFormat base).
+        """
+        fixture = str(_FIXTURES_DIR / "plugin")
+        exit_code = _run(["show", "--format", "json", fixture], capsys)
+        captured = capsys.readouterr()
+
+        assert exit_code == 0
+        masked = _mask_paths(captured.out)
+        assert masked == _load_golden("plugin_json.json").rstrip("\n")
