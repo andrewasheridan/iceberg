@@ -5,6 +5,14 @@ from pathlib import Path
 import pytest
 
 from sheridan.iceberg.ast_walker import ModuleInfo, load_modules, walk_module, walk_path
+from sheridan.iceberg.models import (
+    ClassInfo,
+    ClassMember,
+    FunctionSignature,
+    MemberKind,
+    ParamInfo,
+    ParamKind,
+)
 
 # ---------------------------------------------------------------------------
 # ModuleInfo
@@ -270,3 +278,317 @@ class TestLoadModules:
 
     def test_empty_directory_returns_empty_list(self, tmp_path: Path) -> None:
         assert load_modules(tmp_path) == []
+
+
+# ---------------------------------------------------------------------------
+# TestFunctionSignatureExtraction
+# ---------------------------------------------------------------------------
+
+
+class TestFunctionSignatureExtraction:
+    def test_simple_function_no_params_no_return(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py("mod.py", "def f(): ...\n")
+        info = walk_module(p)
+        sig = info.function_signatures["f"]
+        assert sig.params == []
+        assert sig.return_annotation is None
+        assert sig.is_async is False
+
+    def test_async_function_is_async_true(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py("mod.py", "async def f(): ...\n")
+        info = walk_module(p)
+        sig = info.function_signatures["f"]
+        assert sig.is_async is True
+
+    def test_positional_or_keyword_params_with_annotations(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py("mod.py", "def f(x: int, y: str) -> bool: ...\n")
+        info = walk_module(p)
+        sig = info.function_signatures["f"]
+        assert len(sig.params) == 2
+        assert sig.params[0] == ParamInfo(name="x", annotation="int", kind=ParamKind.positional_or_keyword)
+        assert sig.params[1] == ParamInfo(name="y", annotation="str", kind=ParamKind.positional_or_keyword)
+        assert sig.return_annotation == "bool"
+
+    def test_param_with_default_value(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py("mod.py", "def f(x: int = 5): ...\n")
+        info = walk_module(p)
+        sig = info.function_signatures["f"]
+        assert len(sig.params) == 1
+        assert sig.params[0].has_default is True
+        assert sig.params[0].annotation == "int"
+
+    def test_var_positional_args(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py("mod.py", "def f(*args: int): ...\n")
+        info = walk_module(p)
+        sig = info.function_signatures["f"]
+        assert len(sig.params) == 1
+        assert sig.params[0].kind is ParamKind.var_positional
+        assert sig.params[0].name == "args"
+        assert sig.params[0].annotation == "int"
+
+    def test_var_keyword_kwargs(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py("mod.py", "def f(**kwargs: str): ...\n")
+        info = walk_module(p)
+        sig = info.function_signatures["f"]
+        assert len(sig.params) == 1
+        assert sig.params[0].kind is ParamKind.var_keyword
+        assert sig.params[0].name == "kwargs"
+        assert sig.params[0].annotation == "str"
+
+    def test_keyword_only_param(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py("mod.py", "def f(*, kw: int): ...\n")
+        info = walk_module(p)
+        sig = info.function_signatures["f"]
+        assert len(sig.params) == 1
+        assert sig.params[0].kind is ParamKind.keyword_only
+        assert sig.params[0].name == "kw"
+        assert sig.params[0].annotation == "int"
+        assert sig.params[0].has_default is False
+
+    def test_keyword_only_param_with_default(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py("mod.py", "def f(*, kw: int = 0): ...\n")
+        info = walk_module(p)
+        sig = info.function_signatures["f"]
+        assert sig.params[0].kind is ParamKind.keyword_only
+        assert sig.params[0].has_default is True
+
+    def test_positional_only_param(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py("mod.py", "def f(x: int, /): ...\n")
+        info = walk_module(p)
+        sig = info.function_signatures["f"]
+        assert len(sig.params) == 1
+        assert sig.params[0].kind is ParamKind.positional_only
+        assert sig.params[0].name == "x"
+        assert sig.params[0].annotation == "int"
+
+    def test_return_annotation_complex(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py("mod.py", "def f() -> list[str]: ...\n")
+        info = walk_module(p)
+        sig = info.function_signatures["f"]
+        assert sig.return_annotation == "list[str]"
+
+    def test_param_no_annotation_is_none(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py("mod.py", "def f(x): ...\n")
+        info = walk_module(p)
+        sig = info.function_signatures["f"]
+        assert sig.params[0].annotation is None
+
+    def test_walk_module_populates_function_signatures_for_public(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py(
+            "mod.py",
+            """\
+            def public_fn(x: int) -> str: ...
+            """,
+        )
+        info = walk_module(p)
+        assert "public_fn" in info.function_signatures
+        sig = info.function_signatures["public_fn"]
+        assert isinstance(sig, FunctionSignature)
+
+    def test_walk_module_excludes_private_functions(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py(
+            "mod.py",
+            """\
+            def _private(x: int) -> str: ...
+            """,
+        )
+        info = walk_module(p)
+        assert "_private" not in info.function_signatures
+
+
+# ---------------------------------------------------------------------------
+# TestClassInfoExtraction
+# ---------------------------------------------------------------------------
+
+
+class TestClassInfoExtraction:
+    def test_empty_class(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py("mod.py", "class Foo: pass\n")
+        info = walk_module(p)
+        cls = info.class_info["Foo"]
+        assert cls.bases == []
+        assert cls.members == []
+
+    def test_class_var_with_annotation(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py(
+            "mod.py",
+            """\
+            class Foo:
+                x: int = 5
+            """,
+        )
+        info = walk_module(p)
+        cls = info.class_info["Foo"]
+        assert len(cls.members) == 1
+        assert cls.members[0] == ClassMember(name="x", kind=MemberKind.class_var, annotation="int")
+
+    def test_class_var_without_annotation(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py(
+            "mod.py",
+            """\
+            class Foo:
+                x = 5
+            """,
+        )
+        info = walk_module(p)
+        cls = info.class_info["Foo"]
+        assert len(cls.members) == 1
+        assert cls.members[0] == ClassMember(name="x", kind=MemberKind.class_var, annotation=None)
+
+    def test_private_class_var_excluded(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py(
+            "mod.py",
+            """\
+            class Foo:
+                _x: int = 5
+            """,
+        )
+        info = walk_module(p)
+        cls = info.class_info["Foo"]
+        assert cls.members == []
+
+    def test_instance_attr_from_init_with_annotation(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py(
+            "mod.py",
+            """\
+            class Foo:
+                def __init__(self) -> None:
+                    self.name: str = "hello"
+            """,
+        )
+        info = walk_module(p)
+        cls = info.class_info["Foo"]
+        assert len(cls.members) == 1
+        assert cls.members[0] == ClassMember(name="name", kind=MemberKind.instance_attr, annotation="str")
+
+    def test_instance_attr_from_init_without_annotation(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py(
+            "mod.py",
+            """\
+            class Foo:
+                def __init__(self) -> None:
+                    self.name = "hello"
+            """,
+        )
+        info = walk_module(p)
+        cls = info.class_info["Foo"]
+        assert len(cls.members) == 1
+        assert cls.members[0] == ClassMember(name="name", kind=MemberKind.instance_attr, annotation=None)
+
+    def test_private_instance_attr_excluded(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py(
+            "mod.py",
+            """\
+            class Foo:
+                def __init__(self) -> None:
+                    self._x = 5
+            """,
+        )
+        info = walk_module(p)
+        cls = info.class_info["Foo"]
+        assert cls.members == []
+
+    def test_regular_method(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py(
+            "mod.py",
+            """\
+            class Foo:
+                def update(self) -> None: ...
+            """,
+        )
+        info = walk_module(p)
+        cls = info.class_info["Foo"]
+        assert len(cls.members) == 1
+        assert cls.members[0].name == "update"
+        assert cls.members[0].kind is MemberKind.method
+
+    def test_private_method_excluded(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py(
+            "mod.py",
+            """\
+            class Foo:
+                def _helper(self) -> None: ...
+            """,
+        )
+        info = walk_module(p)
+        cls = info.class_info["Foo"]
+        assert cls.members == []
+
+    def test_property_method(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py(
+            "mod.py",
+            """\
+            class Foo:
+                @property
+                def value(self) -> int: ...
+            """,
+        )
+        info = walk_module(p)
+        cls = info.class_info["Foo"]
+        assert len(cls.members) == 1
+        assert cls.members[0].name == "value"
+        assert cls.members[0].kind is MemberKind.property
+
+    def test_property_setter_excluded_no_duplicate(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py(
+            "mod.py",
+            """\
+            class Foo:
+                @property
+                def value(self) -> int: ...
+                @value.setter
+                def value(self, v: int) -> None: ...
+            """,
+        )
+        info = walk_module(p)
+        cls = info.class_info["Foo"]
+        value_members = [m for m in cls.members if m.name == "value"]
+        assert len(value_members) == 1
+        assert value_members[0].kind is MemberKind.property
+
+    def test_classmethod(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py(
+            "mod.py",
+            """\
+            class Foo:
+                @classmethod
+                def create(cls) -> "Foo": ...
+            """,
+        )
+        info = walk_module(p)
+        cls = info.class_info["Foo"]
+        assert len(cls.members) == 1
+        assert cls.members[0].name == "create"
+        assert cls.members[0].kind is MemberKind.classmethod
+
+    def test_staticmethod(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py(
+            "mod.py",
+            """\
+            class Foo:
+                @staticmethod
+                def parse(s: str) -> "Foo": ...
+            """,
+        )
+        info = walk_module(p)
+        cls = info.class_info["Foo"]
+        assert len(cls.members) == 1
+        assert cls.members[0].name == "parse"
+        assert cls.members[0].kind is MemberKind.staticmethod
+
+    def test_inheritance_bases(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py("mod.py", "class Foo(Bar, Baz): pass\n")
+        info = walk_module(p)
+        cls = info.class_info["Foo"]
+        assert cls.bases == ["Bar", "Baz"]
+
+    def test_walk_module_populates_class_info_for_public(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py("mod.py", "class MyClass: pass\n")
+        info = walk_module(p)
+        assert "MyClass" in info.class_info
+        assert isinstance(info.class_info["MyClass"], ClassInfo)
+
+    def test_walk_module_excludes_private_classes(self, tmp_py) -> None:  # type: ignore[no-untyped-def]
+        p = tmp_py("mod.py", "class _Private: pass\n")
+        info = walk_module(p)
+        assert "_Private" not in info.class_info

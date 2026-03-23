@@ -16,7 +16,7 @@ that waterline by making `__all__` explicit and correct in every module.
    - Use `__all__` if present (authoritative)
    - Fall back to inferring non-underscore top-level names if absent
    - Optionally bypass `__all__` and always use the AST (`--use-ast`)
-3. **Report** the public API surface per module (`show` command — primary)
+3. **Report** the public API surface per module (`show` command — primary); includes function signatures (parameter names, types, defaults, return type) and class member surfaces (class variables, instance attributes, properties, classmethods, staticmethods, instance methods)
 4. **Check** `__all__` against the AST — report names that appear public but are absent from `__all__` (IB002, one-directional), unsorted `__all__` (IB003), and optionally missing `__all__` (IB001) (`check` command — secondary)
 5. **Fix** `__all__` in place, fully synchronising it with the AST in both directions (`fix` command — secondary)
 
@@ -40,6 +40,7 @@ family follow the same conventions:
 - Fall back to AST inference (non-underscore top-level names) when absent
 - Output should be machine-readable (JSON) and human-readable (text)
 - **`show` is the primary command**: `iceberg show` reports the effective public API. `check` and `fix` are secondary enforcement and repair tools. (ADR 0019)
+- **`show` reports signatures and class members**: function signatures (params, types, defaults, return annotation) and class member surfaces (attributes, properties, methods) are included in `show` output so that `diffract` can detect breaking changes beyond name additions/removals. (ADR 0024)
 - **IB002 is one-directional**: IB002 reports names the AST considers public that are absent from `__all__`. Phantom exports (in `__all__` but not in AST) are not flagged by `check` — `fix` removes them. (ADR 0020)
 - Must work as a pre-commit hook, a CLI tool, and optionally a GitHub Action
 - **CLI is a thin shell**: `cli.py` handles argument parsing, output formatting,
@@ -222,8 +223,11 @@ sheridan-iceberg/
 │       └── iceberg/
 │           ├── __init__.py
 │           ├── ast_walker.py
+│           ├── models.py
+│           ├── enums.py
 │           ├── reporter.py
 │           ├── fixer.py
+│           ├── api.py
 │           └── cli.py
 └── tests/
 ```
@@ -254,3 +258,4 @@ Tags and PyPI releases are fully automated through three chained workflows:
 - `show` is the primary command — API reporting first, enforcement second (ADR 0019)
 - IB002 is one-directional: AST→`__all__` only; `fix` uses full bidirectional comparison (ADR 0020)
 - PAT-authenticated git pushes must use `token:` in `actions/checkout`, not `git remote set-url` (ADR 0023)
+- `show` includes function signatures and class member surfaces to enable `diffract` to detect breaking changes beyond name additions/removals (ADR 0024)
