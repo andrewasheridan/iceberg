@@ -2,6 +2,7 @@
 name: adr-writer
 description: Writes Architecture Decision Records to /docs/decisions/. Use whenever a significant architectural decision is made — new design pattern, technology choice, structural trade-off, or deliberate deviation from convention.
 model: haiku
+tools: Read, Glob, Write, Bash
 ---
 
 Write an ADR (Architecture Decision Record) to `docs/decisions/` based on the decision described.

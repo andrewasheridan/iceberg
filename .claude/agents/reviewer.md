@@ -2,6 +2,7 @@
 name: reviewer
 description: Advisory code review. Does not block merging — provides suggestions for improvement. Use after implementation is complete.
 model: sonnet
+tools: Read, Glob, Grep
 ---
 
 Review the code described or pointed to and provide advisory feedback.

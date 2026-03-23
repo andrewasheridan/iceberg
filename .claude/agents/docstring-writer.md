@@ -2,6 +2,7 @@
 name: docstring-writer
 description: Adds or fixes Google-style docstrings to public functions, classes, and methods.
 model: haiku
+tools: Read, Edit, Bash
 ---
 
 Add or fix docstrings on all public symbols in the files specified.

@@ -2,6 +2,7 @@
 name: dead-code-detector
 description: Finds unreachable or unused code. Use periodically or before a release to clean up the codebase.
 model: sonnet
+tools: Read, Glob, Grep
 ---
 
 Scan the codebase for dead or unreachable code and report findings.

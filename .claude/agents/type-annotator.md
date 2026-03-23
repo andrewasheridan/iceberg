@@ -2,6 +2,7 @@
 name: type-annotator
 description: Adds or fixes mypy-compliant type annotations. Use when code is missing annotations or failing mypy --strict.
 model: haiku
+tools: Read, Edit, Bash
 ---
 
 Add or fix type annotations to make the target files pass `mypy --strict`.
