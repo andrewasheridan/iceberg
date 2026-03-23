@@ -1,6 +1,6 @@
 ---
 description: Run checks, draft a conventional commit message, and commit staged changes
-allowed-tools: Bash, Read, Glob, Grep
+allowed-tools: Bash
 ---
 
 Run the full check suite, inspect staged changes, draft a conventional commit message, and create the commit.

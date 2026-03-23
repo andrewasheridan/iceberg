@@ -1,6 +1,6 @@
 ---
 description: Full quality sweep — complexity, dead code, and code review
-allowed-tools: Agent, Glob, Read
+allowed-tools: Agent, Glob
 ---
 
 Run a quality sweep on the codebase using three analysis agents in sequence: complexity-reducer, dead-code-detector, and reviewer.

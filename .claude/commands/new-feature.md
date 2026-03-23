@@ -1,6 +1,6 @@
 ---
 description: Full new-feature pipeline — implement, document, type-check, test, and review
-allowed-tools: Agent, Read, Glob, Grep, Bash, Edit, Write
+allowed-tools: Agent, Read, Edit, Write
 ---
 
 Implement a new feature end-to-end using the full agent pipeline.

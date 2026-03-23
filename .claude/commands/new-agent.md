@@ -1,6 +1,6 @@
 ---
 description: Scaffold a new agent file following project conventions
-allowed-tools: Read, Glob, Write, Bash
+allowed-tools: Read, Glob, Write
 ---
 
 Scaffold a new agent file in `.claude/agents/` following the project's conventions.
