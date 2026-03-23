@@ -142,27 +142,29 @@ Read-only / check variants are namespaced with a colon (`lint:check`, `format:ch
 - If no agent exists for a required task, **stop and raise an error** with a
   clear message describing what agent is needed and why. Do not improvise or
   generate a new agent on the fly. New agents are created deliberately.
-- Agents live in `.claude/agents/`. Do not look for them in `.github/agents/`
-  or anywhere else.
+- Agents live in `~/.claude/agents/` (global config). They are shared across
+  all `sheridan.*` projects and are not checked into this repo.
 - Agents inherit project conventions from this CLAUDE.md automatically. Agent
   system prompts should not restate conventions — only describe role-specific
   behavior.
 
 ### Agent roster
 
-| Agent | File | Role |
-|---|---|---|
-| `orchestrator` | `.claude/agents/orchestrator.md` | **Default agent.** Routes tasks to specialist subagents and loops until complete |
-| `code-writer` | `.claude/agents/code-writer.md` | Writes implementation code from a spec or description |
-| `test-writer` | `.claude/agents/test-writer.md` | Writes pytest tests for existing implementation |
-| `docstring-writer` | `.claude/agents/docstring-writer.md` | Adds or fixes Google-style docstrings |
-| `type-annotator` | `.claude/agents/type-annotator.md` | Adds or fixes mypy-compliant type annotations |
-| `reviewer` | `.claude/agents/reviewer.md` | Advisory code review — does not block, suggests improvements |
-| `complexity-reducer` | `.claude/agents/complexity-reducer.md` | Identifies overly complex code and proposes simpler alternatives |
-| `dead-code-detector` | `.claude/agents/dead-code-detector.md` | Finds unreachable or unused code |
-| `adr-writer` | `.claude/agents/adr-writer.md` | Writes ADRs to `/docs/decisions/` when architectural decisions are made |
-| `changelog-writer` | `.claude/agents/changelog-writer.md` | Drafts changelog entries from conventional commits |
-| `dependency-auditor` | `.claude/agents/dependency-auditor.md` | Reviews proposed new dependencies before they are added |
+| Agent | Role |
+|---|---|
+| `orchestrator` | **Default agent.** Routes tasks to specialist subagents and loops until complete |
+| `code-writer` | Writes implementation code from a spec or description |
+| `test-writer` | Writes pytest tests for existing implementation |
+| `docstring-writer` | Adds or fixes Google-style docstrings |
+| `type-annotator` | Adds or fixes mypy-compliant type annotations |
+| `reviewer` | Advisory code review — does not block, suggests improvements |
+| `complexity-reducer` | Identifies overly complex code and proposes simpler alternatives |
+| `dead-code-detector` | Finds unreachable or unused code |
+| `adr-writer` | Writes ADRs to `/docs/decisions/` when architectural decisions are made |
+| `changelog-writer` | Drafts changelog entries from conventional commits |
+| `dependency-auditor` | Reviews proposed new dependencies before they are added |
+
+Agent definitions live in `~/.claude/agents/` and are shared across all `sheridan.*` projects.
 
 ### Suggested orchestration flows
 
@@ -209,18 +211,6 @@ sheridan-iceberg/
 │       ├── bump.yaml
 │       ├── publish.yaml
 │       └── pr-title.yaml
-├── .claude/
-│   └── agents/
-│       ├── code-writer.md
-│       ├── test-writer.md
-│       ├── docstring-writer.md
-│       ├── type-annotator.md
-│       ├── reviewer.md
-│       ├── complexity-reducer.md
-│       ├── dead-code-detector.md
-│       ├── adr-writer.md
-│       ├── changelog-writer.md
-│       └── dependency-auditor.md
 ├── ci/
 │   ├── pyproject.toml
 │   └── src/main/
@@ -259,6 +249,7 @@ Tags and PyPI releases are fully automated through three chained workflows:
 - Task naming: mutating tasks use bare names (`lint`, `format`); read-only variants use colon namespacing (`lint:check`, `format:check`)
 - CI engine: Dagger with Podman default, Docker optional via `CONTAINER_RUNTIME=docker` (ADR 0018)
 - Agents are curated, not generated — missing agent = stop with error
+- Agent definitions live in `~/.claude/agents/` (global); not checked into this repo
 - Agent conventions come from CLAUDE.md, not from agent system prompts
 - `show` is the primary command — API reporting first, enforcement second (ADR 0019)
 - IB002 is one-directional: AST→`__all__` only; `fix` uses full bidirectional comparison (ADR 0020)
