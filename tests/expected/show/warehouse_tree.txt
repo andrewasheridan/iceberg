@@ -1,0 +1,27 @@
+warehouse/
+  __init__
+    Product
+    Warehouse
+    format_sku
+    load_csv
+  models
+    Product
+      TAX_RATE: float
+      sku: str
+      name: str
+      price
+      quantity
+      total_value (property) → float
+      price_with_tax (property)
+      restock(self, units: int)
+      sell(self, units)
+      classmethod from_dict(cls, data) → Product
+      staticmethod is_valid_sku(sku: str) → bool
+    Warehouse
+      name
+      add(self, product)
+      get(self, sku: str) → Product | None
+      all_products(self) → list[Product]
+  utils
+    format_sku(prefix: str, number)
+    load_csv(path) → list[Product]
