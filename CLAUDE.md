@@ -84,11 +84,6 @@ These apply across all `sheridan.*` repos. Do not deviate without good reason.
 | README badge wall | CI status, coverage %, mutation score, license |
 | `.yaml` extension | All YAML files use `.yaml`, never `.yml` (ADR 0021) |
 
-## Mutation testing strategy
-Mutation testing is currently deferred — see ADR 0017. Both mutmut 2.x and 3.x
-are incompatible with Python 3.14. Revisit when mutmut ships a fix for
-https://github.com/boxed/mutmut/issues/466.
-
 ## CI pipeline
 All checks run in parallel inside containers via [Dagger](https://dagger.io) (ADR 0018).
 Podman is the default local runtime; Docker is supported via `CONTAINER_RUNTIME=docker`.
@@ -165,7 +160,6 @@ Read-only / check variants are namespaced with a colon (`lint:check`, `format:ch
 | `reviewer` | `.claude/agents/reviewer.md` | Advisory code review — does not block, suggests improvements |
 | `complexity-reducer` | `.claude/agents/complexity-reducer.md` | Identifies overly complex code and proposes simpler alternatives |
 | `dead-code-detector` | `.claude/agents/dead-code-detector.md` | Finds unreachable or unused code |
-| `mutation-analyzer` | `.claude/agents/mutation-analyzer.md` | Interprets mutmut results and suggests fixes for surviving mutants |
 | `adr-writer` | `.claude/agents/adr-writer.md` | Writes ADRs to `/docs/decisions/` when architectural decisions are made |
 | `changelog-writer` | `.claude/agents/changelog-writer.md` | Drafts changelog entries from conventional commits |
 | `dependency-auditor` | `.claude/agents/dependency-auditor.md` | Reviews proposed new dependencies before they are added |
@@ -177,12 +171,13 @@ Read-only / check variants are namespaced with a colon (`lint:check`, `format:ch
 2. `docstring-writer` — document
 3. `type-annotator` — annotate (if not already done by code-writer)
 4. `test-writer` — test
-5. `reviewer` — advisory review, including flagging whether README or CLAUDE.md need updating
-6. Update README.md and CLAUDE.md in the main session if APIs, CLI flags, or conventions changed
+5. `reviewer` — advisory review; produces a mandatory follow-up checklist
+6. `adr-writer` — if the reviewer (or your judgment) flags an architectural decision was made
+7. Update CLAUDE.md in the main session if API surface, CLI flags, commands, agent roster, or conventions changed
+8. Update README.md in the main session if user-facing behaviour, install steps, or CLI usage changed
 
 **Architectural decision:**
-1. Make the decision in the main session
-2. `adr-writer` — record it
+1. `adr-writer` — always record significant decisions, even small ones that future maintainers would ask "why?"
 
 **Adding a dependency:**
 1. `dependency-auditor` — review first
@@ -193,7 +188,7 @@ Read-only / check variants are namespaced with a colon (`lint:check`, `format:ch
 
 **After any user-facing change:**
 1. `reviewer` — advisory review
-2. Update README.md and CLAUDE.md in the main session if needed
+2. Apply follow-up checklist: ADR, CLAUDE.md, README.md as needed
 
 ## Project structure (intended)
 ```
@@ -223,7 +218,6 @@ sheridan-iceberg/
 │       ├── reviewer.md
 │       ├── complexity-reducer.md
 │       ├── dead-code-detector.md
-│       ├── mutation-analyzer.md
 │       ├── adr-writer.md
 │       ├── changelog-writer.md
 │       └── dependency-auditor.md
