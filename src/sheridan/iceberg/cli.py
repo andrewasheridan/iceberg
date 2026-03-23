@@ -10,6 +10,7 @@ from pathlib import Path
 from sheridan.iceberg.api import check_api, fix_api
 from sheridan.iceberg.ast_walker import ModuleInfo, base_for, load_modules, module_id, resolve_show_modules
 from sheridan.iceberg.enums import OutputFormat, ShowFormat
+from sheridan.iceberg.models import ClassInfo, ClassMember, FunctionSignature, MemberKind, ParamInfo, ParamKind
 
 
 def _check(args: argparse.Namespace) -> int:
@@ -74,8 +75,108 @@ def _fix(args: argparse.Namespace) -> int:
     return 0
 
 
+def _render_param(param: ParamInfo) -> str:
+    """Render a single parameter as a Python-style string.
+
+    Args:
+        param: Parameter information.
+
+    Returns:
+        Formatted parameter string, e.g. ``"x: int = ..."``.
+    """
+    prefix = ""
+    if param.kind is ParamKind.var_positional:
+        prefix = "*"
+    elif param.kind is ParamKind.var_keyword:
+        prefix = "**"
+    result = f"{prefix}{param.name}"
+    if param.annotation:
+        result += f": {param.annotation}"
+    if param.has_default and param.kind not in (ParamKind.var_positional, ParamKind.var_keyword):
+        result += " = ..."
+    return result
+
+
+def _render_signature(sig: FunctionSignature) -> str:
+    """Render a :class:`FunctionSignature` as a Python-style ``(params) → return`` string.
+
+    Inserts ``/`` after positional-only parameters and ``*`` before keyword-only
+    parameters when no ``*args`` is present.
+
+    Args:
+        sig: The function signature to render.
+
+    Returns:
+        Formatted signature string, e.g. ``"(x: int, y: str = ...) → bool"``.
+    """
+    parts: list[str] = []
+    after_pos_only = False
+    added_star = False
+
+    for param in sig.params:
+        if param.kind is not ParamKind.positional_only and after_pos_only:
+            parts.append("/")
+            after_pos_only = False
+        match param.kind:
+            case ParamKind.positional_only:
+                parts.append(_render_param(param))
+                after_pos_only = True
+            case ParamKind.positional_or_keyword | ParamKind.var_keyword:
+                parts.append(_render_param(param))
+            case ParamKind.var_positional:
+                added_star = True
+                parts.append(_render_param(param))
+            case ParamKind.keyword_only:
+                if not added_star:
+                    parts.append("*")
+                    added_star = True
+                parts.append(_render_param(param))
+
+    if after_pos_only:
+        parts.append("/")
+
+    result = f"({', '.join(parts)})"
+    if sig.return_annotation:
+        result += f" \u2192 {sig.return_annotation}"
+    return result
+
+
+def _render_member(member: ClassMember) -> str:
+    """Render a :class:`ClassMember` as a human-readable string.
+
+    Args:
+        member: The class member to render.
+
+    Returns:
+        Formatted member string appropriate for tree output.
+    """
+    match member.kind:
+        case MemberKind.class_var | MemberKind.instance_attr:
+            if member.annotation:
+                return f"{member.name}: {member.annotation}"
+            return member.name
+        case MemberKind.property:
+            if member.signature and member.signature.return_annotation:
+                return f"{member.name} (property) \u2192 {member.signature.return_annotation}"
+            return f"{member.name} (property)"
+        case MemberKind.classmethod | MemberKind.staticmethod:
+            label = member.kind.value  # "classmethod" or "staticmethod"
+            if member.signature:
+                return f"{label} {member.name}{_render_signature(member.signature)}"
+            return f"{label} {member.name}"
+        case MemberKind.method:
+            if member.signature:
+                prefix = "async " if member.signature.is_async else ""
+                return f"{prefix}{member.name}{_render_signature(member.signature)}"
+            return member.name
+
+
 def _format_tree(modules: list[ModuleInfo], root: Path, use_ast: bool) -> str:
     """Render public API as an indented filesystem tree.
+
+    Functions are rendered with their full signatures.  Classes are followed
+    by an indented list of their public members (attributes, properties, and
+    methods).
 
     Args:
         modules: Parsed module information.
@@ -115,17 +216,111 @@ def _format_tree(modules: list[ModuleInfo], root: Path, use_ast: bool) -> str:
         module_name = parts[-1].removesuffix(".py")
         lines.append(f"{'  ' * module_depth}{module_name}")
 
-        # Public names
+        # Public names with rich info
         names = info.inferred_all if use_ast else info.effective_all
         name_depth = module_depth + 1
         for name in names:
-            lines.append(f"{'  ' * name_depth}{name}")
+            if sig := info.function_signatures.get(name):
+                prefix = "async " if sig.is_async else ""
+                lines.append(f"{'  ' * name_depth}{prefix}{name}{_render_signature(sig)}")
+            elif cls := info.class_info.get(name):
+                lines.append(f"{'  ' * name_depth}{name}")
+                member_depth = name_depth + 1
+                for member in cls.members:
+                    lines.append(f"{'  ' * member_depth}{_render_member(member)}")
+            else:
+                lines.append(f"{'  ' * name_depth}{name}")
 
     return "\n".join(lines)
 
 
+def _sig_to_dict(sig: FunctionSignature) -> dict[str, object]:
+    """Serialize a :class:`FunctionSignature` to a JSON-compatible dict.
+
+    Args:
+        sig: Signature to serialize.
+
+    Returns:
+        Dict with ``params``, ``return_annotation``, and ``is_async`` keys.
+    """
+    return {
+        "params": [
+            {
+                "name": p.name,
+                "annotation": p.annotation,
+                "has_default": p.has_default,
+                "kind": p.kind.value,
+            }
+            for p in sig.params
+        ],
+        "return_annotation": sig.return_annotation,
+        "is_async": sig.is_async,
+    }
+
+
+def _member_to_dict(member: ClassMember) -> dict[str, object]:
+    """Serialize a :class:`ClassMember` to a JSON-compatible dict.
+
+    Args:
+        member: Member to serialize.
+
+    Returns:
+        Dict with ``name``, ``kind``, and optional ``annotation``/``signature`` keys.
+    """
+    d: dict[str, object] = {"name": member.name, "kind": member.kind.value}
+    if member.annotation is not None:
+        d["annotation"] = member.annotation
+    if member.signature is not None:
+        d["signature"] = _sig_to_dict(member.signature)
+    return d
+
+
+def _class_info_to_dict(cls: ClassInfo) -> dict[str, object]:
+    """Serialize a :class:`ClassInfo` to a JSON-compatible dict.
+
+    Args:
+        cls: Class info to serialize.
+
+    Returns:
+        Dict with ``kind``, ``bases``, and ``members`` keys.
+    """
+    return {
+        "kind": "class",
+        "bases": cls.bases,
+        "members": [_member_to_dict(m) for m in cls.members],
+    }
+
+
+def _build_detail(names: list[str], info: ModuleInfo) -> dict[str, object]:
+    """Build the per-name detail mapping for JSON show output.
+
+    Only names for which rich info is available (functions and classes) are
+    included.  Plain variables are omitted.
+
+    Args:
+        names: The effective public names for the module.
+        info: Parsed module information containing signature and class data.
+
+    Returns:
+        Dict mapping each name with rich info to its serialized detail.
+    """
+    detail: dict[str, object] = {}
+    for name in names:
+        if sig := info.function_signatures.get(name):
+            detail[name] = {
+                "kind": "async function" if sig.is_async else "function",
+                "signature": _sig_to_dict(sig),
+            }
+        elif cls := info.class_info.get(name):
+            detail[name] = _class_info_to_dict(cls)
+    return detail
+
+
 def _format_show_json(modules: list[ModuleInfo], root: Path, use_ast: bool) -> str:
     """Render public API as a JSON array.
+
+    Each entry includes a ``detail`` key with per-name signature and class
+    member information for functions and classes.
 
     Args:
         modules: Parsed module information.
@@ -134,21 +329,21 @@ def _format_show_json(modules: list[ModuleInfo], root: Path, use_ast: bool) -> s
 
     Returns:
         JSON string — an array of objects with ``module``, ``path``,
-        ``source``, and ``names`` keys.
+        ``source``, ``names``, and ``detail`` keys.
     """
     base = base_for(root)
     result = []
     for info in modules:
         names = info.inferred_all if use_ast else info.effective_all
         source = "ast" if (use_ast or info.declared_all is None) else "__all__"
-        result.append(
-            {
-                "module": module_id(info.path, base),
-                "path": str(info.path),
-                "source": source,
-                "names": names,
-            }
-        )
+        entry: dict[str, object] = {
+            "module": module_id(info.path, base),
+            "path": str(info.path),
+            "source": source,
+            "names": names,
+            "detail": _build_detail(names, info),
+        }
+        result.append(entry)
     return json.dumps(result, indent=2)
 
 

@@ -15,7 +15,7 @@ no importing of user code.
 
 ## Features
 
-- **`show`** — inspect and report the effective public API of any module or project; uses `__all__` when present, falls back to AST inference; `--use-ast` forces AST-only regardless of `__all__`
+- **`show`** — inspect and report the effective public API of any module or project; includes function signatures (parameter names, types, defaults) and class member surfaces (attributes, properties, methods); uses `__all__` when present, falls back to AST inference; `--use-ast` forces AST-only regardless of `__all__`
 - **`check`** — enforce `__all__` correctness; IB002 is one-directional (names that appear public in the AST but are absent from `__all__`), so deliberate re-exports are never flagged as phantom names
 - **`fix`** — auto-repair `__all__` in place; uses full bidirectional comparison, removing phantom exports as well as adding missing ones
 - Walks a Python project's modules via AST (safe, no imports)
@@ -59,9 +59,10 @@ iceberg fix src/ --dry-run
 
 ### Example output
 
-`iceberg show` produces an indented tree by default. When `__init__.py`
-declares `__all__`, it is the source of truth for the whole package — only
-that module is shown:
+`iceberg show` produces an indented tree by default. Functions are shown with
+their full signatures; classes are followed by an indented list of their public
+members. When `__init__.py` declares `__all__`, it is the source of truth for
+the whole package — only that module is shown:
 
 ```
 # iceberg show src/mypackage/
@@ -69,8 +70,17 @@ that module is shown:
 mypackage/
   __init__
     Role
+      name: str
+      level: int
+      permissions (property) → list[str]
+      classmethod create(cls, name: str, level: int = ...) → Role
+      promote(self) → None
     User
-    helper
+      email: str
+      role: Role
+      is_active: bool
+      save(self) → None
+    helper(path: Path) → list[str]
 ```
 
 Pass `--use-ast` to bypass `__all__` and see every module's inferred names:
@@ -81,15 +91,17 @@ Pass `--use-ast` to bypass `__all__` and see every module's inferred names:
 mypackage/
   __init__
     Role
+      ...
     User
-    helper
+      ...
+    helper(path: Path) → list[str]
   core
     Alpha
     Beta
     Gamma
   utils
-    helper
-    parse
+    helper(path: Path) → list[str]
+    parse(text: str, strict: bool = ...) → dict[str, object]
 ```
 
 `iceberg check` reports violations:
@@ -115,18 +127,37 @@ Exit codes:
     "module": "mypackage.utils",
     "path": "src/mypackage/utils.py",
     "source": "ast",
-    "names": ["helper", "parse"]
-  },
-  {
-    "module": "mypackage.models",
-    "path": "src/mypackage/models.py",
-    "source": "__all__",
-    "names": ["Role", "User"]
+    "names": ["helper", "parse"],
+    "detail": {
+      "helper": {
+        "kind": "function",
+        "signature": {
+          "params": [
+            {"name": "path", "annotation": "Path", "has_default": false, "kind": "positional_or_keyword"}
+          ],
+          "return_annotation": "list[str]",
+          "is_async": false
+        }
+      },
+      "parse": {
+        "kind": "function",
+        "signature": {
+          "params": [
+            {"name": "text", "annotation": "str", "has_default": false, "kind": "positional_or_keyword"},
+            {"name": "strict", "annotation": "bool", "has_default": true, "kind": "positional_or_keyword"}
+          ],
+          "return_annotation": "dict[str, object]",
+          "is_async": false
+        }
+      }
+    }
   }
 ]
 ```
 
 The `source` field is `"__all__"` when the module has an `__all__` (and `--use-ast` is not set), `"ast"` otherwise.
+
+The `detail` object maps each public name to its rich info. Functions have `kind: "function"` (or `"async function"`) and a `signature` object. Classes have `kind: "class"`, a `bases` list, and a `members` array. Plain variables (no static type info available) are absent from `detail`.
 
 `iceberg check --format json`:
 
