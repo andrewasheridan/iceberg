@@ -6,7 +6,6 @@ from unittest.mock import patch
 from sheridan.iceberg.api import get_public_api
 from sheridan.iceberg.ast_walker import ModuleInfo
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
