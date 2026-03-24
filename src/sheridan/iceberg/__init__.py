@@ -2,14 +2,12 @@
 
 __all__ = [
     "__version__",
-    "check_api",
-    "fix_api",
     "get_public_api",
 ]
 
 import importlib.metadata
 
-from sheridan.iceberg.api import check_api, fix_api, get_public_api
+from sheridan.iceberg.api import get_public_api
 
 try:
     __version__: str = importlib.metadata.version("sheridan-iceberg")

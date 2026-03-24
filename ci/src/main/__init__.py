@@ -91,7 +91,7 @@ class SheridanIcebergCi:
         source: Annotated[dagger.Directory, DefaultPath(".")],
     ) -> str:
         """Run iceberg on itself (dogfooding)."""
-        return await _base(source).with_exec(["uv", "run", "iceberg", "check", "src/"]).stdout()
+        return await _base(source).with_exec(["uv", "run", "iceberg", "src/"]).stdout()
 
     @function
     async def check(
@@ -110,7 +110,7 @@ class SheridanIcebergCi:
             ("test", base.with_exec(["uv", "run", "pytest", "--cov"])),
             ("security", base.with_exec(["uv", "run", "bandit", "-r", "src/"])),
             ("docs", base.with_exec(["uv", "run", "zensical", "build"])),
-            ("iceberg", base.with_exec(["uv", "run", "iceberg", "check", "src/"])),
+            ("iceberg", base.with_exec(["uv", "run", "iceberg", "src/"])),
         ]
 
         results: list[str | BaseException] = list(

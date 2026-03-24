@@ -1,14 +1,14 @@
 # sheridan-iceberg
 
 ## What this is
-`sheridan-iceberg` is a Python developer tool that analyzes Python modules and
-enforces the presence and correctness of `__all__`. It is the foundation of the
-`sheridan.*` developer toolchain.
+`sheridan-iceberg` is a Python developer tool that reports the public API
+surface of Python modules. It is the foundation of the `sheridan.*` developer
+toolchain.
 
 ## The iceberg metaphor
 The public API is the tip of the iceberg — the small visible surface above the
-waterline. Everything below is private implementation detail. `iceberg` guards
-that waterline by making `__all__` explicit and correct in every module.
+waterline. Everything below is private implementation detail. `iceberg` makes
+that waterline visible.
 
 ## What it does
 1. Walk a Python project's modules using the `ast` module (no importing user code)
@@ -16,9 +16,7 @@ that waterline by making `__all__` explicit and correct in every module.
    - Use `__all__` if present (authoritative)
    - Fall back to inferring non-underscore top-level names if absent
    - Optionally bypass `__all__` and always use the AST (`--use-ast`)
-3. **Report** the public API surface per module (`show` command — primary); includes function signatures (parameter names, types, defaults, return type) and class member surfaces (class variables, instance attributes, properties, classmethods, staticmethods, instance methods)
-4. **Check** `__all__` against the AST — report names that appear public but are absent from `__all__` (IB002, one-directional), unsorted `__all__` (IB003), and optionally missing `__all__` (IB001) (`check` command — secondary)
-5. **Fix** `__all__` in place, fully synchronising it with the AST in both directions (`fix` command — secondary)
+3. **Report** the public API surface per module; includes function signatures (parameter names, types, defaults, return type) and class member surfaces (class variables, instance attributes, properties, classmethods, staticmethods, instance methods)
 
 ## Relationship to sheridan-diffract
 `iceberg` is a dependency of `sheridan-diffract`, a sibling tool that diffs the
@@ -31,18 +29,16 @@ This package lives under the `sheridan` namespace package. Other tools in this
 family follow the same conventions:
 - Whimsical but meaningful names
 - Clean CLIs
-- Designed to compose with pre-commit, GitHub Actions, and CI pipelines
+- Designed to compose with GitHub Actions and CI pipelines
 - Consistent tooling across all repos (see Tooling Conventions below)
 
 ## Design principles
 - Use Python's `ast` module for static analysis — no importing user code
 - `__all__` is the authoritative source of public API when present
 - Fall back to AST inference (non-underscore top-level names) when absent
-- Output should be machine-readable (JSON) and human-readable (text)
-- **`show` is the primary command**: `iceberg show` reports the effective public API. `check` and `fix` are secondary enforcement and repair tools. (ADR 0019)
-- **`show` reports signatures and class members**: function signatures (params, types, defaults, return annotation) and class member surfaces (attributes, properties, methods) are included in `show` output so that `diffract` can detect breaking changes beyond name additions/removals. (ADR 0024)
-- **IB002 is one-directional**: IB002 reports names the AST considers public that are absent from `__all__`. Phantom exports (in `__all__` but not in AST) are not flagged by `check` — `fix` removes them. (ADR 0020)
-- Must work as a pre-commit hook, a CLI tool, and optionally a GitHub Action
+- Output should be machine-readable (JSON) and human-readable (tree)
+- **Single responsibility**: `iceberg` reports what the public API *is*. Enforcement of `__all__` correctness belongs to a future focused tool. (ADR 0025)
+- **Reports signatures and class members**: function signatures (params, types, defaults, return annotation) and class member surfaces (attributes, properties, methods) are included in output so that `diffract` can detect breaking changes beyond name additions/removals. (ADR 0024)
 - **CLI is a thin shell**: `cli.py` handles argument parsing, output formatting,
   and exit codes only. All reusable logic lives in library modules and is
   accessible programmatically. This applies to all `sheridan.*` tools. (ADR 0011)
@@ -74,7 +70,7 @@ These apply across all `sheridan.*` repos. Do not deviate without good reason.
 | `ruff` | Lint and formatting |
 | `mypy --strict` | Type checking |
 | `pytest` + `pytest-cov` | Tests, 90% coverage minimum |
-| `pre-commit` | Local hooks: ruff, mypy, iceberg before push |
+| `pre-commit` | Local hooks: ruff, mypy before push |
 | `commitizen` | Enforces conventional commits (`feat:`, `fix:`, `chore:`) |
 | `Taskfile.yaml` | Task runner. Never use `make`. Use `task <name>` |
 | `Zensical` + MkDocstrings | Documentation site |
@@ -106,7 +102,7 @@ GitHub Actions runs the same pipeline via `dagger/dagger-action@v3` (Docker defa
 | Tests + coverage | pytest --cov (90% min) | Every push |
 | Security lint | bandit | Every push |
 | Doc generation | zensical build | Every push |
-| Iceberg self-check | iceberg check src/ | Every push |
+| Iceberg dogfood | iceberg src/ | Every push |
 | Mutation testing | deferred — see ADR 0017 | N/A |
 | PR title lint | amannn/action-semantic-pull-request (ADR 0022) | Every PR |
 | Dependency updates | Renovate | Automated PRs |
@@ -126,7 +122,7 @@ Read-only / check variants are namespaced with a colon (`lint:check`, `format:ch
 | `task format:check` | `uv run ruff format --check .` (read-only) |
 | `task typecheck` | `uv run mypy --strict .` |
 | `task test` | `uv run pytest --cov` |
-| `task iceberg` | `uv run iceberg check src/` (dogfood self-check) |
+| `task iceberg` | `uv run iceberg src/` (dogfood — show public API) |
 | `task check` | `lint:check` + `format:check` + `typecheck` + `test` + `iceberg` |
 | `task ci-init` | `dagger develop` (run once after clone) |
 | `task ci` | `dagger call check --source=.` |
@@ -205,7 +201,6 @@ sheridan-iceberg/
 ├── pyproject.toml
 ├── zensical.toml
 ├── .pre-commit-config.yaml
-├── .pre-commit-hooks.yaml
 ├── .github/
 │   └── workflows/
 │       ├── ci.yaml
@@ -225,8 +220,6 @@ sheridan-iceberg/
 │           ├── ast_walker.py
 │           ├── models.py
 │           ├── enums.py
-│           ├── reporter.py
-│           ├── fixer.py
 │           ├── api.py
 │           └── cli.py
 └── tests/
@@ -255,7 +248,7 @@ Tags and PyPI releases are fully automated through three chained workflows:
 - Agents are curated, not generated — missing agent = stop with error
 - Agent definitions live in `~/.claude/agents/` (global); not checked into this repo
 - Agent conventions come from CLAUDE.md, not from agent system prompts
-- `show` is the primary command — API reporting first, enforcement second (ADR 0019)
-- IB002 is one-directional: AST→`__all__` only; `fix` uses full bidirectional comparison (ADR 0020)
+- `check` and `fix` commands removed — iceberg's single responsibility is reporting the API surface (ADR 0025)
+- CLI is flat: `iceberg <path>` — no subcommands (ADR 0025)
 - PAT-authenticated git pushes must use `token:` in `actions/checkout`, not `git remote set-url` (ADR 0023)
-- `show` includes function signatures and class member surfaces to enable `diffract` to detect breaking changes beyond name additions/removals (ADR 0024)
+- Output includes function signatures and class member surfaces to enable `diffract` to detect breaking changes beyond name additions/removals (ADR 0024)

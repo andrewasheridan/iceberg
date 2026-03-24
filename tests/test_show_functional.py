@@ -111,7 +111,7 @@ class TestStandaloneShow:
         a top-level function with a keyword-only param with default.
         """
         fixture = str(_FIXTURES_DIR / "standalone.py")
-        exit_code = _run(["show", fixture], capsys)
+        exit_code = _run([fixture], capsys)
         captured = capsys.readouterr()
 
         assert exit_code == 0
@@ -124,7 +124,7 @@ class TestStandaloneShow:
         kind, and top-level function with keyword-only param.
         """
         fixture = str(_FIXTURES_DIR / "standalone.py")
-        exit_code = _run(["show", "--format", "json", fixture], capsys)
+        exit_code = _run(["--format", "json", fixture], capsys)
         captured = capsys.readouterr()
 
         assert exit_code == 0
@@ -152,7 +152,7 @@ class TestGeometryShow:
         whole package: submodules (point, shapes, utils) are suppressed.
         """
         fixture = str(_FIXTURES_DIR / "geometry")
-        exit_code = _run(["show", fixture], capsys)
+        exit_code = _run([fixture], capsys)
         captured = capsys.readouterr()
 
         assert exit_code == 0
@@ -165,7 +165,7 @@ class TestGeometryShow:
         even though the names appear in __all__.
         """
         fixture = str(_FIXTURES_DIR / "geometry")
-        exit_code = _run(["show", "--format", "json", fixture], capsys)
+        exit_code = _run(["--format", "json", fixture], capsys)
         captured = capsys.readouterr()
 
         assert exit_code == 0
@@ -179,7 +179,7 @@ class TestGeometryShow:
         shapes, and utils are each reported with their own public API surface.
         """
         fixture = str(_FIXTURES_DIR / "geometry")
-        exit_code = _run(["show", "--use-ast", fixture], capsys)
+        exit_code = _run(["--use-ast", fixture], capsys)
         captured = capsys.readouterr()
 
         assert exit_code == 0
@@ -188,7 +188,7 @@ class TestGeometryShow:
     def test_json_output_use_ast(self, capsys: pytest.CaptureFixture[str]) -> None:
         """JSON output with --use-ast has four entries, each with rich detail."""
         fixture = str(_FIXTURES_DIR / "geometry")
-        exit_code = _run(["show", "--use-ast", "--format", "json", fixture], capsys)
+        exit_code = _run(["--use-ast", "--format", "json", fixture], capsys)
         captured = capsys.readouterr()
 
         assert exit_code == 0
@@ -216,7 +216,7 @@ class TestWarehouseShow:
         models and utils are shown with their own member detail.
         """
         fixture = str(_FIXTURES_DIR / "warehouse")
-        exit_code = _run(["show", fixture], capsys)
+        exit_code = _run([fixture], capsys)
         captured = capsys.readouterr()
 
         assert exit_code == 0
@@ -230,7 +230,7 @@ class TestWarehouseShow:
         utility functions in utils appear with their signatures.
         """
         fixture = str(_FIXTURES_DIR / "warehouse")
-        exit_code = _run(["show", "--format", "json", fixture], capsys)
+        exit_code = _run(["--format", "json", fixture], capsys)
         captured = capsys.readouterr()
 
         assert exit_code == 0
@@ -258,7 +258,7 @@ class TestTodoShow:
         no ': type' on attributes, no '→ return' on any callable.
         """
         fixture = str(_FIXTURES_DIR / "todo.py")
-        exit_code = _run(["show", fixture], capsys)
+        exit_code = _run([fixture], capsys)
         captured = capsys.readouterr()
 
         assert exit_code == 0
@@ -271,7 +271,7 @@ class TestTodoShow:
         return_annotation appears on any member.
         """
         fixture = str(_FIXTURES_DIR / "todo.py")
-        exit_code = _run(["show", "--format", "json", fixture], capsys)
+        exit_code = _run(["--format", "json", fixture], capsys)
         captured = capsys.readouterr()
 
         assert exit_code == 0
@@ -302,7 +302,7 @@ class TestPluginShow:
         ``core/__init__.__all__`` suppresses any sibling modules in ``core/``.
         """
         fixture = str(_FIXTURES_DIR / "plugin")
-        exit_code = _run(["show", fixture], capsys)
+        exit_code = _run([fixture], capsys)
         captured = capsys.readouterr()
 
         assert exit_code == 0
@@ -317,7 +317,7 @@ class TestPluginShow:
         JsonFormat with BaseFormat base).
         """
         fixture = str(_FIXTURES_DIR / "plugin")
-        exit_code = _run(["show", "--format", "json", fixture], capsys)
+        exit_code = _run(["--format", "json", fixture], capsys)
         captured = capsys.readouterr()
 
         assert exit_code == 0

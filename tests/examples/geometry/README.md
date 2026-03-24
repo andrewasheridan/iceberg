@@ -2,16 +2,16 @@
 
 ## Purpose
 
-Demonstrates how `iceberg show` behaves when a package's `__init__.py`
+Demonstrates how `iceberg` behaves when a package's `__init__.py`
 declares `__all__`. Because `__all__` is authoritative for the whole package,
-running `iceberg show geometry/` reports **only the `__init__` module** — the
+running `iceberg geometry/` reports **only the `__init__` module** — the
 four submodules are suppressed.
 
 Running with `--use-ast` bypasses this: all four modules are reported
 individually with full member detail.
 
 This package is the **full typing** fixture: every parameter, return type,
-and attribute carries an annotation. `iceberg show` output includes `: type`
+and attribute carries an annotation. `iceberg` output includes `: type`
 on all attributes and `→ return` on every callable.
 
 ## Structure
@@ -35,7 +35,7 @@ geometry/
 | `shapes.py` | Class var, properties (`area`, `perimeter`), `@classmethod`, `@staticmethod`, private base class |
 | `utils.py` | Module-level function; private helper excluded from public surface |
 
-## iceberg show output
+## iceberg output
 
 **Without `--use-ast`** — only `__init__` shown, names have no detail (imports, not defs):
 ```

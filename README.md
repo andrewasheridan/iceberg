@@ -9,19 +9,16 @@
 
 > The public API is the tip of the iceberg. `iceberg` guards the waterline.
 
-`sheridan-iceberg` analyzes Python modules and enforces the presence and
-correctness of `__all__`. It uses Python's `ast` module for static analysis —
-no importing of user code.
+`sheridan-iceberg` reports the public API surface of Python modules. It uses
+Python's `ast` module for static analysis — no importing of user code.
 
 ## Features
 
-- **`show`** — inspect and report the effective public API of any module or project; includes function signatures (parameter names, types, defaults) and class member surfaces (attributes, properties, methods); uses `__all__` when present, falls back to AST inference; `--use-ast` forces AST-only regardless of `__all__`
-- **`check`** — enforce `__all__` correctness; IB002 is one-directional (names that appear public in the AST but are absent from `__all__`), so deliberate re-exports are never flagged as phantom names
-- **`fix`** — auto-repair `__all__` in place; uses full bidirectional comparison, removing phantom exports as well as adding missing ones
-- Walks a Python project's modules via AST (safe, no imports)
+- Report the effective public API of any module or project; includes function signatures (parameter names, types, defaults) and class member surfaces (attributes, properties, methods)
 - Uses `__all__` as the authoritative public API surface when present; falls back to inferring non-underscore top-level names when absent
-- Machine-readable JSON output and human-readable text/tree output
-- Works as a pre-commit hook, CLI tool, or GitHub Action
+- `--use-ast` forces AST-only inference regardless of `__all__`
+- Walks an entire Python project's module tree via AST (safe, no imports)
+- Machine-readable JSON output and human-readable tree output
 
 ## Installation
 
@@ -33,39 +30,26 @@ pip install sheridan-iceberg
 
 ```bash
 # Report the public API of a project
-iceberg show src/
+iceberg src/
 
 # Show as JSON (machine-readable)
-iceberg show src/ --format json
+iceberg src/ --format json
 
 # Ignore __all__ entirely — always use AST inference
-iceberg show src/ --use-ast
-
-# Check __all__ declarations against the AST
-iceberg check src/
-
-# Suppress IB001 (missing __all__) — only report IB002 and IB003
-iceberg check src/ --ignore-missing
-
-# Check with JSON output
-iceberg check src/ --format json
-
-# Auto-fix __all__ declarations (bidirectional — also removes phantom exports)
-iceberg fix src/
-
-# Preview what fix would change without writing
-iceberg fix src/ --dry-run
+iceberg src/ --use-ast
 ```
+
+Exit codes: `0` always (path existence aside); `2` if path not found.
 
 ### Example output
 
-`iceberg show` produces an indented tree by default. Functions are shown with
-their full signatures; classes are followed by an indented list of their public
+`iceberg` produces an indented tree by default. Functions are shown with their
+full signatures; classes are followed by an indented list of their public
 members. When `__init__.py` declares `__all__`, it is the source of truth for
 the whole package — only that module is shown:
 
 ```
-# iceberg show src/mypackage/
+# iceberg src/mypackage/
 
 mypackage/
   __init__
@@ -86,7 +70,7 @@ mypackage/
 Pass `--use-ast` to bypass `__all__` and see every module's inferred names:
 
 ```
-# iceberg show src/mypackage/ --use-ast
+# iceberg src/mypackage/ --use-ast
 
 mypackage/
   __init__
@@ -104,22 +88,9 @@ mypackage/
     parse(text: str, strict: bool = ...) → dict[str, object]
 ```
 
-`iceberg check` reports violations:
-
-```
-src/mypackage/utils.py: IB001 missing __all__ (expected ['helper', 'parse'])
-src/mypackage/models.py: IB002 names appear public but missing from __all__: ['Role']
-src/mypackage/core.py: IB003 __all__ is not sorted (expected ['Alpha', 'Beta', 'Gamma'])
-```
-
-Exit codes:
-- `show`: `0` always (path existence aside)
-- `check`: `0` no issues, `1` issues found, `2` path not found
-- `fix`: `0` success, `2` path not found
-
 ### JSON output
 
-`iceberg show --format json`:
+`iceberg --format json`:
 
 ```json
 [
@@ -159,24 +130,10 @@ The `source` field is `"__all__"` when the module has an `__all__` (and `--use-a
 
 The `detail` object maps each public name to its rich info. Functions have `kind: "function"` (or `"async function"`) and a `signature` object. Classes have `kind: "class"`, a `bases` list, and a `members` array. Plain variables (no static type info available) are absent from `detail`.
 
-`iceberg check --format json`:
-
-```json
-[
-  {
-    "code": "IB001",
-    "path": "src/mypackage/utils.py",
-    "kind": "missing",
-    "declared": null,
-    "expected": ["helper", "parse"]
-  }
-]
-```
-
 ## Programmatic usage
 
 ```python
-from sheridan.iceberg import check_api, fix_api, get_public_api
+from sheridan.iceberg import get_public_api
 
 # Get the public API surface — __init__.__all__ is the source of truth
 api = get_public_api("src/")
@@ -185,20 +142,6 @@ api = get_public_api("src/")
 # Bypass __all__ and see every module's AST-inferred names
 api = get_public_api("src/", use_ast=True)
 # {"mypackage": [...], "mypackage.core": [...], "mypackage.utils": [...]}
-
-# Check for __all__ issues
-issues = check_api("src/")
-# [{"code": "IB002", "path": "...", "kind": "incorrect", "declared": [...], "expected": [...]}]
-
-# Suppress IB001 (missing __all__) — only surface IB002 and IB003
-issues = check_api("src/", ignore_missing=True)
-
-# Fix __all__ in place — returns paths of modified files
-fixed = fix_api("src/")
-# [PosixPath("src/mypackage/core.py")]
-
-# Preview what would change without writing
-would_fix = fix_api("src/", dry_run=True)
 ```
 
 ## How inference works
@@ -227,16 +170,6 @@ from foo import snap  # now snap is part of the inferred public API
 
 Test files (`test_*.py`, `*_test.py`, `conftest.py`) are always skipped.
 
-## As a pre-commit hook
-
-```yaml
-repos:
-  - repo: https://github.com/sheridan/sheridan-iceberg
-    rev: v0.1.0
-    hooks:
-      - id: iceberg
-```
-
 ## Development
 
 ```bash
@@ -253,8 +186,7 @@ task format:check # formatter — read-only
 task format       # formatter — write
 task typecheck    # mypy --strict
 task test         # pytest --cov
-task iceberg:check # dogfood: run iceberg check on itself
-task iceberg:show  # dogfood: show iceberg's own public API
+task iceberg      # dogfood: show iceberg's own public API
 
 # Run tests
 task test

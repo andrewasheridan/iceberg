@@ -59,24 +59,19 @@ tasks:
     cmds:
       - uv run pytest --cov {{.CLI_ARGS}}
 
-  iceberg:check:
-    desc: Run iceberg check on itself (dogfooding)
+  iceberg:
+    desc: Run iceberg on itself (dogfood — show public API)
     cmds:
-      - uv run iceberg check src/ {{.CLI_ARGS}}
-
-  iceberg:show:
-    desc: Show iceberg's own public API surface
-    cmds:
-      - uv run iceberg show src/ {{.CLI_ARGS}}
+      - uv run iceberg src/ {{.CLI_ARGS}}
 
   check:
-    desc: Run all gates (lint:check, format:check, typecheck, test, iceberg:check)
+    desc: Run all gates (lint:check, format:check, typecheck, test, iceberg)
     cmds:
       - task: lint:check
       - task: format:check
       - task: typecheck
       - task: test
-      - task: iceberg:check
+      - task: iceberg
 
   ci-init:
     desc: Initialise the Dagger module (run once; generates ci/sdk/ and pins engineVersion)
