@@ -3,8 +3,6 @@
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from sheridan.iceberg.api import get_public_api
 from sheridan.iceberg.ast_walker import ModuleInfo
 
