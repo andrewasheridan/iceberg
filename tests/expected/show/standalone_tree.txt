@@ -1,0 +1,19 @@
+standalone
+  Book
+    DEFAULT_LOAN_DAYS: int
+    title: str
+    author: str
+    isbn: str
+    available: bool
+    due_date (property) → datetime.date | None
+    borrow(self, loan_days: int = ...) → datetime.date
+    return_book(self) → None
+    classmethod from_record(cls, record: dict[str, str]) → Book
+    staticmethod is_valid_isbn(isbn: str) → bool
+  Library
+    name: str
+    shelf_names (property) → list[str]
+    add_shelf(self, shelf: str) → None
+    shelve(self, book: Book, shelf: str) → None
+    find_by_isbn(self, isbn: str) → Book | None
+  add_shelf(library: Library, name: str, *, allow_duplicates: bool = ...) → bool

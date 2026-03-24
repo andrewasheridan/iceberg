@@ -1,0 +1,263 @@
+[
+  {
+    "module": "standalone",
+    "path": "__PATH__",
+    "source": "__all__",
+    "names": [
+      "Book",
+      "Library",
+      "add_shelf"
+    ],
+    "detail": {
+      "Book": {
+        "kind": "class",
+        "bases": [],
+        "members": [
+          {
+            "name": "DEFAULT_LOAN_DAYS",
+            "kind": "class_var",
+            "annotation": "int"
+          },
+          {
+            "name": "title",
+            "kind": "instance_attr",
+            "annotation": "str"
+          },
+          {
+            "name": "author",
+            "kind": "instance_attr",
+            "annotation": "str"
+          },
+          {
+            "name": "isbn",
+            "kind": "instance_attr",
+            "annotation": "str"
+          },
+          {
+            "name": "available",
+            "kind": "instance_attr",
+            "annotation": "bool"
+          },
+          {
+            "name": "due_date",
+            "kind": "property",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "datetime.date | None",
+              "is_async": false
+            }
+          },
+          {
+            "name": "borrow",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "loan_days",
+                  "annotation": "int",
+                  "has_default": true,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "datetime.date",
+              "is_async": false
+            }
+          },
+          {
+            "name": "return_book",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "None",
+              "is_async": false
+            }
+          },
+          {
+            "name": "from_record",
+            "kind": "classmethod",
+            "signature": {
+              "params": [
+                {
+                  "name": "cls",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "record",
+                  "annotation": "dict[str, str]",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "Book",
+              "is_async": false
+            }
+          },
+          {
+            "name": "is_valid_isbn",
+            "kind": "staticmethod",
+            "signature": {
+              "params": [
+                {
+                  "name": "isbn",
+                  "annotation": "str",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "bool",
+              "is_async": false
+            }
+          }
+        ]
+      },
+      "Library": {
+        "kind": "class",
+        "bases": [],
+        "members": [
+          {
+            "name": "name",
+            "kind": "instance_attr",
+            "annotation": "str"
+          },
+          {
+            "name": "shelf_names",
+            "kind": "property",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "list[str]",
+              "is_async": false
+            }
+          },
+          {
+            "name": "add_shelf",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "shelf",
+                  "annotation": "str",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "None",
+              "is_async": false
+            }
+          },
+          {
+            "name": "shelve",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "book",
+                  "annotation": "Book",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "shelf",
+                  "annotation": "str",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "None",
+              "is_async": false
+            }
+          },
+          {
+            "name": "find_by_isbn",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "isbn",
+                  "annotation": "str",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "Book | None",
+              "is_async": false
+            }
+          }
+        ]
+      },
+      "add_shelf": {
+        "kind": "function",
+        "signature": {
+          "params": [
+            {
+              "name": "library",
+              "annotation": "Library",
+              "has_default": false,
+              "kind": "positional_or_keyword"
+            },
+            {
+              "name": "name",
+              "annotation": "str",
+              "has_default": false,
+              "kind": "positional_or_keyword"
+            },
+            {
+              "name": "allow_duplicates",
+              "annotation": "bool",
+              "has_default": true,
+              "kind": "keyword_only"
+            }
+          ],
+          "return_annotation": "bool",
+          "is_async": false
+        }
+      }
+    }
+  }
+]

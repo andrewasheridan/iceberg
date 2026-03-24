@@ -1,0 +1,14 @@
+[
+  {
+    "module": "__init__",
+    "path": "__PATH__",
+    "source": "__all__",
+    "names": [
+      "Circle",
+      "Point",
+      "Rectangle",
+      "distance"
+    ],
+    "detail": {}
+  }
+]

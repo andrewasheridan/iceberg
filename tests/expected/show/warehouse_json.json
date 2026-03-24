@@ -1,0 +1,285 @@
+[
+  {
+    "module": "__init__",
+    "path": "__PATH__",
+    "source": "ast",
+    "names": [
+      "Product",
+      "Warehouse",
+      "format_sku",
+      "load_csv"
+    ],
+    "detail": {}
+  },
+  {
+    "module": "models",
+    "path": "__PATH__",
+    "source": "__all__",
+    "names": [
+      "Product",
+      "Warehouse"
+    ],
+    "detail": {
+      "Product": {
+        "kind": "class",
+        "bases": [],
+        "members": [
+          {
+            "name": "TAX_RATE",
+            "kind": "class_var",
+            "annotation": "float"
+          },
+          {
+            "name": "sku",
+            "kind": "instance_attr",
+            "annotation": "str"
+          },
+          {
+            "name": "name",
+            "kind": "instance_attr",
+            "annotation": "str"
+          },
+          {
+            "name": "price",
+            "kind": "instance_attr"
+          },
+          {
+            "name": "quantity",
+            "kind": "instance_attr"
+          },
+          {
+            "name": "total_value",
+            "kind": "property",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "float",
+              "is_async": false
+            }
+          },
+          {
+            "name": "price_with_tax",
+            "kind": "property",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": null,
+              "is_async": false
+            }
+          },
+          {
+            "name": "restock",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "units",
+                  "annotation": "int",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": null,
+              "is_async": false
+            }
+          },
+          {
+            "name": "sell",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "units",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": null,
+              "is_async": false
+            }
+          },
+          {
+            "name": "from_dict",
+            "kind": "classmethod",
+            "signature": {
+              "params": [
+                {
+                  "name": "cls",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "data",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "Product",
+              "is_async": false
+            }
+          },
+          {
+            "name": "is_valid_sku",
+            "kind": "staticmethod",
+            "signature": {
+              "params": [
+                {
+                  "name": "sku",
+                  "annotation": "str",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "bool",
+              "is_async": false
+            }
+          }
+        ]
+      },
+      "Warehouse": {
+        "kind": "class",
+        "bases": [],
+        "members": [
+          {
+            "name": "name",
+            "kind": "instance_attr"
+          },
+          {
+            "name": "add",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "product",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": null,
+              "is_async": false
+            }
+          },
+          {
+            "name": "get",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "sku",
+                  "annotation": "str",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "Product | None",
+              "is_async": false
+            }
+          },
+          {
+            "name": "all_products",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "list[Product]",
+              "is_async": false
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "module": "utils",
+    "path": "__PATH__",
+    "source": "__all__",
+    "names": [
+      "format_sku",
+      "load_csv"
+    ],
+    "detail": {
+      "format_sku": {
+        "kind": "function",
+        "signature": {
+          "params": [
+            {
+              "name": "prefix",
+              "annotation": "str",
+              "has_default": false,
+              "kind": "positional_or_keyword"
+            },
+            {
+              "name": "number",
+              "annotation": null,
+              "has_default": false,
+              "kind": "positional_or_keyword"
+            }
+          ],
+          "return_annotation": null,
+          "is_async": false
+        }
+      },
+      "load_csv": {
+        "kind": "function",
+        "signature": {
+          "params": [
+            {
+              "name": "path",
+              "annotation": null,
+              "has_default": false,
+              "kind": "positional_or_keyword"
+            }
+          ],
+          "return_annotation": "list[Product]",
+          "is_async": false
+        }
+      }
+    }
+  }
+]

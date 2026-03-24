@@ -1,0 +1,19 @@
+todo
+  Task
+    DEFAULT_PRIORITY
+    title
+    description
+    done
+    priority
+    complete(self)
+    reset(self)
+    classmethod urgent(cls, title)
+    staticmethod is_valid_title(title)
+  TodoList
+    name
+    count (property)
+    add(self, task)
+    remove(self, title)
+    pending(self)
+    complete_all(self)
+  from_lines(lines)
