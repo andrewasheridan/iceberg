@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Demonstrates how `iceberg show` behaves when a package's `__init__.py` has
+Demonstrates how `iceberg` behaves when a package's `__init__.py` has
 **no `__all__`**. Because there is no authoritative declaration, iceberg
 reports every submodule individually using each module's own `__all__` (or
 AST inference as fallback).
@@ -59,7 +59,7 @@ warehouse/
 | `format_sku(prefix, number)` | function | `prefix: str` typed; `number` bare; no return annotation |
 | `load_csv(path)` | function | `path` bare; `→ list[Product]` |
 
-## What iceberg show output looks like with mixed typing
+## What iceberg output looks like with mixed typing
 
 Fully typed members show `: type` on attributes and `→ return` on callables:
 ```
@@ -83,7 +83,7 @@ name
 price
 ```
 
-## iceberg show output
+## iceberg output
 
 All three modules are always shown (no suppression):
 ```

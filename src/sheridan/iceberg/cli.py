@@ -7,72 +7,9 @@ import json
 import sys
 from pathlib import Path
 
-from sheridan.iceberg.api import check_api, fix_api
 from sheridan.iceberg.ast_walker import ModuleInfo, base_for, load_modules, module_id, resolve_show_modules
-from sheridan.iceberg.enums import OutputFormat, ShowFormat
+from sheridan.iceberg.enums import ShowFormat
 from sheridan.iceberg.models import ClassInfo, ClassMember, FunctionSignature, MemberKind, ParamInfo, ParamKind
-
-
-def _check(args: argparse.Namespace) -> int:
-    """Run the check subcommand.
-
-    Args:
-        args: Parsed argument namespace.
-
-    Returns:
-        Exit code — 0 if no issues, 1 if issues found, 2 if path missing.
-    """
-    path = Path(args.path)
-    if not path.exists():
-        print(f"error: path does not exist: {path}", file=sys.stderr)
-        return 2
-
-    fmt = OutputFormat(args.format)
-    issues = check_api(path, ignore_missing=args.ignore_missing)
-
-    output = json.dumps(issues, indent=2) if fmt is OutputFormat.json else "\n".join(str(i["message"]) for i in issues)
-
-    if output:
-        print(output)
-
-    return 1 if issues else 0
-
-
-def _fix(args: argparse.Namespace) -> int:
-    """Run the fix subcommand.
-
-    Uses full bidirectional comparison to identify modules needing an update:
-    modules missing ``__all__`` entirely and modules whose ``__all__`` contains
-    phantom names (present in ``__all__`` but absent from the AST) are both
-    targeted.
-
-    Args:
-        args: Parsed argument namespace.
-
-    Returns:
-        Exit code — always 0.
-    """
-    path = Path(args.path)
-    if not path.exists():
-        print(f"error: path does not exist: {path}", file=sys.stderr)
-        return 2
-
-    paths = fix_api(path, dry_run=args.dry_run)
-
-    if not paths:
-        print("No issues found.")
-        return 0
-
-    for p in paths:
-        if args.dry_run:
-            print(f"Would fix: {p}")
-        else:
-            print(f"Fixed: {p}")
-
-    if not args.dry_run:
-        print(f"\n{len(paths)} file(s) fixed.")
-
-    return 0
 
 
 def _render_param(param: ParamInfo) -> str:
@@ -180,7 +117,7 @@ def _format_tree(modules: list[ModuleInfo], root: Path, use_ast: bool) -> str:
 
     Args:
         modules: Parsed module information.
-        root: The path argument supplied to the show command.
+        root: The path argument supplied to the CLI.
         use_ast: When True, use ``inferred_all`` regardless of ``__all__``.
 
     Returns:
@@ -292,7 +229,7 @@ def _class_info_to_dict(cls: ClassInfo) -> dict[str, object]:
 
 
 def _build_detail(names: list[str], info: ModuleInfo) -> dict[str, object]:
-    """Build the per-name detail mapping for JSON show output.
+    """Build the per-name detail mapping for JSON output.
 
     Only names for which rich info is available (functions and classes) are
     included.  Plain variables are omitted.
@@ -324,7 +261,7 @@ def _format_show_json(modules: list[ModuleInfo], root: Path, use_ast: bool) -> s
 
     Args:
         modules: Parsed module information.
-        root: The path argument supplied to the show command.
+        root: The path argument supplied to the CLI.
         use_ast: When True, use ``inferred_all`` regardless of ``__all__``.
 
     Returns:
@@ -348,7 +285,7 @@ def _format_show_json(modules: list[ModuleInfo], root: Path, use_ast: bool) -> s
 
 
 def _show(args: argparse.Namespace) -> int:
-    """Run the show subcommand.
+    """Run the show logic for the root command.
 
     Args:
         args: Parsed argument namespace.
@@ -386,53 +323,21 @@ def _build_parser() -> argparse.ArgumentParser:
     """
     parser = argparse.ArgumentParser(
         prog="iceberg",
-        description="Inspect and enforce __all__ in Python modules.",
+        description="Report the public API surface of Python modules.",
     )
-    subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
-    subparsers.required = True
-
-    # check
-    check_p = subparsers.add_parser("check", help="Check Python modules under PATH for __all__ issues.")
-    check_p.add_argument("path", metavar="PATH", help="File or directory to check.")
-    check_p.add_argument(
-        "--format",
-        choices=["text", "json"],
-        default="text",
-        help="Output format (default: text).",
-    )
-    check_p.add_argument(
-        "--ignore-missing",
-        action="store_true",
-        default=False,
-        help="Do not report modules missing __all__.",
-    )
-
-    # fix
-    fix_p = subparsers.add_parser("fix", help="Auto-fix __all__ declarations in modules under PATH.")
-    fix_p.add_argument("path", metavar="PATH", help="File or directory to fix.")
-    fix_p.add_argument(
-        "--dry-run",
-        action="store_true",
-        default=False,
-        help="Show what would change without writing files.",
-    )
-
-    # show
-    show_p = subparsers.add_parser("show", help="Report the public API of Python modules under PATH.")
-    show_p.add_argument("path", metavar="PATH", help="File or directory to inspect.")
-    show_p.add_argument(
+    parser.add_argument("path", metavar="PATH", help="File or directory to inspect.")
+    parser.add_argument(
         "--format",
         choices=["tree", "json"],
         default="tree",
         help="Output format (default: tree).",
     )
-    show_p.add_argument(
+    parser.add_argument(
         "--use-ast",
         action="store_true",
         default=False,
         help="Ignore __all__ and always derive the public API from the AST.",
     )
-
     return parser
 
 
@@ -440,10 +345,4 @@ def main() -> None:
     """Entry point for the iceberg CLI."""
     parser = _build_parser()
     args = parser.parse_args()
-
-    if args.command == "check":
-        sys.exit(_check(args))
-    elif args.command == "fix":
-        sys.exit(_fix(args))
-    elif args.command == "show":
-        sys.exit(_show(args))
+    sys.exit(_show(args))

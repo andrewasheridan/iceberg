@@ -65,7 +65,7 @@ task format:check # ruff format --check (read-only)
 task format       # ruff format (write)
 task typecheck    # mypy --strict
 task test         # pytest --cov
-task iceberg      # iceberg check src/ (dogfooding)
+task iceberg      # iceberg src/ (dogfood — show public API)
 task check        # all gates (read-only: lint:check, format:check, …)
 ```
 

@@ -1,6 +1,6 @@
 # plugin/ — subpackage fixture
 
-Static Python code used as an analysis target for `iceberg show` functional tests.
+Static Python code used as an analysis target for `iceberg` functional tests.
 This package is never imported or run — it is read purely as source by iceberg's AST walker.
 
 ## Structure
@@ -26,9 +26,9 @@ plugin/
 - **`plugin/__init__.py` has no `__all__`** — public names are AST-inferred from the
   `import X as X` re-export statements: `BaseFormat`, `JsonFormat`, `Plugin`, `Registry`.
 
-## Expected `iceberg show` output
+## Expected `iceberg` output
 
-Running `iceberg show tests/examples/plugin/` produces:
+Running `iceberg tests/examples/plugin/` produces:
 
 ```
 plugin/
