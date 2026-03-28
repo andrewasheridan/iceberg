@@ -14,14 +14,13 @@ import ast
 import contextlib
 from pathlib import Path
 
+from sheridan.iceberg.enums import MemberKind, ParamKind
 from sheridan.iceberg.models import (
     ClassInfo,
     ClassMember,
     FunctionSignature,
-    MemberKind,
     ModuleInfo,
     ParamInfo,
-    ParamKind,
 )
 
 

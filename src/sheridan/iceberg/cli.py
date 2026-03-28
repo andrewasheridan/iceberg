@@ -7,9 +7,10 @@ import json
 import sys
 from pathlib import Path
 
-from sheridan.iceberg.ast_walker import ModuleInfo, base_for, load_modules, module_id, resolve_show_modules
-from sheridan.iceberg.enums import ShowFormat
-from sheridan.iceberg.models import ClassInfo, ClassMember, FunctionSignature, MemberKind, ParamInfo, ParamKind
+from sheridan.iceberg import get_public_api
+from sheridan.iceberg.ast_walker import ModuleInfo
+from sheridan.iceberg.enums import MemberKind, ParamKind, ShowFormat
+from sheridan.iceberg.models import ClassInfo, ClassMember, FunctionSignature, ParamInfo
 
 
 def _render_param(param: ParamInfo) -> str:
@@ -108,7 +109,11 @@ def _render_member(member: ClassMember) -> str:
             return member.name
 
 
-def _format_tree(modules: list[ModuleInfo], root: Path, use_ast: bool) -> str:
+def _format_tree(
+    modules: dict[str, ModuleInfo],
+    use_ast: bool,
+    root_name: str | None = None,
+) -> str:
     """Render public API as an indented filesystem tree.
 
     Functions are rendered with their full signatures.  Classes are followed
@@ -117,56 +122,50 @@ def _format_tree(modules: list[ModuleInfo], root: Path, use_ast: bool) -> str:
 
     Args:
         modules: Parsed module information.
-        root: The path argument supplied to the CLI.
         use_ast: When True, use ``inferred_all`` regardless of ``__all__``.
+        root_name: Optional package name to display as the root header line.
+            When provided, all module lines are indented one extra level beneath it.
 
     Returns:
         Multi-line string with one entry per line.
     """
     lines: list[str] = []
-    base = base_for(root)
+    printed_packages: set[str] = set()
 
-    if root.is_dir():
-        lines.append(f"{root.name}/")
+    for mid, info in modules.items():
+        # Subpackage __init__ files have their .__init__ suffix stripped by
+        # module_id().  Restore it so the traversal places the module leaf
+        # inside the correct package directory line (e.g. "formats/__init__"
+        # appears under "formats/" rather than colliding with a bare "formats"
+        # leaf produced by other modules whose IDs start with "formats.").
+        display_id = mid + ".__init__" if info.path.name == "__init__.py" and mid != "__init__" else mid
 
-    seen_dirs: set[tuple[str, ...]] = set()
-
-    for info in modules:
-        try:
-            rel = info.path.relative_to(base)
-        except ValueError:
-            rel = info.path
-
-        parts = rel.parts  # e.g. ('ast_walker.py',) or ('subpkg', 'mod.py')
-
-        # Emit intermediate directory headers
-        for i in range(len(parts) - 1):
-            dir_key = parts[: i + 1]
-            if dir_key not in seen_dirs:
-                seen_dirs.add(dir_key)
-                dir_depth = i + 1 if root.is_dir() else i
-                lines.append(f"{'  ' * dir_depth}{parts[i]}/")
-
-        # Module name line
-        depth = len(parts)
-        module_depth = depth if root.is_dir() else depth - 1
-        module_name = parts[-1].removesuffix(".py")
-        lines.append(f"{'  ' * module_depth}{module_name}")
-
-        # Public names with rich info
+        parts = display_id.split(".")
+        # Emit a `pkg/` header for each ancestor package not yet printed.
+        for depth, part in enumerate(parts[:-1]):
+            pkg_key = ".".join(parts[: depth + 1])
+            if pkg_key not in printed_packages:
+                lines.append("  " * depth + part + "/")
+                printed_packages.add(pkg_key)
+        # Emit the module leaf line.
+        mod_depth = len(parts) - 1
+        lines.append("  " * mod_depth + parts[-1])
+        # Emit public names for this module.
         names = info.inferred_all if use_ast else info.effective_all
-        name_depth = module_depth + 1
+        name_depth = mod_depth + 1
         for name in names:
             if sig := info.function_signatures.get(name):
-                prefix = "async " if sig.is_async else ""
-                lines.append(f"{'  ' * name_depth}{prefix}{name}{_render_signature(sig)}")
+                async_prefix = "async " if sig.is_async else ""
+                lines.append("  " * name_depth + async_prefix + name + _render_signature(sig))
             elif cls := info.class_info.get(name):
-                lines.append(f"{'  ' * name_depth}{name}")
-                member_depth = name_depth + 1
+                lines.append("  " * name_depth + name)
                 for member in cls.members:
-                    lines.append(f"{'  ' * member_depth}{_render_member(member)}")
+                    lines.append("  " * (name_depth + 1) + _render_member(member))
             else:
-                lines.append(f"{'  ' * name_depth}{name}")
+                lines.append("  " * name_depth + name)
+
+    if root_name is not None:
+        lines = [root_name] + ["  " + line for line in lines]
 
     return "\n".join(lines)
 
@@ -253,7 +252,7 @@ def _build_detail(names: list[str], info: ModuleInfo) -> dict[str, object]:
     return detail
 
 
-def _format_show_json(modules: list[ModuleInfo], root: Path, use_ast: bool) -> str:
+def _format_show_json(modules: dict[str, ModuleInfo], use_ast: bool) -> str:
     """Render public API as a JSON array.
 
     Each entry includes a ``detail`` key with per-name signature and class
@@ -268,13 +267,12 @@ def _format_show_json(modules: list[ModuleInfo], root: Path, use_ast: bool) -> s
         JSON string — an array of objects with ``module``, ``path``,
         ``source``, ``names``, and ``detail`` keys.
     """
-    base = base_for(root)
     result = []
-    for info in modules:
+    for module_id, info in modules.items():
         names = info.inferred_all if use_ast else info.effective_all
         source = "ast" if (use_ast or info.declared_all is None) else "__all__"
         entry: dict[str, object] = {
-            "module": module_id(info.path, base),
+            "module": module_id,
             "path": str(info.path),
             "source": source,
             "names": names,
@@ -298,17 +296,19 @@ def _show(args: argparse.Namespace) -> int:
         print(f"error: path does not exist: {path}", file=sys.stderr)
         return 2
 
-    fmt = ShowFormat(args.format)
     use_ast: bool = args.use_ast
-    modules = resolve_show_modules(load_modules(path), use_ast)
+    result = get_public_api(path, use_ast=use_ast)
 
-    if not modules:
+    if not result:
         return 0
 
+    fmt = ShowFormat(args.format)
+
     if fmt is ShowFormat.json:
-        print(_format_show_json(modules, path, use_ast))
+        print(_format_show_json(result, use_ast))
     else:
-        output = _format_tree(modules, path, use_ast)
+        root_name = path.name if path.is_dir() else None
+        output = _format_tree(result, use_ast, root_name=root_name)
         if output:
             print(output)
 

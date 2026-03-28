@@ -1,4 +1,4 @@
-geometry/
+geometry
   __init__
     Circle
     Point

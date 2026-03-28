@@ -1,4 +1,4 @@
-plugin/
+plugin
   __init__
     BaseFormat
     JsonFormat

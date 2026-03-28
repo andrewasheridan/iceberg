@@ -1,4 +1,4 @@
-warehouse/
+warehouse
   __init__
     Product
     Warehouse

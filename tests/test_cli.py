@@ -15,13 +15,12 @@ from sheridan.iceberg.cli import (
     _render_param,
     _render_signature,
 )
+from sheridan.iceberg.enums import MemberKind, ParamKind
 from sheridan.iceberg.models import (
     ClassMember,
     FunctionSignature,
-    MemberKind,
     ModuleInfo,
     ParamInfo,
-    ParamKind,
 )
 
 
@@ -137,9 +136,10 @@ class TestShowSubcommand:
         _write(tmp_path / "mod.py", '__all__ = ["Foo"]\ndef Foo(): ...\n')
         _run([str(tmp_path)], capsys)
         captured = capsys.readouterr()
-        # First line should be the directory name with trailing slash
-        first_line = captured.out.splitlines()[0]
-        assert first_line == f"{tmp_path.name}/"
+        lines = captured.out.splitlines()
+        # First line should be the directory (package) name; module is indented beneath it
+        assert lines[0] == tmp_path.name
+        assert lines[1] == "  mod"
 
     def test_stderr_on_missing_path(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         _run([str(tmp_path / "ghost.py")], capsys)
@@ -337,34 +337,34 @@ class TestRenderMember:
 
 
 class TestFormatTreeWithSignatures:
-    def _make_module(self, tmp_path: Path, source: str) -> ModuleInfo:
+    def _make_modules(self, tmp_path: Path, source: str) -> dict[str, ModuleInfo]:
         from sheridan.iceberg.ast_walker import walk_module
 
         p = tmp_path / "mod.py"
         p.write_text(source, encoding="utf-8")
-        return walk_module(p)
+        return {"mod": walk_module(p)}
 
     def test_function_renders_with_signature(self, tmp_path: Path) -> None:
-        info = self._make_module(tmp_path, "def greet(name: str) -> str: ...\n")
-        result = _format_tree([info], tmp_path / "mod.py", use_ast=True)
+        modules = self._make_modules(tmp_path, "def greet(name: str) -> str: ...\n")
+        result = _format_tree(modules, use_ast=True)
         assert "greet(name: str)" in result
         assert "\u2192 str" in result
 
     def test_async_function_renders_with_async_prefix(self, tmp_path: Path) -> None:
-        info = self._make_module(tmp_path, "async def fetch(url: str) -> bytes: ...\n")
-        result = _format_tree([info], tmp_path / "mod.py", use_ast=True)
+        modules = self._make_modules(tmp_path, "async def fetch(url: str) -> bytes: ...\n")
+        result = _format_tree(modules, use_ast=True)
         assert "async fetch(" in result
 
     def test_class_renders_name_and_members(self, tmp_path: Path) -> None:
         source = "class Foo:\n    x: int = 5\n"
-        info = self._make_module(tmp_path, source)
-        result = _format_tree([info], tmp_path / "mod.py", use_ast=True)
+        modules = self._make_modules(tmp_path, source)
+        result = _format_tree(modules, use_ast=True)
         assert "Foo" in result
         assert "x: int" in result
 
     def test_plain_variable_renders_as_name_only(self, tmp_path: Path) -> None:
-        info = self._make_module(tmp_path, "MY_CONST = 42\n")
-        result = _format_tree([info], tmp_path / "mod.py", use_ast=True)
+        modules = self._make_modules(tmp_path, "MY_CONST = 42\n")
+        result = _format_tree(modules, use_ast=True)
         assert "MY_CONST" in result
         # No parentheses since it is not a function
         lines = [ln.strip() for ln in result.splitlines() if "MY_CONST" in ln]
@@ -372,8 +372,8 @@ class TestFormatTreeWithSignatures:
 
     def test_mix_of_function_class_variable(self, tmp_path: Path) -> None:
         source = "VERSION = '1'\ndef add(a: int, b: int) -> int: ...\nclass Point:\n    x: int = 0\n"
-        info = self._make_module(tmp_path, source)
-        result = _format_tree([info], tmp_path / "mod.py", use_ast=True)
+        modules = self._make_modules(tmp_path, source)
+        result = _format_tree(modules, use_ast=True)
         assert "VERSION" in result
         assert "add(" in result
         assert "Point" in result
@@ -386,36 +386,36 @@ class TestFormatTreeWithSignatures:
 
 
 class TestFormatShowJsonWithDetail:
-    def _make_module(self, tmp_path: Path, source: str) -> ModuleInfo:
+    def _make_modules(self, tmp_path: Path, source: str) -> dict[str, ModuleInfo]:
         from sheridan.iceberg.ast_walker import walk_module
 
         p = tmp_path / "mod.py"
         p.write_text(source, encoding="utf-8")
-        return walk_module(p)
+        return {"mod": walk_module(p)}
 
     def test_json_output_has_detail_key(self, tmp_path: Path) -> None:
-        info = self._make_module(tmp_path, "def f() -> None: ...\n")
-        result = json.loads(_format_show_json([info], tmp_path / "mod.py", use_ast=True))
+        modules = self._make_modules(tmp_path, "def f() -> None: ...\n")
+        result = json.loads(_format_show_json(modules, use_ast=True))
         assert "detail" in result[0]
 
     def test_function_entry_has_kind_function(self, tmp_path: Path) -> None:
-        info = self._make_module(tmp_path, "def f(x: int) -> bool: ...\n")
-        result = json.loads(_format_show_json([info], tmp_path / "mod.py", use_ast=True))
+        modules = self._make_modules(tmp_path, "def f(x: int) -> bool: ...\n")
+        result = json.loads(_format_show_json(modules, use_ast=True))
         detail = result[0]["detail"]
         assert "f" in detail
         assert detail["f"]["kind"] == "function"
         assert "signature" in detail["f"]
 
     def test_async_function_entry_has_kind_async_function(self, tmp_path: Path) -> None:
-        info = self._make_module(tmp_path, "async def fetch() -> bytes: ...\n")
-        result = json.loads(_format_show_json([info], tmp_path / "mod.py", use_ast=True))
+        modules = self._make_modules(tmp_path, "async def fetch() -> bytes: ...\n")
+        result = json.loads(_format_show_json(modules, use_ast=True))
         detail = result[0]["detail"]
         assert detail["fetch"]["kind"] == "async function"
 
     def test_class_entry_has_kind_class_and_bases_and_members(self, tmp_path: Path) -> None:
         source = "class Foo:\n    x: int = 5\n"
-        info = self._make_module(tmp_path, source)
-        result = json.loads(_format_show_json([info], tmp_path / "mod.py", use_ast=True))
+        modules = self._make_modules(tmp_path, source)
+        result = json.loads(_format_show_json(modules, use_ast=True))
         detail = result[0]["detail"]
         assert "Foo" in detail
         assert detail["Foo"]["kind"] == "class"
@@ -423,13 +423,14 @@ class TestFormatShowJsonWithDetail:
         assert "members" in detail["Foo"]
 
     def test_variable_not_in_detail(self, tmp_path: Path) -> None:
-        info = self._make_module(tmp_path, "MY_VAR = 42\n")
-        result = json.loads(_format_show_json([info], tmp_path / "mod.py", use_ast=True))
+        modules = self._make_modules(tmp_path, "MY_VAR = 42\n")
+        result = json.loads(_format_show_json(modules, use_ast=True))
         detail = result[0]["detail"]
         assert "MY_VAR" not in detail
 
     def test_build_detail_empty_for_module_with_no_functions_or_classes(self, tmp_path: Path) -> None:
-        info = self._make_module(tmp_path, "MY_VAR = 1\nOTHER = 2\n")
+        modules = self._make_modules(tmp_path, "MY_VAR = 1\nOTHER = 2\n")
+        info = modules["mod"]
         names = info.effective_all if info.declared_all is not None else info.inferred_all
         detail = _build_detail(names, info)
         assert detail == {}

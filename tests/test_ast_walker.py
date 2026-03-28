@@ -5,13 +5,12 @@ from pathlib import Path
 import pytest
 
 from sheridan.iceberg.ast_walker import ModuleInfo, load_modules, walk_module, walk_path
+from sheridan.iceberg.enums import MemberKind, ParamKind
 from sheridan.iceberg.models import (
     ClassInfo,
     ClassMember,
     FunctionSignature,
-    MemberKind,
     ParamInfo,
-    ParamKind,
 )
 
 # ---------------------------------------------------------------------------
