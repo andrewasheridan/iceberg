@@ -32,30 +32,33 @@ class TestGetPublicApiFile:
         result = get_public_api(p)
         assert "mymod" in result
 
-    def test_value_is_list_of_strings(self, tmp_path: Path) -> None:
+    def test_value_is_module_info(self, tmp_path: Path) -> None:
+        from sheridan.iceberg.models import ModuleInfo
+
         p = _write(tmp_path / "mod.py", '__all__ = ["Foo", "Bar"]\ndef Foo(): ...\ndef Bar(): ...\n')
         result = get_public_api(p)
-        assert result["mod"] == ["Foo", "Bar"]
+        assert isinstance(result["mod"], ModuleInfo)
+        assert result["mod"].effective_all == ["Foo", "Bar"]
 
     def test_uses_declared_all_by_default(self, tmp_path: Path) -> None:
         p = _write(tmp_path / "mod.py", '__all__ = ["Declared"]\ndef Inferred(): ...\n')
         result = get_public_api(p)
-        assert result["mod"] == ["Declared"]
+        assert result["mod"].effective_all == ["Declared"]
 
     def test_uses_inferred_when_no_all(self, tmp_path: Path) -> None:
         p = _write(tmp_path / "mod.py", "def PublicFn(): ...\ndef _private(): ...\n")
         result = get_public_api(p)
-        assert result["mod"] == ["PublicFn"]
+        assert result["mod"].effective_all == ["PublicFn"]
 
     def test_use_ast_returns_inferred_names(self, tmp_path: Path) -> None:
         p = _write(tmp_path / "mod.py", '__all__ = ["Declared"]\ndef Inferred(): ...\n')
         result = get_public_api(p, use_ast=True)
-        assert result["mod"] == ["Inferred"]
+        assert result["mod"].inferred_all == ["Inferred"]
 
     def test_use_ast_false_returns_declared_names(self, tmp_path: Path) -> None:
         p = _write(tmp_path / "mod.py", '__all__ = ["Alpha"]\ndef Beta(): ...\n')
         result = get_public_api(p, use_ast=False)
-        assert result["mod"] == ["Alpha"]
+        assert result["mod"].effective_all == ["Alpha"]
 
     def test_accepts_str_path(self, tmp_path: Path) -> None:
         p = _write(tmp_path / "mod.py", "def Foo(): ...\n")
@@ -65,17 +68,17 @@ class TestGetPublicApiFile:
     def test_empty_module_returns_empty_list(self, tmp_path: Path) -> None:
         p = _write(tmp_path / "empty.py", "")
         result = get_public_api(p)
-        assert result["empty"] == []
+        assert result["empty"].effective_all == []
 
     def test_module_with_empty_all_returns_empty_list(self, tmp_path: Path) -> None:
         p = _write(tmp_path / "mod.py", "__all__: list[str] = []\n")
         result = get_public_api(p)
-        assert result["mod"] == []
+        assert result["mod"].effective_all == []
 
     def test_use_ast_empty_module_returns_empty_list(self, tmp_path: Path) -> None:
         p = _write(tmp_path / "mod.py", "")
         result = get_public_api(p, use_ast=True)
-        assert result["mod"] == []
+        assert result["mod"].effective_all == []
 
 
 # ---------------------------------------------------------------------------
@@ -146,7 +149,7 @@ class TestGetPublicApiDirectory:
         pkg.mkdir()
         _write(pkg / "__init__.py", '__all__ = ["Declared"]\ndef Inferred(): ...\n')
         result = get_public_api(tmp_path, use_ast=True)
-        assert result["mypkg"] == ["Inferred"]
+        assert result["mypkg"].inferred_all == ["Inferred"]
 
     def test_skips_test_files(self, tmp_path: Path) -> None:
         _write(tmp_path / "mod.py", "def Foo(): ...\n")
