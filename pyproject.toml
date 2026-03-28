@@ -19,7 +19,6 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Quality Assurance",
 ]
-dependencies = []
 
 [project.urls]
 Repository = "https://github.com/andrewasheridan/iceberg"
@@ -35,7 +34,7 @@ dev = [
     "commitizen>=4.13.9",
     "pre-commit>=4.5.1",
     "bandit[toml]>=1.9.4",
-    "zensical",
+    "zensical>=0.0.30",
     "mkdocstrings[python]>=1.0.3",
 ]
 
@@ -48,9 +47,6 @@ packages = ["src/sheridan"]
 [tool.hatch.build.targets.wheel.sources]
 "src" = ""
 
-# ---------------------------------------------------------------------------
-# ruff
-# ---------------------------------------------------------------------------
 [tool.ruff]
 src = ["src"]
 line-length = 120
@@ -58,6 +54,7 @@ exclude = [".claude/worktrees"]
 
 [tool.ruff.lint]
 select = [
+    "D",   # pydocstyle errors
     "E",   # pycodestyle errors
     "W",   # pycodestyle warnings
     "F",   # pyflakes
@@ -69,17 +66,30 @@ select = [
     "RUF", # ruff-specific
 ]
 ignore = []
+extend-select = [
+    "D400",
+    "D401",
+    "D404",
+    "D406",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore `D` errors in tests dir
+"**/tests/**" = ["D"]
+# Ignore all files that start in `_test.py`.
+"test_*.py" = ["D"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["sheridan"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+# All the errors except D203, D204, D213, D215, D400, D401, D404, D406, D407, D408, D409, and D413.
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
 
-# ---------------------------------------------------------------------------
-# mypy
-# ---------------------------------------------------------------------------
 [tool.mypy]
 python_version = "3.14"
 strict = true
@@ -89,9 +99,6 @@ mypy_path = "src"
 namespace_packages = true
 explicit_package_bases = true
 
-# ---------------------------------------------------------------------------
-# pytest
-# ---------------------------------------------------------------------------
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=sheridan.iceberg --cov-report=term-missing --cov-fail-under=90"
@@ -104,9 +111,6 @@ omit = ["tests/*"]
 show_missing = true
 fail_under = 90
 
-# ---------------------------------------------------------------------------
-# commitizen
-# ---------------------------------------------------------------------------
 [tool.commitizen]
 name = "cz_conventional_commits"
 version = "2.0.0"
@@ -114,3 +118,14 @@ version_files = [
     "pyproject.toml:^version",
 ]
 tag_format = "v$version"
+
+[dependency-groups]
+dev = [
+    "bandit[toml]>=1.9.4",
+    "commitizen>=4.13.9",
+    "mkdocstrings[python]>=1.0.3",
+    "pre-commit>=4.5.1",
+    "pytest>=9.0.2",
+    "pytest-cov>=7.1.0",
+    "zensical>=0.0.30",
+]
