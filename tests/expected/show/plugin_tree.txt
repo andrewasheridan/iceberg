@@ -3,7 +3,14 @@ plugin
     BaseFormat
     JsonFormat
     Plugin
+      name: str
+      version: str
+      load(self) → bool
+      unload(self) → None
     Registry
+      register(self, plugin: Plugin) → None
+      get(self, name: str) → Plugin | None
+      all_plugins(self) → list[Plugin]
   core/
     __init__
       Plugin
@@ -18,7 +25,13 @@ plugin
   formats/
     __init__
       BaseFormat
+        name: str
+        serialize(self, data: object) → str
+        deserialize(self, text: str) → object
       JsonFormat
+        indent: int
+        serialize(self, data: object) → str
+        deserialize(self, text: str) → object
     base
       BaseFormat
         name: str

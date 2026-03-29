@@ -1,9 +1,29 @@
 geometry
   __init__
     Circle
+      DEFAULT_SEGMENTS: int
+      centre: Point
+      radius: float
+      area (property) → float
+      perimeter (property) → float
+      contains(self, point: Point) → bool
+      classmethod unit(cls) → Circle
+      staticmethod is_valid_radius(r: float) → bool
     Point
+      x: float
+      y: float
+      translate(self, dx: float, dy: float) → Point
+      distance_to(self, other: Point) → float
     Rectangle
-    distance
+      MIN_SIDE: float
+      top_left: Point
+      bottom_right: Point
+      width (property) → float
+      height (property) → float
+      area (property) → float
+      perimeter (property) → float
+      contains(self, point: Point) → bool
+    distance(p1: Point, p2: Point) → float
   point
     Point
       x: float

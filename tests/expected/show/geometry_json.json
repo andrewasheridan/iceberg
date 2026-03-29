@@ -9,6 +9,312 @@
       "Rectangle",
       "distance"
     ],
-    "detail": {}
+    "detail": {
+      "Circle": {
+        "kind": "class",
+        "bases": [
+          "_Shape"
+        ],
+        "members": [
+          {
+            "name": "DEFAULT_SEGMENTS",
+            "kind": "class_var",
+            "annotation": "int"
+          },
+          {
+            "name": "centre",
+            "kind": "instance_attr",
+            "annotation": "Point"
+          },
+          {
+            "name": "radius",
+            "kind": "instance_attr",
+            "annotation": "float"
+          },
+          {
+            "name": "area",
+            "kind": "property",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "float",
+              "is_async": false
+            }
+          },
+          {
+            "name": "perimeter",
+            "kind": "property",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "float",
+              "is_async": false
+            }
+          },
+          {
+            "name": "contains",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "point",
+                  "annotation": "Point",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "bool",
+              "is_async": false
+            }
+          },
+          {
+            "name": "unit",
+            "kind": "classmethod",
+            "signature": {
+              "params": [
+                {
+                  "name": "cls",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "Circle",
+              "is_async": false
+            }
+          },
+          {
+            "name": "is_valid_radius",
+            "kind": "staticmethod",
+            "signature": {
+              "params": [
+                {
+                  "name": "r",
+                  "annotation": "float",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "bool",
+              "is_async": false
+            }
+          }
+        ]
+      },
+      "Point": {
+        "kind": "class",
+        "bases": [],
+        "members": [
+          {
+            "name": "x",
+            "kind": "instance_attr",
+            "annotation": "float"
+          },
+          {
+            "name": "y",
+            "kind": "instance_attr",
+            "annotation": "float"
+          },
+          {
+            "name": "translate",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "dx",
+                  "annotation": "float",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "dy",
+                  "annotation": "float",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "Point",
+              "is_async": false
+            }
+          },
+          {
+            "name": "distance_to",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "other",
+                  "annotation": "Point",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "float",
+              "is_async": false
+            }
+          }
+        ]
+      },
+      "Rectangle": {
+        "kind": "class",
+        "bases": [
+          "_Shape"
+        ],
+        "members": [
+          {
+            "name": "MIN_SIDE",
+            "kind": "class_var",
+            "annotation": "float"
+          },
+          {
+            "name": "top_left",
+            "kind": "instance_attr",
+            "annotation": "Point"
+          },
+          {
+            "name": "bottom_right",
+            "kind": "instance_attr",
+            "annotation": "Point"
+          },
+          {
+            "name": "width",
+            "kind": "property",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "float",
+              "is_async": false
+            }
+          },
+          {
+            "name": "height",
+            "kind": "property",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "float",
+              "is_async": false
+            }
+          },
+          {
+            "name": "area",
+            "kind": "property",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "float",
+              "is_async": false
+            }
+          },
+          {
+            "name": "perimeter",
+            "kind": "property",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "float",
+              "is_async": false
+            }
+          },
+          {
+            "name": "contains",
+            "kind": "method",
+            "signature": {
+              "params": [
+                {
+                  "name": "self",
+                  "annotation": null,
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                },
+                {
+                  "name": "point",
+                  "annotation": "Point",
+                  "has_default": false,
+                  "kind": "positional_or_keyword"
+                }
+              ],
+              "return_annotation": "bool",
+              "is_async": false
+            }
+          }
+        ]
+      },
+      "distance": {
+        "kind": "function",
+        "signature": {
+          "params": [
+            {
+              "name": "p1",
+              "annotation": "Point",
+              "has_default": false,
+              "kind": "positional_or_keyword"
+            },
+            {
+              "name": "p2",
+              "annotation": "Point",
+              "has_default": false,
+              "kind": "positional_or_keyword"
+            }
+          ],
+          "return_annotation": "float",
+          "is_async": false
+        }
+      }
+    }
   }
 ]
