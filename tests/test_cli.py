@@ -362,13 +362,22 @@ class TestFormatTreeWithSignatures:
         assert "Foo" in result
         assert "x: int" in result
 
-    def test_plain_variable_renders_as_name_only(self, tmp_path: Path) -> None:
+    def test_unannotated_variable_renders_with_untyped_marker(self, tmp_path: Path) -> None:
         modules = self._make_modules(tmp_path, "MY_CONST = 42\n")
         result = _format_tree(modules, use_ast=True)
-        assert "MY_CONST" in result
-        # No parentheses since it is not a function
-        lines = [ln.strip() for ln in result.splitlines() if "MY_CONST" in ln]
-        assert all("(" not in ln for ln in lines)
+        assert "MY_CONST (untyped)" in result
+
+    def test_annotated_variable_renders_with_type(self, tmp_path: Path) -> None:
+        modules = self._make_modules(tmp_path, 'VERSION: str = "1"\n')
+        result = _format_tree(modules, use_ast=True)
+        assert "VERSION: str" in result
+
+    def test_unannotated_variable_in_mix_renders_with_untyped_marker(self, tmp_path: Path) -> None:
+        source = "COUNT = 0\ndef reset() -> None: ...\n"
+        modules = self._make_modules(tmp_path, source)
+        result = _format_tree(modules, use_ast=True)
+        assert "COUNT (untyped)" in result
+        assert "reset(" in result
 
     def test_mix_of_function_class_variable(self, tmp_path: Path) -> None:
         source = "VERSION = '1'\ndef add(a: int, b: int) -> int: ...\nclass Point:\n    x: int = 0\n"
@@ -422,15 +431,36 @@ class TestFormatShowJsonWithDetail:
         assert "bases" in detail["Foo"]
         assert "members" in detail["Foo"]
 
-    def test_variable_not_in_detail(self, tmp_path: Path) -> None:
+    def test_variable_in_detail_with_kind_variable(self, tmp_path: Path) -> None:
         modules = self._make_modules(tmp_path, "MY_VAR = 42\n")
         result = json.loads(_format_show_json(modules, use_ast=True))
         detail = result[0]["detail"]
-        assert "MY_VAR" not in detail
+        assert "MY_VAR" in detail
+        assert detail["MY_VAR"]["kind"] == "variable"
 
-    def test_build_detail_empty_for_module_with_no_functions_or_classes(self, tmp_path: Path) -> None:
+    def test_build_detail_includes_variables_for_module_with_no_functions_or_classes(self, tmp_path: Path) -> None:
         modules = self._make_modules(tmp_path, "MY_VAR = 1\nOTHER = 2\n")
         info = modules["mod"]
         names = info.effective_all if info.declared_all is not None else info.inferred_all
         detail = _build_detail(names, info)
-        assert detail == {}
+        assert "MY_VAR" in detail
+        my_var_entry = detail["MY_VAR"]
+        assert isinstance(my_var_entry, dict)
+        assert my_var_entry["kind"] == "variable"
+        assert "OTHER" in detail
+
+    def test_variable_detail_has_annotation_for_annotated_variable(self, tmp_path: Path) -> None:
+        modules = self._make_modules(tmp_path, "VERSION: str = '1'\n")
+        result = json.loads(_format_show_json(modules, use_ast=True))
+        detail = result[0]["detail"]
+        assert "VERSION" in detail
+        assert detail["VERSION"]["kind"] == "variable"
+        assert detail["VERSION"]["annotation"] == "str"
+
+    def test_variable_detail_has_null_annotation_for_unannotated_variable(self, tmp_path: Path) -> None:
+        modules = self._make_modules(tmp_path, "FOO = 42\n")
+        result = json.loads(_format_show_json(modules, use_ast=True))
+        detail = result[0]["detail"]
+        assert "FOO" in detail
+        assert detail["FOO"]["kind"] == "variable"
+        assert detail["FOO"]["annotation"] is None

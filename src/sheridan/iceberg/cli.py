@@ -161,6 +161,12 @@ def _format_tree(
                 lines.append("  " * name_depth + name)
                 for member in cls.members:
                     lines.append("  " * (name_depth + 1) + _render_member(member))
+            elif name in info.variable_types:
+                ann = info.variable_types[name]
+                if ann is not None:
+                    lines.append("  " * name_depth + f"{name}: {ann}")
+                else:
+                    lines.append("  " * name_depth + f"{name} (untyped)")
             else:
                 lines.append("  " * name_depth + name)
 
@@ -230,12 +236,14 @@ def _class_info_to_dict(cls: ClassInfo) -> dict[str, object]:
 def _build_detail(names: list[str], info: ModuleInfo) -> dict[str, object]:
     """Build the per-name detail mapping for JSON output.
 
-    Only names for which rich info is available (functions and classes) are
-    included.  Plain variables are omitted.
+    Functions, classes, and variables are all included.  Names for which no
+    rich info is available are omitted (bare fallback names from the AST that
+    do not appear in any of the three info dicts).
 
     Args:
         names: The effective public names for the module.
-        info: Parsed module information containing signature and class data.
+        info: Parsed module information containing signature, class, and
+            variable data.
 
     Returns:
         Dict mapping each name with rich info to its serialized detail.
@@ -249,6 +257,8 @@ def _build_detail(names: list[str], info: ModuleInfo) -> dict[str, object]:
             }
         elif cls := info.class_info.get(name):
             detail[name] = _class_info_to_dict(cls)
+        elif name in info.variable_types:
+            detail[name] = {"kind": "variable", "annotation": info.variable_types[name]}
     return detail
 
 

@@ -311,6 +311,9 @@ def _infer_public_names(tree: ast.Module, is_init: bool = False) -> list[str]:
                 for target in targets:
                     if isinstance(target, ast.Name) and not target.id.startswith("_") and target.id != "__all__":
                         names.append(target.id)
+            case ast.AnnAssign(target=ast.Name(id=name)):
+                if not name.startswith("_") and name != "__all__":
+                    names.append(name)
             case ast.ImportFrom(names=aliases) if is_init:
                 for alias in aliases:
                     local_name = alias.asname if alias.asname else alias.name
