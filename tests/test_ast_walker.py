@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from sheridan.iceberg.ast_walker import ModuleInfo, load_modules, walk_module, walk_path
+from sheridan.iceberg.ast_walker import ModuleInfo, load_modules, resolve_reexports, walk_module, walk_path
 from sheridan.iceberg.enums import MemberKind, ParamKind
 from sheridan.iceberg.models import (
     ClassInfo,
@@ -664,3 +664,128 @@ class TestWalkModuleVariableTypes:
         p.write_text("MAPPING: dict[str, int] = {}\n", encoding="utf-8")
         info = walk_module(p)
         assert info.variable_types.get("MAPPING") == "dict[str, int]"
+
+
+# ---------------------------------------------------------------------------
+# TestResolveReexports
+# ---------------------------------------------------------------------------
+
+
+class TestResolveReexports:
+    """Tests for resolve_reexports post-processing pass."""
+
+    def _write(self, path: Path, source: str) -> Path:
+        """Write source text to path, creating parent directories as needed.
+
+        Args:
+            path: Destination file path.
+            source: Python source text to write.
+
+        Returns:
+            The path that was written.
+        """
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source, encoding="utf-8")
+        return path
+
+    def test_resolve_copies_function_from_source(self, tmp_path: Path) -> None:
+        self._write(
+            tmp_path / "pkg" / "utils.py",
+            "def greet(name: str) -> str: ...\n",
+        )
+        self._write(
+            tmp_path / "pkg" / "__init__.py",
+            '__all__ = ["greet"]\nfrom pkg.utils import greet\n',
+        )
+        modules = walk_path(tmp_path)
+        resolved = resolve_reexports(modules)
+        init_info = next(m for m in resolved if m.path.name == "__init__.py")
+        assert "greet" in init_info.function_signatures
+
+    def test_resolve_copies_class_from_source(self, tmp_path: Path) -> None:
+        self._write(
+            tmp_path / "pkg" / "models.py",
+            "class Point:\n    x: float\n    y: float\n",
+        )
+        self._write(
+            tmp_path / "pkg" / "__init__.py",
+            '__all__ = ["Point"]\nfrom pkg.models import Point\n',
+        )
+        modules = walk_path(tmp_path)
+        resolved = resolve_reexports(modules)
+        init_info = next(m for m in resolved if m.path.name == "__init__.py")
+        assert "Point" in init_info.class_info
+
+    def test_resolve_copies_variable_from_source(self, tmp_path: Path) -> None:
+        self._write(
+            tmp_path / "pkg" / "version.py",
+            '__version__: str = "1.0"\n',
+        )
+        self._write(
+            tmp_path / "pkg" / "__init__.py",
+            '__all__ = ["__version__"]\nfrom pkg.version import __version__\n',
+        )
+        modules = walk_path(tmp_path)
+        resolved = resolve_reexports(modules)
+        init_info = next(m for m in resolved if m.path.name == "__init__.py")
+        assert "__version__" in init_info.variable_types
+        assert init_info.variable_types["__version__"] == "str"
+
+    def test_resolve_handles_alias(self, tmp_path: Path) -> None:
+        self._write(
+            tmp_path / "pkg" / "core.py",
+            "def internal_fn(x: int) -> bool: ...\n",
+        )
+        self._write(
+            tmp_path / "pkg" / "__init__.py",
+            '__all__ = ["public_fn"]\nfrom pkg.core import internal_fn as public_fn\n',
+        )
+        modules = walk_path(tmp_path)
+        resolved = resolve_reexports(modules)
+        init_info = next(m for m in resolved if m.path.name == "__init__.py")
+        assert "public_fn" in init_info.function_signatures
+        assert "internal_fn" not in init_info.function_signatures
+
+    def test_resolve_skips_already_defined(self, tmp_path: Path) -> None:
+        self._write(
+            tmp_path / "pkg" / "utils.py",
+            "def greet(name: str) -> str: ...\n",
+        )
+        self._write(
+            tmp_path / "pkg" / "__init__.py",
+            '__all__ = ["greet"]\nfrom pkg.utils import greet\ndef greet() -> None: ...\n',
+        )
+        modules = walk_path(tmp_path)
+        resolved = resolve_reexports(modules)
+        init_info = next(m for m in resolved if m.path.name == "__init__.py")
+        sig = init_info.function_signatures["greet"]
+        assert len(sig.params) == 0  # local def, not the imported one
+
+    def test_resolve_skips_external_modules(self, tmp_path: Path) -> None:
+        self._write(
+            tmp_path / "pkg" / "__init__.py",
+            '__all__ = ["Path"]\nfrom pathlib import Path\n',
+        )
+        modules = walk_path(tmp_path)
+        resolved = resolve_reexports(modules)
+        init_info = next(m for m in resolved if m.path.name == "__init__.py")
+        assert "Path" not in init_info.function_signatures
+        assert "Path" not in init_info.class_info
+
+    def test_resolve_handles_nested_package(self, tmp_path: Path) -> None:
+        self._write(
+            tmp_path / "pkg" / "sub" / "core.py",
+            "class Widget:\n    label: str\n",
+        )
+        self._write(
+            tmp_path / "pkg" / "sub" / "__init__.py",
+            '__all__ = ["Widget"]\nfrom pkg.sub.core import Widget\n',
+        )
+        self._write(
+            tmp_path / "pkg" / "__init__.py",
+            '__all__ = ["Widget"]\nfrom pkg.sub import Widget\n',
+        )
+        modules = walk_path(tmp_path)
+        resolved = resolve_reexports(modules)
+        sub_init = next(m for m in resolved if m.path.name == "__init__.py" and m.path.parent.name == "sub")
+        assert "Widget" in sub_init.class_info
