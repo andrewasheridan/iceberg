@@ -614,3 +614,53 @@ class TestClassInfoExtraction:
         p = tmp_py("mod.py", "class _Private: pass\n")
         info = walk_module(p)
         assert "_Private" not in info.class_info
+
+
+# ---------------------------------------------------------------------------
+# TestWalkModuleVariableTypes
+# ---------------------------------------------------------------------------
+
+
+class TestWalkModuleVariableTypes:
+    def test_annotated_variable_extracted(self, tmp_path: Path) -> None:
+        p = tmp_path / "m.py"
+        p.write_text('__version__: str = "1.0"\n', encoding="utf-8")
+        info = walk_module(p)
+        assert info.variable_types.get("__version__") == "str"
+
+    def test_unannotated_variable_extracted(self, tmp_path: Path) -> None:
+        p = tmp_path / "m.py"
+        p.write_text("FOO = 42\n", encoding="utf-8")
+        info = walk_module(p)
+        assert "FOO" in info.variable_types
+        assert info.variable_types["FOO"] is None
+
+    def test_function_not_in_variable_types(self, tmp_path: Path) -> None:
+        p = tmp_path / "m.py"
+        p.write_text("def greet(name: str) -> str: ...\n", encoding="utf-8")
+        info = walk_module(p)
+        assert "greet" not in info.variable_types
+
+    def test_class_not_in_variable_types(self, tmp_path: Path) -> None:
+        p = tmp_path / "m.py"
+        p.write_text("class Foo:\n    pass\n", encoding="utf-8")
+        info = walk_module(p)
+        assert "Foo" not in info.variable_types
+
+    def test_all_itself_excluded(self, tmp_path: Path) -> None:
+        p = tmp_path / "m.py"
+        p.write_text('__all__ = ["FOO"]\nFOO = 1\n', encoding="utf-8")
+        info = walk_module(p)
+        assert "__all__" not in info.variable_types
+
+    def test_dunder_variable_included(self, tmp_path: Path) -> None:
+        p = tmp_path / "m.py"
+        p.write_text('__version__: str = "2.0"\n', encoding="utf-8")
+        info = walk_module(p)
+        assert "__version__" in info.variable_types
+
+    def test_complex_annotation_extracted(self, tmp_path: Path) -> None:
+        p = tmp_path / "m.py"
+        p.write_text("MAPPING: dict[str, int] = {}\n", encoding="utf-8")
+        info = walk_module(p)
+        assert info.variable_types.get("MAPPING") == "dict[str, int]"

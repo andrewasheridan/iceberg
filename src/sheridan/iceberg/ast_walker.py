@@ -388,12 +388,34 @@ def walk_module(path: Path) -> ModuleInfo:
         elif isinstance(node, ast.ClassDef) and not node.name.startswith("_"):
             class_info[node.name] = _extract_class_info(node)
 
+    variable_types: dict[str, str | None] = {}
+    for node in ast.iter_child_nodes(tree):
+        if isinstance(node, ast.AnnAssign):
+            if (
+                isinstance(node.target, ast.Name)
+                and node.target.id != "__all__"
+                and node.target.id not in function_signatures
+                and node.target.id not in class_info
+            ):
+                variable_types[node.target.id] = ast.unparse(node.annotation)
+        elif (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id != "__all__"
+            and node.targets[0].id not in function_signatures
+            and node.targets[0].id not in class_info
+            and node.targets[0].id not in variable_types
+        ):
+            variable_types[node.targets[0].id] = None
+
     return ModuleInfo(
         path=path,
         declared_all=declared,
         inferred_all=inferred,
         function_signatures=function_signatures,
         class_info=class_info,
+        variable_types=variable_types,
     )
 
 
