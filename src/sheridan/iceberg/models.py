@@ -86,6 +86,9 @@ class ModuleInfo:
         inferred_all: Names inferred from top-level non-underscore definitions.
         function_signatures: Signatures of public top-level functions, keyed by name.
         class_info: Public member info for top-level classes, keyed by name.
+        variable_types: Top-level variable names mapped to their annotation string,
+            or ``None`` for unannotated variables. Does not include names already in
+            ``function_signatures`` or ``class_info``.
     """
 
     path: Path
@@ -93,6 +96,7 @@ class ModuleInfo:
     inferred_all: list[str] = field(default_factory=list)
     function_signatures: dict[str, FunctionSignature] = field(default_factory=dict)
     class_info: dict[str, ClassInfo] = field(default_factory=dict)
+    variable_types: dict[str, str | None] = field(default_factory=dict)
 
     @property
     def effective_all(self) -> list[str]:

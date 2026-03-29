@@ -49,6 +49,29 @@ class TestModuleInfoEffectiveAll:
 
 
 # ---------------------------------------------------------------------------
+# ModuleInfo.variable_types
+# ---------------------------------------------------------------------------
+
+
+class TestModuleInfoVariableTypes:
+    def test_variable_types_defaults_to_empty_dict(self, tmp_path: Path) -> None:
+        info = ModuleInfo(
+            path=tmp_path / "m.py",
+            declared_all=None,
+        )
+        assert info.variable_types == {}
+
+    def test_variable_types_can_be_set(self, tmp_path: Path) -> None:
+        info = ModuleInfo(
+            path=tmp_path / "m.py",
+            declared_all=None,
+            variable_types={"VERSION": "str", "COUNT": None},
+        )
+        assert info.variable_types["VERSION"] == "str"
+        assert info.variable_types["COUNT"] is None
+
+
+# ---------------------------------------------------------------------------
 # walk_module — happy paths
 # ---------------------------------------------------------------------------
 
