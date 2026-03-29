@@ -13,11 +13,11 @@ jobs:
       !startsWith(github.event.head_commit.message, 'bump:') &&
       !startsWith(github.head_ref, 'chore/version-bump-')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Restore Dagger engine cache
         id: cache-dagger
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /tmp/dagger-engine.tar
           key: dagger-engine-v0.20.3
@@ -27,11 +27,10 @@ jobs:
         run: docker load -i /tmp/dagger-engine.tar
 
       - name: Run CI pipeline
-        uses: dagger/dagger-action@v3
+        uses: dagger/dagger-for-github@v8.4.0
         with:
           version: "0.20.3"
-          cmds: |
-            call check --source=.
+          call: check --source=.
 
       - name: Save Dagger engine image
         if: steps.cache-dagger.outputs.cache-hit != 'true'

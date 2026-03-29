@@ -11,7 +11,7 @@ Test files do not have or need `__all__`. Names imported into test modules are f
 
 We decided that files matching `test_*.py`, `*_test.py`, or `conftest.py` are silently skipped by the walker, regardless of the path the user passes. The exclusion is implemented in `_is_test_file()` in `ast_walker.py` and applied in both `walk_path` and `load_modules`.
 
-The skip patterns follow pytest's default discovery conventions, making the behaviour unsurprising to Python developers.
+The skip patterns follow pytest's default discovery conventions, making the behavior unsurprising to Python developers.
 
 ## Consequences
 

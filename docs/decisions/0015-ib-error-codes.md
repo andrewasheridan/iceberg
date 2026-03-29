@@ -7,7 +7,7 @@ Status: Accepted
 
 iceberg produces diagnostics when a module has a missing, incorrect, or unsorted `__all__`. Without short, stable codes, those diagnostics are hard to grep for, cite in documentation, or reference in issue trackers. Long-form names like `"missing"` already exist as `IssueKind` values but are not reference-friendly.
 
-Ruff popularised short prefix-plus-number codes (`E501`, `F401`) that Python developers already recognise and know how to use.
+Ruff popularized short prefix-plus-number codes (`E501`, `F401`) that Python developers already recognize and know how to use.
 
 ## Decision
 

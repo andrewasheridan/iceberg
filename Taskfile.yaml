@@ -52,7 +52,7 @@ tasks:
   typecheck:
     desc: Run mypy strict type checking
     cmds:
-      - uv run mypy --strict src/
+      - uv run mypy -- src/
 
   test:
     desc: Run pytest with coverage

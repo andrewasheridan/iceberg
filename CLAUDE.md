@@ -173,7 +173,7 @@ Agent definitions live in `~/.claude/agents/` and are shared across all `sherida
 5. `reviewer` — advisory review; produces a mandatory follow-up checklist
 6. `adr-writer` — if the reviewer (or your judgment) flags an architectural decision was made
 7. Update CLAUDE.md in the main session if API surface, CLI flags, commands, agent roster, or conventions changed
-8. Update README.md in the main session if user-facing behaviour, install steps, or CLI usage changed
+8. Update README.md in the main session if user-facing behavior, install steps, or CLI usage changed
 
 **Architectural decision:**
 1. `adr-writer` — always record significant decisions, even small ones that future maintainers would ask "why?"

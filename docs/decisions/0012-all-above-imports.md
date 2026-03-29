@@ -32,4 +32,4 @@ This is a project style convention only. `iceberg` does not detect or enforce `_
 - All five source modules in this repo have been updated to follow this layout.
 - `__all__` entries are string literals, so placing the declaration before imports is valid Python — the names do not need to be in scope at the point of the `__all__` assignment.
 - This convention applies to all future `sheridan.*` modules and is documented in `CLAUDE.md`.
-- `iceberg`'s auto-fix behaviour is not changed; it inserts `__all__` after the docstring regardless of import position, which aligns with this convention in practice.
+- `iceberg`'s auto-fix behavior is not changed; it inserts `__all__` after the docstring regardless of import position, which aligns with this convention in practice.

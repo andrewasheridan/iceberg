@@ -6,14 +6,15 @@ __all__ = [
 
 from pathlib import Path
 
-from sheridan.iceberg.ast_walker import base_for, load_modules, module_id, resolve_show_modules
+from sheridan.iceberg.ast_walker import base_for, load_modules, module_id, resolve_reexports, resolve_show_modules
+from sheridan.iceberg.models import ModuleInfo
 
 
 def get_public_api(
     path: Path | str,
     *,
     use_ast: bool = False,
-) -> dict[str, list[str]]:
+) -> dict[str, ModuleInfo]:
     """Return the public API surface for a path.
 
     When a package's ``__init__.py`` declares ``__all__``, it is treated as the
@@ -26,12 +27,14 @@ def get_public_api(
         use_ast: When ``True``, ignore ``__all__`` and derive names from the AST.
 
     Returns:
-        Mapping of dotted module name to sorted list of public names.
+        Mapping of dotted module name to ``ModuleInfo``.
     """
     p = Path(path)
-    modules = resolve_show_modules(load_modules(p), use_ast)
+    loaded = load_modules(p)
+    resolved = resolve_reexports(loaded)
+    modules = resolve_show_modules(resolved, use_ast)
     base = base_for(p)
-    result: dict[str, list[str]] = {}
+    result: dict[str, ModuleInfo] = {}
     for info in modules:
-        result[module_id(info.path, base)] = info.inferred_all if use_ast else info.effective_all
+        result[module_id(info.path, base)] = info
     return result

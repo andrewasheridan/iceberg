@@ -5,6 +5,7 @@ __all__ = [
     "base_for",
     "load_modules",
     "module_id",
+    "resolve_reexports",
     "resolve_show_modules",
     "walk_module",
     "walk_path",
@@ -14,14 +15,13 @@ import ast
 import contextlib
 from pathlib import Path
 
+from sheridan.iceberg.enums import MemberKind, ParamKind
 from sheridan.iceberg.models import (
     ClassInfo,
     ClassMember,
     FunctionSignature,
-    MemberKind,
     ModuleInfo,
     ParamInfo,
-    ParamKind,
 )
 
 
@@ -311,6 +311,9 @@ def _infer_public_names(tree: ast.Module, is_init: bool = False) -> list[str]:
                 for target in targets:
                     if isinstance(target, ast.Name) and not target.id.startswith("_") and target.id != "__all__":
                         names.append(target.id)
+            case ast.AnnAssign(target=ast.Name(id=name)):
+                if not name.startswith("_") and name != "__all__":
+                    names.append(name)
             case ast.ImportFrom(names=aliases) if is_init:
                 for alias in aliases:
                     local_name = alias.asname if alias.asname else alias.name
@@ -389,12 +392,34 @@ def walk_module(path: Path) -> ModuleInfo:
         elif isinstance(node, ast.ClassDef) and not node.name.startswith("_"):
             class_info[node.name] = _extract_class_info(node)
 
+    variable_types: dict[str, str | None] = {}
+    for node in ast.iter_child_nodes(tree):
+        if isinstance(node, ast.AnnAssign):
+            if (
+                isinstance(node.target, ast.Name)
+                and node.target.id != "__all__"
+                and node.target.id not in function_signatures
+                and node.target.id not in class_info
+            ):
+                variable_types[node.target.id] = ast.unparse(node.annotation)
+        elif (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id != "__all__"
+            and node.targets[0].id not in function_signatures
+            and node.targets[0].id not in class_info
+            and node.targets[0].id not in variable_types
+        ):
+            variable_types[node.targets[0].id] = None
+
     return ModuleInfo(
         path=path,
         declared_all=declared,
         inferred_all=inferred,
         function_signatures=function_signatures,
         class_info=class_info,
+        variable_types=variable_types,
     )
 
 
@@ -434,6 +459,114 @@ def module_id(path: Path, base: Path) -> str:
         return mid
     except ValueError:
         return str(path)
+
+
+def resolve_reexports(modules: list[ModuleInfo]) -> list[ModuleInfo]:
+    """Copy signatures and type info from source modules into re-exporting ``__init__.py`` files.
+
+    For each ``__init__.py`` in ``modules``, re-parses its AST to find
+    ``from X import Y [as Z]`` statements.  For each name in the module's
+    ``effective_all`` that has no entry in ``function_signatures``,
+    ``class_info``, or ``variable_types``, attempts to locate the source
+    module in ``modules`` and copy the corresponding info.
+
+    Only direct intra-package imports are resolved.  Imports from modules
+    outside the parsed set are silently skipped.  Wildcard imports
+    (``from X import *``) are ignored.  Resolution is single-pass and
+    non-transitive.
+
+    Args:
+        modules: All parsed :class:`ModuleInfo` objects for a walk.
+
+    Returns:
+        The same list, mutated in place, with re-exported names populated.
+    """
+    path_index: dict[Path, ModuleInfo] = {m.path: m for m in modules}
+
+    def _resolve_module_path(init_path: Path, dotted: str) -> Path | None:
+        """Attempt to find the file path for a dotted module name.
+
+        Searches for ``pkg/sub/mod.py`` and ``pkg/sub/mod/__init__.py``
+        relative to the filesystem root, anchored by the init file's location.
+
+        Args:
+            init_path: Path to the ``__init__.py`` doing the import.
+            dotted: Dotted module name as it appears in the ``from`` clause.
+
+        Returns:
+            Resolved :class:`Path` if found in the parsed set, else ``None``.
+        """
+        parts = dotted.split(".")
+        # Walk up from init_path.parent to find a directory whose name matches
+        # the first part of the dotted name (the package root).
+        anchor: Path | None = None
+        search = init_path.parent
+        for _ in range(20):  # guard against infinite traversal
+            if search.name == parts[0]:
+                anchor = search.parent
+                break
+            if search.parent == search:
+                break
+            search = search.parent
+
+        if anchor is None:
+            anchor = init_path.parent.parent
+
+        base = anchor / parts[0]
+        for part in parts[1:]:
+            base = base / part
+
+        as_file = base.with_suffix(".py")
+        as_init = base / "__init__.py"
+
+        if as_file in path_index:
+            return as_file
+        if as_init in path_index:
+            return as_init
+        return None
+
+    for info in modules:
+        if info.path.name != "__init__.py":
+            continue
+
+        source = info.path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(info.path))
+
+        # Build mapping: local_name -> (source_module_dotted, original_name)
+        import_map: dict[str, tuple[str, str]] = {}
+        for node in ast.iter_child_nodes(tree):
+            if not isinstance(node, ast.ImportFrom):
+                continue
+            if node.module is None:
+                continue
+            for alias in node.names:
+                if alias.name == "*":
+                    continue
+                local_name = alias.asname if alias.asname else alias.name
+                import_map[local_name] = (node.module, alias.name)
+
+        for name in info.effective_all:
+            if name in info.function_signatures or name in info.class_info or name in info.variable_types:
+                continue
+            if name not in import_map:
+                continue
+
+            source_dotted, original_name = import_map[name]
+            source_path = _resolve_module_path(info.path, source_dotted)
+            if source_path is None:
+                continue
+            source_info = path_index.get(source_path)
+            if source_info is None:
+                continue
+
+            if original_name in source_info.function_signatures:
+                info.function_signatures[name] = source_info.function_signatures[original_name]
+            elif original_name in source_info.class_info:
+                info.class_info[name] = source_info.class_info[original_name]
+            elif original_name in source_info.variable_types:
+                info.variable_types[name] = source_info.variable_types[original_name]
+
+    return modules
 
 
 def resolve_show_modules(modules: list[ModuleInfo], use_ast: bool = False) -> list[ModuleInfo]:

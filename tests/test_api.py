@@ -6,19 +6,10 @@ from unittest.mock import patch
 from sheridan.iceberg.api import get_public_api
 from sheridan.iceberg.ast_walker import ModuleInfo
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def _write(path: Path, source: str) -> Path:
     path.write_text(source, encoding="utf-8")
     return path
-
-
-# ---------------------------------------------------------------------------
-# get_public_api — single file
-# ---------------------------------------------------------------------------
 
 
 class TestGetPublicApiFile:
@@ -32,30 +23,33 @@ class TestGetPublicApiFile:
         result = get_public_api(p)
         assert "mymod" in result
 
-    def test_value_is_list_of_strings(self, tmp_path: Path) -> None:
+    def test_value_is_module_info(self, tmp_path: Path) -> None:
+        from sheridan.iceberg.models import ModuleInfo
+
         p = _write(tmp_path / "mod.py", '__all__ = ["Foo", "Bar"]\ndef Foo(): ...\ndef Bar(): ...\n')
         result = get_public_api(p)
-        assert result["mod"] == ["Foo", "Bar"]
+        assert isinstance(result["mod"], ModuleInfo)
+        assert result["mod"].effective_all == ["Foo", "Bar"]
 
     def test_uses_declared_all_by_default(self, tmp_path: Path) -> None:
         p = _write(tmp_path / "mod.py", '__all__ = ["Declared"]\ndef Inferred(): ...\n')
         result = get_public_api(p)
-        assert result["mod"] == ["Declared"]
+        assert result["mod"].effective_all == ["Declared"]
 
     def test_uses_inferred_when_no_all(self, tmp_path: Path) -> None:
         p = _write(tmp_path / "mod.py", "def PublicFn(): ...\ndef _private(): ...\n")
         result = get_public_api(p)
-        assert result["mod"] == ["PublicFn"]
+        assert result["mod"].effective_all == ["PublicFn"]
 
     def test_use_ast_returns_inferred_names(self, tmp_path: Path) -> None:
         p = _write(tmp_path / "mod.py", '__all__ = ["Declared"]\ndef Inferred(): ...\n')
         result = get_public_api(p, use_ast=True)
-        assert result["mod"] == ["Inferred"]
+        assert result["mod"].inferred_all == ["Inferred"]
 
     def test_use_ast_false_returns_declared_names(self, tmp_path: Path) -> None:
         p = _write(tmp_path / "mod.py", '__all__ = ["Alpha"]\ndef Beta(): ...\n')
         result = get_public_api(p, use_ast=False)
-        assert result["mod"] == ["Alpha"]
+        assert result["mod"].effective_all == ["Alpha"]
 
     def test_accepts_str_path(self, tmp_path: Path) -> None:
         p = _write(tmp_path / "mod.py", "def Foo(): ...\n")
@@ -65,22 +59,17 @@ class TestGetPublicApiFile:
     def test_empty_module_returns_empty_list(self, tmp_path: Path) -> None:
         p = _write(tmp_path / "empty.py", "")
         result = get_public_api(p)
-        assert result["empty"] == []
+        assert result["empty"].effective_all == []
 
     def test_module_with_empty_all_returns_empty_list(self, tmp_path: Path) -> None:
         p = _write(tmp_path / "mod.py", "__all__: list[str] = []\n")
         result = get_public_api(p)
-        assert result["mod"] == []
+        assert result["mod"].effective_all == []
 
     def test_use_ast_empty_module_returns_empty_list(self, tmp_path: Path) -> None:
         p = _write(tmp_path / "mod.py", "")
         result = get_public_api(p, use_ast=True)
-        assert result["mod"] == []
-
-
-# ---------------------------------------------------------------------------
-# get_public_api — directory
-# ---------------------------------------------------------------------------
+        assert result["mod"].effective_all == []
 
 
 class TestGetPublicApiDirectory:
@@ -146,7 +135,7 @@ class TestGetPublicApiDirectory:
         pkg.mkdir()
         _write(pkg / "__init__.py", '__all__ = ["Declared"]\ndef Inferred(): ...\n')
         result = get_public_api(tmp_path, use_ast=True)
-        assert result["mypkg"] == ["Inferred"]
+        assert result["mypkg"].inferred_all == ["Inferred"]
 
     def test_skips_test_files(self, tmp_path: Path) -> None:
         _write(tmp_path / "mod.py", "def Foo(): ...\n")
@@ -168,11 +157,6 @@ class TestGetPublicApiDirectory:
         _write(tmp_path / "mod.py", "def Foo(): ...\n")
         result = get_public_api(tmp_path)
         assert isinstance(result, dict)
-
-
-# ---------------------------------------------------------------------------
-# get_public_api — ValueError fallback branch (path outside base)
-# ---------------------------------------------------------------------------
 
 
 def test_get_public_api_path_outside_base_uses_str_key(tmp_path: Path) -> None:
@@ -200,3 +184,74 @@ def test_get_public_api_path_outside_base_uses_str_key(tmp_path: Path) -> None:
 
     # The key should be the str() of the path, not a dotted module name.
     assert str(other) in result
+
+
+class TestReexportResolutionIntegration:
+    """Integration tests verifying resolve_reexports is wired into get_public_api."""
+
+    @staticmethod
+    def _write(path: Path, source: str) -> Path:
+        """Write source text to path, creating parent directories as needed.
+
+        Args:
+            path: Destination file path.
+            source: Python source text to write.
+
+        Returns:
+            The path that was written.
+        """
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source, encoding="utf-8")
+        return path
+
+    def test_reexport_resolution_populates_function_signatures(self, tmp_path: Path) -> None:
+        """Function signatures are copied from source modules into re-exporting __init__.py."""
+        self._write(
+            tmp_path / "mypkg" / "utils.py",
+            "def add(a: int, b: int) -> int: ...\n",
+        )
+        self._write(
+            tmp_path / "mypkg" / "__init__.py",
+            '__all__ = ["add"]\nfrom mypkg.utils import add\n',
+        )
+        result = get_public_api(tmp_path)
+        assert "mypkg" in result
+        init_info = result["mypkg"]
+        assert "add" in init_info.function_signatures
+        sig = init_info.function_signatures["add"]
+        assert len(sig.params) == 2
+        assert sig.params[0].name == "a"
+        assert sig.return_annotation == "int"
+
+    def test_reexport_resolution_populates_class_info(self, tmp_path: Path) -> None:
+        """Class info is copied from source modules into re-exporting __init__.py."""
+        self._write(
+            tmp_path / "mypkg" / "models.py",
+            "class Product:\n    name: str\n    price: float\n",
+        )
+        self._write(
+            tmp_path / "mypkg" / "__init__.py",
+            '__all__ = ["Product"]\nfrom mypkg.models import Product\n',
+        )
+        result = get_public_api(tmp_path)
+        init_info = result["mypkg"]
+        assert "Product" in init_info.class_info
+        cls = init_info.class_info["Product"]
+        member_names = [m.name for m in cls.members]
+        assert "name" in member_names
+        assert "price" in member_names
+
+    def test_reexport_resolution_populates_variable_types(self, tmp_path: Path) -> None:
+        """Variable types are copied from source modules into re-exporting __init__.py."""
+        self._write(
+            tmp_path / "mypkg" / "version.py",
+            '__version__: str = "1.0.0"\n',
+        )
+        self._write(
+            tmp_path / "mypkg" / "__init__.py",
+            '__all__ = ["__version__"]\nfrom mypkg.version import __version__\n',
+        )
+        result = get_public_api(tmp_path)
+        init_info = result["mypkg"]
+        assert "__version__" in init_info.variable_types
+        assert init_info.variable_types["__version__"] == "str"

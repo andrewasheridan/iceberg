@@ -16,7 +16,7 @@ plugin/
     └── json_fmt.py     __all__ = ["JsonFormat"]
 ```
 
-## Key behaviours demonstrated
+## Key behaviors demonstrated
 
 - **`core/__init__.py` has `__all__`** — iceberg treats it as authoritative for the entire
   `core/` subtree. No submodules of `core/` are reported separately (there are none here,

@@ -15,17 +15,16 @@ from sheridan.iceberg.cli import (
     _render_param,
     _render_signature,
 )
+from sheridan.iceberg.enums import MemberKind, ParamKind
 from sheridan.iceberg.models import (
     ClassMember,
     FunctionSignature,
-    MemberKind,
     ModuleInfo,
     ParamInfo,
-    ParamKind,
 )
 
 
-def _run(args: list[str], capsys: pytest.CaptureFixture[str]) -> int:
+def _run(args: list[str]) -> int:
     """Run main() with the given argv, capture output, and return exit code."""
     sys.argv = ["iceberg", *args]
     exit_code = 0
@@ -41,19 +40,14 @@ def _write(path: Path, source: str) -> Path:
     return path
 
 
-# ---------------------------------------------------------------------------
-# CLI parser — argument validation
-# ---------------------------------------------------------------------------
-
-
 class TestCliParser:
-    def test_no_subcommand_exits_nonzero(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_no_subcommand_exits_nonzero(self) -> None:
         sys.argv = ["iceberg"]
         with pytest.raises(SystemExit) as exc_info:
             cli.main()
         assert exc_info.value.code != 0
 
-    def test_invalid_format_exits_nonzero(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_invalid_format_exits_nonzero(self, tmp_path: Path) -> None:
         p = _write(tmp_path / "mod.py", "x = 1\n")
         sys.argv = ["iceberg", "--format", "xml", str(p)]
         with pytest.raises(SystemExit) as exc_info:
@@ -61,30 +55,25 @@ class TestCliParser:
         assert exc_info.value.code != 0
 
 
-# ---------------------------------------------------------------------------
-# show (root command)
-# ---------------------------------------------------------------------------
-
-
 class TestShowSubcommand:
-    def test_exits_0_on_valid_file(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_exits_0_on_valid_file(self, tmp_path: Path) -> None:
         p = _write(tmp_path / "mod.py", '__all__ = ["Foo"]\ndef Foo(): ...\n')
-        code = _run([str(p)], capsys)
+        code = _run([str(p)])
         assert code == 0
 
-    def test_exits_2_when_path_does_not_exist(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        code = _run([str(tmp_path / "ghost.py")], capsys)
+    def test_exits_2_when_path_does_not_exist(self, tmp_path: Path) -> None:
+        code = _run([str(tmp_path / "ghost.py")])
         assert code == 2
 
     def test_tree_output_contains_module_name(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         p = _write(tmp_path / "mymod.py", '__all__ = ["Alpha"]\ndef Alpha(): ...\n')
-        _run([str(p)], capsys)
+        _run([str(p)])
         captured = capsys.readouterr()
         assert "mymod" in captured.out
 
     def test_tree_output_contains_public_name(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         p = _write(tmp_path / "mymod.py", '__all__ = ["Alpha"]\ndef Alpha(): ...\n')
-        _run([str(p)], capsys)
+        _run([str(p)])
         captured = capsys.readouterr()
         assert "Alpha" in captured.out
 
@@ -92,21 +81,21 @@ class TestShowSubcommand:
         # __all__ = ["Declared"] but AST also has "Hidden"
         # Default: __all__ is authoritative — only "Declared" should appear
         p = _write(tmp_path / "mod.py", '__all__ = ["Declared"]\ndef Declared(): ...\ndef Hidden(): ...\n')
-        _run([str(p)], capsys)
+        _run([str(p)])
         captured = capsys.readouterr()
         assert "Declared" in captured.out
         assert "Hidden" not in captured.out
 
     def test_use_ast_ignores_all(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         p = _write(tmp_path / "mod.py", '__all__ = ["Declared"]\ndef Declared(): ...\ndef Hidden(): ...\n')
-        _run(["--use-ast", str(p)], capsys)
+        _run(["--use-ast", str(p)])
         captured = capsys.readouterr()
         assert "Declared" in captured.out
         assert "Hidden" in captured.out
 
     def test_json_format_valid(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         p = _write(tmp_path / "mod.py", '__all__ = ["Foo"]\ndef Foo(): ...\n')
-        _run(["--format", "json", str(p)], capsys)
+        _run(["--format", "json", str(p)])
         captured = capsys.readouterr()
         parsed = json.loads(captured.out)
         assert isinstance(parsed, list)
@@ -114,42 +103,38 @@ class TestShowSubcommand:
 
     def test_json_source_is_all_when_declared(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         p = _write(tmp_path / "mod.py", '__all__ = ["Foo"]\ndef Foo(): ...\n')
-        _run(["--format", "json", str(p)], capsys)
+        _run(["--format", "json", str(p)])
         captured = capsys.readouterr()
         parsed = json.loads(captured.out)
         assert parsed[0]["source"] == "__all__"
 
     def test_json_source_is_ast_when_use_ast(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         p = _write(tmp_path / "mod.py", '__all__ = ["Foo"]\ndef Foo(): ...\n')
-        _run(["--format", "json", "--use-ast", str(p)], capsys)
+        _run(["--format", "json", "--use-ast", str(p)])
         captured = capsys.readouterr()
         parsed = json.loads(captured.out)
         assert parsed[0]["source"] == "ast"
 
     def test_json_source_is_ast_when_no_all(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         p = _write(tmp_path / "mod.py", "def Foo(): ...\n")
-        _run(["--format", "json", str(p)], capsys)
+        _run(["--format", "json", str(p)])
         captured = capsys.readouterr()
         parsed = json.loads(captured.out)
         assert parsed[0]["source"] == "ast"
 
     def test_tree_directory_shows_root_header(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         _write(tmp_path / "mod.py", '__all__ = ["Foo"]\ndef Foo(): ...\n')
-        _run([str(tmp_path)], capsys)
+        _run([str(tmp_path)])
         captured = capsys.readouterr()
-        # First line should be the directory name with trailing slash
-        first_line = captured.out.splitlines()[0]
-        assert first_line == f"{tmp_path.name}/"
+        lines = captured.out.splitlines()
+        # First line should be the directory (package) name; module is indented beneath it
+        assert lines[0] == tmp_path.name
+        assert lines[1] == "  mod"
 
     def test_stderr_on_missing_path(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        _run([str(tmp_path / "ghost.py")], capsys)
+        _run([str(tmp_path / "ghost.py")])
         captured = capsys.readouterr()
         assert "does not exist" in captured.err
-
-
-# ---------------------------------------------------------------------------
-# _render_param
-# ---------------------------------------------------------------------------
 
 
 class TestRenderParam:
@@ -185,11 +170,6 @@ class TestRenderParam:
     def test_var_keyword_has_default_does_not_add_ellipsis(self) -> None:
         result = _render_param(ParamInfo(name="kwargs", kind=ParamKind.var_keyword, has_default=True))
         assert "= ..." not in result
-
-
-# ---------------------------------------------------------------------------
-# _render_signature
-# ---------------------------------------------------------------------------
 
 
 class TestRenderSignature:
@@ -254,11 +234,6 @@ class TestRenderSignature:
         )
         rendered = _render_signature(sig)
         assert rendered == "(x: int, /)"
-
-
-# ---------------------------------------------------------------------------
-# _render_member
-# ---------------------------------------------------------------------------
 
 
 class TestRenderMember:
@@ -331,105 +306,128 @@ class TestRenderMember:
         assert result.startswith("async update(")
 
 
-# ---------------------------------------------------------------------------
-# _format_tree with signatures
-# ---------------------------------------------------------------------------
-
-
 class TestFormatTreeWithSignatures:
-    def _make_module(self, tmp_path: Path, source: str) -> ModuleInfo:
+    @staticmethod
+    def _make_modules(tmp_path: Path, source: str) -> dict[str, ModuleInfo]:
         from sheridan.iceberg.ast_walker import walk_module
 
         p = tmp_path / "mod.py"
         p.write_text(source, encoding="utf-8")
-        return walk_module(p)
+        return {"mod": walk_module(p)}
 
     def test_function_renders_with_signature(self, tmp_path: Path) -> None:
-        info = self._make_module(tmp_path, "def greet(name: str) -> str: ...\n")
-        result = _format_tree([info], tmp_path / "mod.py", use_ast=True)
+        modules = self._make_modules(tmp_path, "def greet(name: str) -> str: ...\n")
+        result = _format_tree(modules, use_ast=True)
         assert "greet(name: str)" in result
         assert "\u2192 str" in result
 
     def test_async_function_renders_with_async_prefix(self, tmp_path: Path) -> None:
-        info = self._make_module(tmp_path, "async def fetch(url: str) -> bytes: ...\n")
-        result = _format_tree([info], tmp_path / "mod.py", use_ast=True)
+        modules = self._make_modules(tmp_path, "async def fetch(url: str) -> bytes: ...\n")
+        result = _format_tree(modules, use_ast=True)
         assert "async fetch(" in result
 
     def test_class_renders_name_and_members(self, tmp_path: Path) -> None:
         source = "class Foo:\n    x: int = 5\n"
-        info = self._make_module(tmp_path, source)
-        result = _format_tree([info], tmp_path / "mod.py", use_ast=True)
+        modules = self._make_modules(tmp_path, source)
+        result = _format_tree(modules, use_ast=True)
         assert "Foo" in result
         assert "x: int" in result
 
-    def test_plain_variable_renders_as_name_only(self, tmp_path: Path) -> None:
-        info = self._make_module(tmp_path, "MY_CONST = 42\n")
-        result = _format_tree([info], tmp_path / "mod.py", use_ast=True)
-        assert "MY_CONST" in result
-        # No parentheses since it is not a function
-        lines = [ln.strip() for ln in result.splitlines() if "MY_CONST" in ln]
-        assert all("(" not in ln for ln in lines)
+    def test_unannotated_variable_renders_with_untyped_marker(self, tmp_path: Path) -> None:
+        modules = self._make_modules(tmp_path, "MY_CONST = 42\n")
+        result = _format_tree(modules, use_ast=True)
+        assert "MY_CONST (untyped)" in result
+
+    def test_annotated_variable_renders_with_type(self, tmp_path: Path) -> None:
+        modules = self._make_modules(tmp_path, 'VERSION: str = "1"\n')
+        result = _format_tree(modules, use_ast=True)
+        assert "VERSION: str" in result
+
+    def test_unannotated_variable_in_mix_renders_with_untyped_marker(self, tmp_path: Path) -> None:
+        source = "COUNT = 0\ndef reset() -> None: ...\n"
+        modules = self._make_modules(tmp_path, source)
+        result = _format_tree(modules, use_ast=True)
+        assert "COUNT (untyped)" in result
+        assert "reset(" in result
 
     def test_mix_of_function_class_variable(self, tmp_path: Path) -> None:
         source = "VERSION = '1'\ndef add(a: int, b: int) -> int: ...\nclass Point:\n    x: int = 0\n"
-        info = self._make_module(tmp_path, source)
-        result = _format_tree([info], tmp_path / "mod.py", use_ast=True)
+        modules = self._make_modules(tmp_path, source)
+        result = _format_tree(modules, use_ast=True)
         assert "VERSION" in result
         assert "add(" in result
         assert "Point" in result
         assert "x: int" in result
 
 
-# ---------------------------------------------------------------------------
-# _format_show_json / _build_detail
-# ---------------------------------------------------------------------------
-
-
 class TestFormatShowJsonWithDetail:
-    def _make_module(self, tmp_path: Path, source: str) -> ModuleInfo:
+    @staticmethod
+    def _make_modules(tmp_path: Path, source: str) -> dict[str, ModuleInfo]:
         from sheridan.iceberg.ast_walker import walk_module
 
         p = tmp_path / "mod.py"
         p.write_text(source, encoding="utf-8")
-        return walk_module(p)
+        return {"mod": walk_module(p)}
 
     def test_json_output_has_detail_key(self, tmp_path: Path) -> None:
-        info = self._make_module(tmp_path, "def f() -> None: ...\n")
-        result = json.loads(_format_show_json([info], tmp_path / "mod.py", use_ast=True))
+        modules = self._make_modules(tmp_path, "def f() -> None: ...\n")
+        result = json.loads(_format_show_json(modules, use_ast=True))
         assert "detail" in result[0]
 
     def test_function_entry_has_kind_function(self, tmp_path: Path) -> None:
-        info = self._make_module(tmp_path, "def f(x: int) -> bool: ...\n")
-        result = json.loads(_format_show_json([info], tmp_path / "mod.py", use_ast=True))
+        modules = self._make_modules(tmp_path, "def f(x: int) -> bool: ...\n")
+        result = json.loads(_format_show_json(modules, use_ast=True))
         detail = result[0]["detail"]
         assert "f" in detail
         assert detail["f"]["kind"] == "function"
         assert "signature" in detail["f"]
 
     def test_async_function_entry_has_kind_async_function(self, tmp_path: Path) -> None:
-        info = self._make_module(tmp_path, "async def fetch() -> bytes: ...\n")
-        result = json.loads(_format_show_json([info], tmp_path / "mod.py", use_ast=True))
+        modules = self._make_modules(tmp_path, "async def fetch() -> bytes: ...\n")
+        result = json.loads(_format_show_json(modules, use_ast=True))
         detail = result[0]["detail"]
         assert detail["fetch"]["kind"] == "async function"
 
     def test_class_entry_has_kind_class_and_bases_and_members(self, tmp_path: Path) -> None:
         source = "class Foo:\n    x: int = 5\n"
-        info = self._make_module(tmp_path, source)
-        result = json.loads(_format_show_json([info], tmp_path / "mod.py", use_ast=True))
+        modules = self._make_modules(tmp_path, source)
+        result = json.loads(_format_show_json(modules, use_ast=True))
         detail = result[0]["detail"]
         assert "Foo" in detail
         assert detail["Foo"]["kind"] == "class"
         assert "bases" in detail["Foo"]
         assert "members" in detail["Foo"]
 
-    def test_variable_not_in_detail(self, tmp_path: Path) -> None:
-        info = self._make_module(tmp_path, "MY_VAR = 42\n")
-        result = json.loads(_format_show_json([info], tmp_path / "mod.py", use_ast=True))
+    def test_variable_in_detail_with_kind_variable(self, tmp_path: Path) -> None:
+        modules = self._make_modules(tmp_path, "MY_VAR = 42\n")
+        result = json.loads(_format_show_json(modules, use_ast=True))
         detail = result[0]["detail"]
-        assert "MY_VAR" not in detail
+        assert "MY_VAR" in detail
+        assert detail["MY_VAR"]["kind"] == "variable"
 
-    def test_build_detail_empty_for_module_with_no_functions_or_classes(self, tmp_path: Path) -> None:
-        info = self._make_module(tmp_path, "MY_VAR = 1\nOTHER = 2\n")
+    def test_build_detail_includes_variables_for_module_with_no_functions_or_classes(self, tmp_path: Path) -> None:
+        modules = self._make_modules(tmp_path, "MY_VAR = 1\nOTHER = 2\n")
+        info = modules["mod"]
         names = info.effective_all if info.declared_all is not None else info.inferred_all
         detail = _build_detail(names, info)
-        assert detail == {}
+        assert "MY_VAR" in detail
+        my_var_entry = detail["MY_VAR"]
+        assert isinstance(my_var_entry, dict)
+        assert my_var_entry["kind"] == "variable"
+        assert "OTHER" in detail
+
+    def test_variable_detail_has_annotation_for_annotated_variable(self, tmp_path: Path) -> None:
+        modules = self._make_modules(tmp_path, "VERSION: str = '1'\n")
+        result = json.loads(_format_show_json(modules, use_ast=True))
+        detail = result[0]["detail"]
+        assert "VERSION" in detail
+        assert detail["VERSION"]["kind"] == "variable"
+        assert detail["VERSION"]["annotation"] == "str"
+
+    def test_variable_detail_has_null_annotation_for_unannotated_variable(self, tmp_path: Path) -> None:
+        modules = self._make_modules(tmp_path, "FOO = 42\n")
+        result = json.loads(_format_show_json(modules, use_ast=True))
+        detail = result[0]["detail"]
+        assert "FOO" in detail
+        assert detail["FOO"]["kind"] == "variable"
+        assert detail["FOO"]["annotation"] is None

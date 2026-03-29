@@ -67,7 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   names the AST considers public but that are absent from `__all__` are
   flagged; phantom exports (present in `__all__` but absent from AST) are not
   flagged by `check`.
-- `fix` command: repairs `__all__` in place, fully synchronising it with the
+- `fix` command: repairs `__all__` in place, fully synchronizing it with the
   AST in both directions — adding missing names and removing phantom exports.
 - Named IB error codes on all `check` output, making violations easy to
   reference, suppress, and search.
