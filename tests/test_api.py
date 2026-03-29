@@ -6,19 +6,10 @@ from unittest.mock import patch
 from sheridan.iceberg.api import get_public_api
 from sheridan.iceberg.ast_walker import ModuleInfo
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def _write(path: Path, source: str) -> Path:
     path.write_text(source, encoding="utf-8")
     return path
-
-
-# ---------------------------------------------------------------------------
-# get_public_api — single file
-# ---------------------------------------------------------------------------
 
 
 class TestGetPublicApiFile:
@@ -79,11 +70,6 @@ class TestGetPublicApiFile:
         p = _write(tmp_path / "mod.py", "")
         result = get_public_api(p, use_ast=True)
         assert result["mod"].effective_all == []
-
-
-# ---------------------------------------------------------------------------
-# get_public_api — directory
-# ---------------------------------------------------------------------------
 
 
 class TestGetPublicApiDirectory:
@@ -173,11 +159,6 @@ class TestGetPublicApiDirectory:
         assert isinstance(result, dict)
 
 
-# ---------------------------------------------------------------------------
-# get_public_api — ValueError fallback branch (path outside base)
-# ---------------------------------------------------------------------------
-
-
 def test_get_public_api_path_outside_base_uses_str_key(tmp_path: Path) -> None:
     # Construct a ModuleInfo whose path is NOT under the base so that
     # relative_to raises ValueError and the except branch is exercised.
@@ -205,15 +186,11 @@ def test_get_public_api_path_outside_base_uses_str_key(tmp_path: Path) -> None:
     assert str(other) in result
 
 
-# ---------------------------------------------------------------------------
-# get_public_api — re-export resolution integration
-# ---------------------------------------------------------------------------
-
-
 class TestReexportResolutionIntegration:
     """Integration tests verifying resolve_reexports is wired into get_public_api."""
 
-    def _write(self, path: Path, source: str) -> Path:
+    @staticmethod
+    def _write(path: Path, source: str) -> Path:
         """Write source text to path, creating parent directories as needed.
 
         Args:

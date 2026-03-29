@@ -25,17 +25,9 @@ import pytest
 
 from sheridan.iceberg import cli
 
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
-
 _TESTS_DIR: Path = Path(__file__).parent
 _FIXTURES_DIR: Path = _TESTS_DIR / "examples"
 _GOLDEN_DIR: Path = _TESTS_DIR / "expected" / "show"
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 
 def _run(args: list[str], capsys: pytest.CaptureFixture[str]) -> int:
@@ -74,25 +66,20 @@ def _mask_paths(json_text: str) -> str:
 
     Parses the JSON array produced by ``iceberg show --format json``, sets
     every top-level entry's ``"path"`` key to ``"__PATH__"``, then
-    re-serialises with two-space indentation so the result can be compared
+    re-serializes with two-space indentation so the result can be compared
     to the golden file.
 
     Args:
         json_text: The raw JSON string captured from stdout.
 
     Returns:
-        A normalised JSON string with paths masked.
+        A normalized JSON string with paths masked.
     """
     entries: list[dict[str, Any]] = json.loads(json_text)
     for entry in entries:
         if "path" in entry:
             entry["path"] = "__PATH__"
     return json.dumps(entries, indent=2)
-
-
-# ---------------------------------------------------------------------------
-# TestStandaloneShow
-# ---------------------------------------------------------------------------
 
 
 class TestStandaloneShow:
@@ -130,11 +117,6 @@ class TestStandaloneShow:
         assert exit_code == 0
         masked = _mask_paths(captured.out)
         assert masked == _load_golden("standalone_json.json").rstrip("\n")
-
-
-# ---------------------------------------------------------------------------
-# TestGeometryShow
-# ---------------------------------------------------------------------------
 
 
 class TestGeometryShow:
@@ -196,11 +178,6 @@ class TestGeometryShow:
         assert masked == _load_golden("geometry_use_ast_json.json").rstrip("\n")
 
 
-# ---------------------------------------------------------------------------
-# TestWarehouseShow
-# ---------------------------------------------------------------------------
-
-
 class TestWarehouseShow:
     """Golden-file tests for the warehouse package.
 
@@ -238,11 +215,6 @@ class TestWarehouseShow:
         assert masked == _load_golden("warehouse_json.json").rstrip("\n")
 
 
-# ---------------------------------------------------------------------------
-# TestTodoShow
-# ---------------------------------------------------------------------------
-
-
 class TestTodoShow:
     """Golden-file tests for a single-file module with zero type annotations.
 
@@ -277,11 +249,6 @@ class TestTodoShow:
         assert exit_code == 0
         masked = _mask_paths(captured.out)
         assert masked == _load_golden("todo_json.json").rstrip("\n")
-
-
-# ---------------------------------------------------------------------------
-# TestPluginShow
-# ---------------------------------------------------------------------------
 
 
 class TestPluginShow:

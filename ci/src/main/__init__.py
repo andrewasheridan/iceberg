@@ -9,7 +9,7 @@ Usage:
 """
 
 __all__ = [
-    "SheridanIcebergCiCi",
+    "SheridanIcebergCi",
 ]
 
 import asyncio

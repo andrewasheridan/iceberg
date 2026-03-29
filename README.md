@@ -1,15 +1,14 @@
-# sheridan-iceberg
+# iceberg
 
 [![CI](https://github.com/andrewasheridan/iceberg/actions/workflows/ci.yaml/badge.svg)](https://github.com/andrewasheridan/iceberg/actions/workflows/ci.yaml)
 [![PyPI](https://img.shields.io/pypi/v/sheridan-iceberg)](https://pypi.org/project/sheridan-iceberg/)
 [![Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen)](https://github.com/andrewasheridan/iceberg)
-[![Mutation Score](https://img.shields.io/badge/mutation-tracked-blue)](https://github.com/andrewasheridan/iceberg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
 
-> The public API is the tip of the iceberg. `iceberg` guards the waterline.
+> The public API is the tip of the iceberg. `iceberg` marks the waterline.
 
-`sheridan-iceberg` reports the public API surface of Python modules. It uses
+`iceberg` reports the public API surface of Python modules. It uses
 Python's `ast` module for static analysis — no importing of user code.
 
 ## Features
@@ -48,8 +47,8 @@ full signatures; classes are followed by an indented list of their public
 members. When `__init__.py` declares `__all__`, it is the source of truth for
 the whole package — only that module is shown:
 
-```
-# iceberg src/mypackage/
+```console
+$ iceberg src/mypackage/
 
 mypackage/
   __init__
@@ -69,8 +68,8 @@ mypackage/
 
 Pass `--use-ast` to bypass `__all__` and see every module's inferred names:
 
-```
-# iceberg src/mypackage/ --use-ast
+```console
+$ iceberg src/mypackage/ --use-ast
 
 mypackage/
   __init__
@@ -90,7 +89,9 @@ mypackage/
 
 ### JSON output
 
-`iceberg --format json`:
+```console
+$ iceberg --format json
+```
 
 ```json
 [
@@ -171,45 +172,5 @@ from foo import snap  # now snap is part of the inferred public API
 Test files (`test_*.py`, `*_test.py`, `conftest.py`) are always skipped.
 
 ## Development
-
-```bash
-# Install dependencies
-task install
-
-# Run all checks (lint, format, typecheck, test, iceberg)
-task check
-
-# Run individual checks
-task lint:check   # ruff — read-only
-task lint         # ruff — autofix
-task format:check # formatter — read-only
-task format       # formatter — write
-task typecheck    # mypy --strict
-task test         # pytest --cov
-task iceberg      # dogfood: show iceberg's own public API
-
-# Run tests
-task test
-
-# Build docs
-task docs-serve
-```
-
-### CI pipeline (Dagger)
-
-The full CI pipeline runs each gate in its own container via [Dagger](https://dagger.io).
-Podman is the default runtime; Docker is supported via `CONTAINER_RUNTIME=docker`.
-
-```bash
-# First-time setup (generates ci/sdk/ — run once after clone)
-podman machine start   # macOS only
-task ci-init
-
-# Run the full CI pipeline locally
-task ci
-
-# Use Docker instead
-CONTAINER_RUNTIME=docker task ci
-```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.

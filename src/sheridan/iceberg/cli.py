@@ -270,7 +270,6 @@ def _format_show_json(modules: dict[str, ModuleInfo], use_ast: bool) -> str:
 
     Args:
         modules: Parsed module information.
-        root: The path argument supplied to the CLI.
         use_ast: When True, use ``inferred_all`` regardless of ``__all__``.
 
     Returns:

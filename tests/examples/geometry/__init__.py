@@ -10,7 +10,7 @@ showing their own ``__all__`` surfaces.
 
 Public API:
     - :class:`~geometry.point.Point` — a 2-D coordinate
-    - :class:`~geometry.shapes.Circle` — a circle defined by centre and radius
+    - :class:`~geometry.shapes.Circle` — a circle defined by center and radius
     - :class:`~geometry.shapes.Rectangle` — an axis-aligned rectangle
     - :func:`~geometry.utils.distance` — Euclidean distance between two points
 """

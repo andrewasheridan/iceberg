@@ -19,6 +19,6 @@ We decided to enforce conventional commits format on PR titles via a GitHub Acti
 - Pinning to a full commit SHA hardens the workflow against compromised action tags.
 
 **Negative:**
-- `pull_request_target` carries elevated risk (it runs with write permissions on the base repo); the `pull-requests: read` scope minimises but does not eliminate this surface.
+- `pull_request_target` carries elevated risk (it runs with write permissions on the base repo); the `pull-requests: read` scope minimizes but does not eliminate this surface.
 - Contributors unfamiliar with conventional commits must learn the format before their PR can pass; this adds friction for first-time contributors.
 - Local pre-commit hooks remain the enforcement layer for direct commits to `main`; the PR title check covers only the squash-merge point.

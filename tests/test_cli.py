@@ -24,7 +24,7 @@ from sheridan.iceberg.models import (
 )
 
 
-def _run(args: list[str], capsys: pytest.CaptureFixture[str]) -> int:
+def _run(args: list[str]) -> int:
     """Run main() with the given argv, capture output, and return exit code."""
     sys.argv = ["iceberg", *args]
     exit_code = 0
@@ -40,19 +40,14 @@ def _write(path: Path, source: str) -> Path:
     return path
 
 
-# ---------------------------------------------------------------------------
-# CLI parser — argument validation
-# ---------------------------------------------------------------------------
-
-
 class TestCliParser:
-    def test_no_subcommand_exits_nonzero(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_no_subcommand_exits_nonzero(self) -> None:
         sys.argv = ["iceberg"]
         with pytest.raises(SystemExit) as exc_info:
             cli.main()
         assert exc_info.value.code != 0
 
-    def test_invalid_format_exits_nonzero(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_invalid_format_exits_nonzero(self, tmp_path: Path) -> None:
         p = _write(tmp_path / "mod.py", "x = 1\n")
         sys.argv = ["iceberg", "--format", "xml", str(p)]
         with pytest.raises(SystemExit) as exc_info:
@@ -60,30 +55,25 @@ class TestCliParser:
         assert exc_info.value.code != 0
 
 
-# ---------------------------------------------------------------------------
-# show (root command)
-# ---------------------------------------------------------------------------
-
-
 class TestShowSubcommand:
-    def test_exits_0_on_valid_file(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_exits_0_on_valid_file(self, tmp_path: Path) -> None:
         p = _write(tmp_path / "mod.py", '__all__ = ["Foo"]\ndef Foo(): ...\n')
-        code = _run([str(p)], capsys)
+        code = _run([str(p)])
         assert code == 0
 
-    def test_exits_2_when_path_does_not_exist(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        code = _run([str(tmp_path / "ghost.py")], capsys)
+    def test_exits_2_when_path_does_not_exist(self, tmp_path: Path) -> None:
+        code = _run([str(tmp_path / "ghost.py")])
         assert code == 2
 
     def test_tree_output_contains_module_name(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         p = _write(tmp_path / "mymod.py", '__all__ = ["Alpha"]\ndef Alpha(): ...\n')
-        _run([str(p)], capsys)
+        _run([str(p)])
         captured = capsys.readouterr()
         assert "mymod" in captured.out
 
     def test_tree_output_contains_public_name(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         p = _write(tmp_path / "mymod.py", '__all__ = ["Alpha"]\ndef Alpha(): ...\n')
-        _run([str(p)], capsys)
+        _run([str(p)])
         captured = capsys.readouterr()
         assert "Alpha" in captured.out
 
@@ -91,21 +81,21 @@ class TestShowSubcommand:
         # __all__ = ["Declared"] but AST also has "Hidden"
         # Default: __all__ is authoritative — only "Declared" should appear
         p = _write(tmp_path / "mod.py", '__all__ = ["Declared"]\ndef Declared(): ...\ndef Hidden(): ...\n')
-        _run([str(p)], capsys)
+        _run([str(p)])
         captured = capsys.readouterr()
         assert "Declared" in captured.out
         assert "Hidden" not in captured.out
 
     def test_use_ast_ignores_all(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         p = _write(tmp_path / "mod.py", '__all__ = ["Declared"]\ndef Declared(): ...\ndef Hidden(): ...\n')
-        _run(["--use-ast", str(p)], capsys)
+        _run(["--use-ast", str(p)])
         captured = capsys.readouterr()
         assert "Declared" in captured.out
         assert "Hidden" in captured.out
 
     def test_json_format_valid(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         p = _write(tmp_path / "mod.py", '__all__ = ["Foo"]\ndef Foo(): ...\n')
-        _run(["--format", "json", str(p)], capsys)
+        _run(["--format", "json", str(p)])
         captured = capsys.readouterr()
         parsed = json.loads(captured.out)
         assert isinstance(parsed, list)
@@ -113,28 +103,28 @@ class TestShowSubcommand:
 
     def test_json_source_is_all_when_declared(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         p = _write(tmp_path / "mod.py", '__all__ = ["Foo"]\ndef Foo(): ...\n')
-        _run(["--format", "json", str(p)], capsys)
+        _run(["--format", "json", str(p)])
         captured = capsys.readouterr()
         parsed = json.loads(captured.out)
         assert parsed[0]["source"] == "__all__"
 
     def test_json_source_is_ast_when_use_ast(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         p = _write(tmp_path / "mod.py", '__all__ = ["Foo"]\ndef Foo(): ...\n')
-        _run(["--format", "json", "--use-ast", str(p)], capsys)
+        _run(["--format", "json", "--use-ast", str(p)])
         captured = capsys.readouterr()
         parsed = json.loads(captured.out)
         assert parsed[0]["source"] == "ast"
 
     def test_json_source_is_ast_when_no_all(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         p = _write(tmp_path / "mod.py", "def Foo(): ...\n")
-        _run(["--format", "json", str(p)], capsys)
+        _run(["--format", "json", str(p)])
         captured = capsys.readouterr()
         parsed = json.loads(captured.out)
         assert parsed[0]["source"] == "ast"
 
     def test_tree_directory_shows_root_header(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         _write(tmp_path / "mod.py", '__all__ = ["Foo"]\ndef Foo(): ...\n')
-        _run([str(tmp_path)], capsys)
+        _run([str(tmp_path)])
         captured = capsys.readouterr()
         lines = captured.out.splitlines()
         # First line should be the directory (package) name; module is indented beneath it
@@ -142,14 +132,9 @@ class TestShowSubcommand:
         assert lines[1] == "  mod"
 
     def test_stderr_on_missing_path(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        _run([str(tmp_path / "ghost.py")], capsys)
+        _run([str(tmp_path / "ghost.py")])
         captured = capsys.readouterr()
         assert "does not exist" in captured.err
-
-
-# ---------------------------------------------------------------------------
-# _render_param
-# ---------------------------------------------------------------------------
 
 
 class TestRenderParam:
@@ -185,11 +170,6 @@ class TestRenderParam:
     def test_var_keyword_has_default_does_not_add_ellipsis(self) -> None:
         result = _render_param(ParamInfo(name="kwargs", kind=ParamKind.var_keyword, has_default=True))
         assert "= ..." not in result
-
-
-# ---------------------------------------------------------------------------
-# _render_signature
-# ---------------------------------------------------------------------------
 
 
 class TestRenderSignature:
@@ -254,11 +234,6 @@ class TestRenderSignature:
         )
         rendered = _render_signature(sig)
         assert rendered == "(x: int, /)"
-
-
-# ---------------------------------------------------------------------------
-# _render_member
-# ---------------------------------------------------------------------------
 
 
 class TestRenderMember:
@@ -331,13 +306,9 @@ class TestRenderMember:
         assert result.startswith("async update(")
 
 
-# ---------------------------------------------------------------------------
-# _format_tree with signatures
-# ---------------------------------------------------------------------------
-
-
 class TestFormatTreeWithSignatures:
-    def _make_modules(self, tmp_path: Path, source: str) -> dict[str, ModuleInfo]:
+    @staticmethod
+    def _make_modules(tmp_path: Path, source: str) -> dict[str, ModuleInfo]:
         from sheridan.iceberg.ast_walker import walk_module
 
         p = tmp_path / "mod.py"
@@ -389,13 +360,9 @@ class TestFormatTreeWithSignatures:
         assert "x: int" in result
 
 
-# ---------------------------------------------------------------------------
-# _format_show_json / _build_detail
-# ---------------------------------------------------------------------------
-
-
 class TestFormatShowJsonWithDetail:
-    def _make_modules(self, tmp_path: Path, source: str) -> dict[str, ModuleInfo]:
+    @staticmethod
+    def _make_modules(tmp_path: Path, source: str) -> dict[str, ModuleInfo]:
         from sheridan.iceberg.ast_walker import walk_module
 
         p = tmp_path / "mod.py"

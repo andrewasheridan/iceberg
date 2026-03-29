@@ -16,7 +16,7 @@ The CI pipeline runs inside containers via [Dagger](https://dagger.io). You need
 - [Dagger CLI](https://docs.dagger.io/install)
 - [Podman](https://podman.io/get-started) (default) **or** Docker
 
-After cloning, initialise the Dagger module once:
+After cloning, initialize the Dagger module once:
 
 ```bash
 # macOS — start the Podman machine first
