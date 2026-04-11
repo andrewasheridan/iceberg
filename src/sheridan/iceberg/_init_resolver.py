@@ -23,7 +23,7 @@ from collections.abc import Mapping
 from sheridan.iceberg._config import Config
 from sheridan.iceberg._exceptions import ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, ResolveReport
-from sheridan.iceberg._utilities import extract_all
+from sheridan.iceberg._utilities import extract_all, infer_public_api
 from sheridan.iceberg._visitor import visit_module
 
 # ---------------------------------------------------------------------------
@@ -227,37 +227,9 @@ def _compute_public_names(
         if not name.startswith("_"):
             names.add(name)
 
-    # Include all non-private locally-defined names.
-    for node in tree.body:
-        match node:
-            case ast.FunctionDef(name=name) | ast.AsyncFunctionDef(name=name):
-                if not name.startswith("_"):
-                    names.add(name)
-
-            case ast.ClassDef(name=name):
-                if not name.startswith("_"):
-                    names.add(name)
-
-            case ast.Assign(targets=targets):
-                for target in targets:
-                    match target:
-                        case ast.Name(id=name) if not name.startswith("_"):
-                            names.add(name)
-                        case _:
-                            pass
-
-            case ast.AnnAssign(target=ast.Name(id=name)):
-                if not name.startswith("_"):
-                    names.add(name)
-
-            case ast.TypeAlias(name=ast.Name(id=name)):
-                if not name.startswith("_"):
-                    names.add(name)
-
-            case _:
-                pass
-
-    return frozenset(names)
+    # Include all non-private locally-defined names
+    local_names = infer_public_api(tree)
+    return local_names | names
 
 
 def _index_module(module: Module) -> dict[str, _Symbol]:

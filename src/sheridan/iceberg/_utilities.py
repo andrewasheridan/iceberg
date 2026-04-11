@@ -5,7 +5,7 @@ They operate on the stdlib ``ast`` module and carry no external dependencies
 beyond the standard library.
 """
 
-__all__ = ["extract_all"]
+__all__ = ["extract_all", "infer_public_api"]
 
 import ast
 
@@ -73,3 +73,65 @@ def extract_all(tree: ast.Module) -> frozenset[str] | None:
                 pass
 
     return None
+
+
+def infer_public_api(tree: ast.Module) -> frozenset[str]:
+    """Collect public top-level names defined in a module AST.
+
+    Traverses the top-level statements of the given ``ast.Module`` and
+    extracts names that would be considered "public" by convention
+    (i.e., names not starting with an underscore). The following node
+    types are inspected:
+
+    - Function and async function definitions
+    - Class definitions
+    - Variable assignments (``Assign`` and ``AnnAssign``)
+    - Type aliases (``TypeAlias``)
+
+    Only simple name targets (``ast.Name``) are considered for assignments.
+
+    Args:
+        tree: The ``ast.Module`` node representing the parsed Python module.
+
+    Returns:
+        A frozenset of public names (strings) defined at the top level
+        of the module.
+
+    Notes:
+        - This function does not evaluate ``__all__`` and instead infers
+          public names purely by naming convention.
+        - Nested definitions (e.g., inside functions or classes) are ignored.
+        - Complex assignment targets (e.g., attributes, subscripts, tuple
+          unpacking) are not included.
+    """
+    names: set[str] = set()
+    for node in tree.body:
+        match node:
+            case ast.FunctionDef(name=name) | ast.AsyncFunctionDef(name=name):
+                if not name.startswith("_"):
+                    names.add(name)
+
+            case ast.ClassDef(name=name):
+                if not name.startswith("_"):
+                    names.add(name)
+
+            case ast.Assign(targets=targets):
+                for target in targets:
+                    match target:
+                        case ast.Name(id=name) if not name.startswith("_"):
+                            names.add(name)
+                        case _:
+                            pass
+
+            case ast.AnnAssign(target=ast.Name(id=name)):
+                if not name.startswith("_"):
+                    names.add(name)
+
+            case ast.TypeAlias(name=ast.Name(id=name)):
+                if not name.startswith("_"):
+                    names.add(name)
+
+            case _:
+                pass
+
+    return frozenset(names)

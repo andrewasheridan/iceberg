@@ -21,7 +21,7 @@ import ast
 
 from sheridan.iceberg._exceptions import ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Parameter
-from sheridan.iceberg._utilities import extract_all
+from sheridan.iceberg._utilities import extract_all, infer_public_api
 
 
 def visit_module(source: str, dotted_name: str) -> Module:
@@ -107,37 +107,7 @@ def _top_level_public_names(
     if explicit_all is not None:
         return explicit_all
 
-    names: set[str] = set()
-    for node in tree.body:
-        match node:
-            case ast.FunctionDef(name=name) | ast.AsyncFunctionDef(name=name):
-                if not name.startswith("_"):
-                    names.add(name)
-
-            case ast.ClassDef(name=name):
-                if not name.startswith("_"):
-                    names.add(name)
-
-            case ast.Assign(targets=targets):
-                for target in targets:
-                    match target:
-                        case ast.Name(id=name) if not name.startswith("_"):
-                            names.add(name)
-                        case _:
-                            pass
-
-            case ast.AnnAssign(target=ast.Name(id=name)):
-                if not name.startswith("_"):
-                    names.add(name)
-
-            case ast.TypeAlias(name=ast.Name(id=name)):
-                if not name.startswith("_"):
-                    names.add(name)
-
-            case _:
-                pass
-
-    return frozenset(names)
+    return infer_public_api(tree)
 
 
 def _build_function(
