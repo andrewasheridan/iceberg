@@ -5,7 +5,7 @@ They operate on the stdlib ``ast`` module and carry no external dependencies
 beyond the standard library.
 """
 
-__all__ = ["extract_all", "infer_public_api"]
+__all__ = ["extract_all", "infer_all"]
 
 import ast
 
@@ -75,7 +75,7 @@ def extract_all(tree: ast.Module) -> frozenset[str] | None:
     return None
 
 
-def infer_public_api(tree: ast.Module) -> frozenset[str]:
+def infer_all(tree: ast.Module) -> frozenset[str]:
     """Collect public top-level names defined in a module AST.
 
     Traverses the top-level statements of the given ``ast.Module`` and

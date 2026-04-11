@@ -21,7 +21,7 @@ import ast
 
 from sheridan.iceberg._exceptions import ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Parameter
-from sheridan.iceberg._utilities import extract_all, infer_public_api
+from sheridan.iceberg._utilities import extract_all, infer_all
 
 
 def visit_module(source: str, dotted_name: str) -> Module:
@@ -107,7 +107,7 @@ def _top_level_public_names(
     if explicit_all is not None:
         return explicit_all
 
-    return infer_public_api(tree)
+    return infer_all(tree)
 
 
 def _build_function(

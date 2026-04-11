@@ -23,7 +23,7 @@ from collections.abc import Mapping
 from sheridan.iceberg._config import Config
 from sheridan.iceberg._exceptions import ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, ResolveReport
-from sheridan.iceberg._utilities import extract_all, infer_public_api
+from sheridan.iceberg._utilities import extract_all, infer_all
 from sheridan.iceberg._visitor import visit_module
 
 # ---------------------------------------------------------------------------
@@ -228,7 +228,7 @@ def _compute_public_names(
             names.add(name)
 
     # Include all non-private locally-defined names
-    local_names = infer_public_api(tree)
+    local_names = infer_all(tree)
     return local_names | names
 
 
