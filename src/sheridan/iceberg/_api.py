@@ -1,11 +1,12 @@
 """Orchestrator facade exposing the top-level ``get_public_api`` entry point."""
 
+__all__ = ["get_public_api"]
+
+
 from pathlib import Path
 
 from sheridan.iceberg._exceptions import InvalidPathError
 from sheridan.iceberg._models import Package
-
-__all__ = ["get_public_api"]
 
 
 def get_public_api(path: Path) -> Package:

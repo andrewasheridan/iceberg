@@ -19,6 +19,11 @@ def test_all_equals_expected_names() -> None:
     expected: set[str] = {
         "get_public_api",
         "Package",
+        "Module",
+        "Class",
+        "Function",
+        "Parameter",
+        "Assignment",
         "IcebergError",
         "InvalidPathError",
         "ParseError",
@@ -32,6 +37,11 @@ def test_all_equals_expected_names() -> None:
     [
         "get_public_api",
         "Package",
+        "Module",
+        "Class",
+        "Function",
+        "Parameter",
+        "Assignment",
         "IcebergError",
         "InvalidPathError",
         "ParseError",
