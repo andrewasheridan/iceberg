@@ -8,31 +8,14 @@ visit. Test modules are filtered out according to
 
 __all__ = ["DiscoveredModule", "discover"]
 
-from dataclasses import dataclass
 from pathlib import Path
 
 from sheridan.iceberg._config import Config
 from sheridan.iceberg._exceptions import InvalidPathError
+from sheridan.iceberg._models import DiscoveredModule
 
 _PRUNED_DIRS = frozenset({"__pycache__", ".venv", ".git"})
-
-
-@dataclass(frozen=True, slots=True)
-class DiscoveredModule:
-    """A single Python source file identified during discovery.
-
-    Attributes:
-        dotted_name: The fully-qualified dotted module name, e.g. ``pkg.sub.mod``.
-        source_path: Absolute path to the ``.py`` file on disk.
-        is_init: ``True`` when the file is an ``__init__.py``.
-        package_parts: Tuple of ancestor directory names that form the dotted
-            prefix, excluding the module's own stem. Empty for top-level modules.
-    """
-
-    dotted_name: str
-    source_path: Path
-    is_init: bool
-    package_parts: tuple[str, ...]
+"""Directory names that are unconditionally excluded from the filesystem walk."""
 
 
 def _should_prune(name: str) -> bool:

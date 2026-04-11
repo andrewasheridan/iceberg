@@ -15,8 +15,10 @@ from pathlib import Path
 from sheridan.iceberg._exceptions import ConfigError
 
 _DEFAULT_TEST_MODULE_PATTERN = r"(^|/)tests?(/|$)|(^|/)test_[^/]*\.py$|_test\.py$"
+"""Default regex pattern used to identify test module paths when none is configured."""
 
 _ALLOWED_KEYS = frozenset({"test_module_pattern", "include_subpackages_in_all", "max_workers"})
+"""Set of recognised keys in the ``[tool.iceberg]`` / ``.iceberg.toml`` configuration table."""
 
 
 def _default_test_pattern() -> re.Pattern[str]:
@@ -43,8 +45,11 @@ class Config:
     """
 
     test_module_pattern: re.Pattern[str] = field(default_factory=_default_test_pattern)
+    """Compiled regex matched against module paths to identify test files."""
     include_subpackages_in_all: bool = True
+    """When ``True``, subpackage names are included in synthesised ``__all__`` lists."""
     max_workers: int | None = None
+    """Maximum worker threads for parallel processing; ``None`` defers to the executor default."""
 
 
 def _build_config(table: dict[str, object]) -> Config:
@@ -68,13 +73,13 @@ def _build_config(table: dict[str, object]) -> Config:
 
     pattern: re.Pattern[str]
     if "test_module_pattern" in table:
-        raw_pattern = table["test_module_pattern"]
+        pattern_value = table["test_module_pattern"]
 
-        if not isinstance(raw_pattern, str):
-            raise ConfigError(f"'test_module_pattern' must be a string, got {type(raw_pattern).__name__!r}.")
+        if not isinstance(pattern_value, str):
+            raise ConfigError(f"'test_module_pattern' must be a string, got {type(pattern_value).__name__!r}.")
 
         try:
-            pattern = re.compile(raw_pattern)
+            pattern = re.compile(pattern_value)
         except re.error as exc:
             raise ConfigError(f"'test_module_pattern' is not a valid regular expression: {exc}") from exc
     else:
@@ -82,26 +87,26 @@ def _build_config(table: dict[str, object]) -> Config:
 
     include_subpackages: bool
     if "include_subpackages_in_all" in table:
-        raw_include = table["include_subpackages_in_all"]
+        include_value = table["include_subpackages_in_all"]
 
-        if not isinstance(raw_include, bool):
-            raise ConfigError(f"'include_subpackages_in_all' must be a boolean, got {type(raw_include).__name__!r}.")
+        if not isinstance(include_value, bool):
+            raise ConfigError(f"'include_subpackages_in_all' must be a boolean, got {type(include_value).__name__!r}.")
 
-        include_subpackages = raw_include
+        include_subpackages = include_value
     else:
         include_subpackages = True
 
     max_workers: int | None
     if "max_workers" in table:
-        raw_workers = table["max_workers"]
+        workers_value = table["max_workers"]
 
-        if not isinstance(raw_workers, int):
-            raise ConfigError(f"'max_workers' must be an integer, got {type(raw_workers).__name__!r}.")
+        if not isinstance(workers_value, int):
+            raise ConfigError(f"'max_workers' must be an integer, got {type(workers_value).__name__!r}.")
 
-        if raw_workers < 1:
-            raise ConfigError(f"'max_workers' must be a positive integer, got {raw_workers!r}.")
+        if workers_value < 1:
+            raise ConfigError(f"'max_workers' must be a positive integer, got {workers_value!r}.")
 
-        max_workers = raw_workers
+        max_workers = workers_value
     else:
         max_workers = None
 

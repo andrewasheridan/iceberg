@@ -31,7 +31,7 @@ dev = [
     "mypy>=1.20.0",
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
-    "commitizen>=4.13.9",
+    "commitizen>=4.13.10",
     "pre-commit>=4.5.1",
     "bandit[toml]>=1.9.4",
     "zensical>=0.0.32",
@@ -101,7 +101,7 @@ explicit_package_bases = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=sheridan.iceberg --cov-report=term-missing"
+addopts = "--cov=sheridan.iceberg --cov-report=term-missing --cov-fail-under=90"
 
 [tool.coverage.run]
 source = ["src/sheridan/iceberg"]
@@ -109,7 +109,7 @@ omit = ["tests/*"]
 
 [tool.coverage.report]
 show_missing = true
-fail_under = 0
+fail_under = 90
 
 [tool.commitizen]
 name = "cz_conventional_commits"

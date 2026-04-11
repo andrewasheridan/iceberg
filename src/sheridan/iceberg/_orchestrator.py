@@ -12,9 +12,9 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 from sheridan.iceberg._config import Config
-from sheridan.iceberg._discovery import DiscoveredModule, discover
+from sheridan.iceberg._discovery import discover
 from sheridan.iceberg._init_resolver import resolve_init
-from sheridan.iceberg._models import Module, Package
+from sheridan.iceberg._models import DiscoveredModule, Module, Package
 from sheridan.iceberg._visitor import visit_module
 
 
@@ -120,7 +120,17 @@ def _build_trie(
             all_pkg_parts.add(dm.package_parts)
 
     def _make_package(parts: tuple[str, ...]) -> Package:
-        """Recursively assemble a Package for the given parts prefix."""
+        """Recursively assemble a ``Package`` for the given parts prefix.
+
+        Args:
+            parts: Tuple of name components identifying the package node,
+                e.g. ``("my_pkg", "sub")``.
+
+        Returns:
+            A ``Package`` whose ``modules`` are the direct members at this
+            level and whose ``subpackages`` are all immediate children,
+            assembled recursively.
+        """
         name = ".".join(parts)
         path = parts_to_path.get(parts, root)
 
@@ -180,27 +190,26 @@ def build_package(root: Path, config: Config) -> Package:
             subpackages=(),
         )
 
-    # Step 1: discover
+    # 1. Discover all Python source files under root.
     all_discovered = discover(root, config)
 
-    # Step 2: partition
-    non_inits = [dm for dm in all_discovered if not dm.is_init]
-    inits = [dm for dm in all_discovered if dm.is_init]
+    # 2. Partition into regular modules and __init__.py files.
+    non_init_modules = [dm for dm in all_discovered if not dm.is_init]
+    init_modules = [dm for dm in all_discovered if dm.is_init]
 
-    # Step 3: parallel-visit non-init modules
+    # 3. Visit non-init modules in parallel.
     module_map: dict[str, Module] = {}
 
     with ProcessPoolExecutor(max_workers=config.max_workers) as executor:
-        results = executor.map(_visit_worker, non_inits)
-        for dm, module in zip(non_inits, results, strict=True):
+        visited_modules = executor.map(_visit_worker, non_init_modules)
+        for dm, module in zip(non_init_modules, visited_modules, strict=True):
             module_map[dm.dotted_name] = module
 
-    # Step 4: serially resolve init modules
-    # Sort inits by depth (shallowest first) so parent packages are resolved
-    # before children, giving children access to parent-level modules.
-    inits_sorted = sorted(inits, key=lambda dm: len(dm.package_parts))
+    # 4. Resolve __init__.py files serially, shallowest first, so each
+    #    parent package is available in module_map before its children run.
+    sorted_inits = sorted(init_modules, key=lambda dm: len(dm.package_parts))
 
-    for dm in inits_sorted:
+    for dm in sorted_inits:
         source = dm.source_path.read_text(encoding="utf-8")
         subpackage_names = _subpackage_names_at_level(dm.package_parts, all_discovered)
         module, _report = resolve_init(
@@ -212,5 +221,5 @@ def build_package(root: Path, config: Config) -> Package:
         )
         module_map[dm.dotted_name] = module
 
-    # Step 5: fold into Package trie
+    # 5. Fold the completed module map into a Package trie.
     return _build_trie(module_map, all_discovered, root)

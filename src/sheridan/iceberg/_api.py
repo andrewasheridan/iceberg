@@ -27,5 +27,5 @@ def get_public_api(path: Path, *, config: Config | None = None) -> Package:
     """
     if not path.exists():
         raise InvalidPathError(f"path does not exist: {path}")
-    resolved = config if config is not None else load_config(path)
-    return build_package(path, resolved)
+    effective_config = config if config is not None else load_config(path)
+    return build_package(path, effective_config)

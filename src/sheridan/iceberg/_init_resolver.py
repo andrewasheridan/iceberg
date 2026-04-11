@@ -19,26 +19,12 @@ __all__ = ["ResolveReport", "resolve_init"]
 
 import ast
 from collections.abc import Mapping
-from dataclasses import dataclass
 
 from sheridan.iceberg._config import Config
 from sheridan.iceberg._exceptions import ParseError
-from sheridan.iceberg._models import Assignment, Class, Function, Module
+from sheridan.iceberg._models import Assignment, Class, Function, Module, ResolveReport
+from sheridan.iceberg._utilities import _extract_all
 from sheridan.iceberg._visitor import visit_module
-
-
-@dataclass(frozen=True, slots=True)
-class ResolveReport:
-    """Outcome of init re-export resolution.
-
-    Attributes:
-        unresolved: Names that appeared in the init's public surface but could
-            not be resolved to a concrete object in any sibling module or
-            locally within the init file itself.
-    """
-
-    unresolved: tuple[str, ...]
-
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -142,57 +128,7 @@ def resolve_init(
 
 # A resolved symbol is one of these three concrete types.
 _Symbol = Assignment | Class | Function
-
-
-def _extract_all(tree: ast.Module) -> frozenset[str] | None:
-    """Return the literal string members of ``__all__``, or ``None``.
-
-    Args:
-        tree: Parsed module AST.
-
-    Returns:
-        A frozen set of string names when ``__all__`` is found and parseable,
-        otherwise ``None``.
-    """
-    for node in tree.body:
-        match node:
-            case ast.Assign(targets=[ast.Name(id="__all__")], value=value):
-                return _collect_string_elements(value)
-
-            case ast.AnnAssign(
-                target=ast.Name(id="__all__"),
-                value=value,
-            ) if value is not None:
-                return _collect_string_elements(value)
-
-            case _:
-                pass
-
-    return None
-
-
-def _collect_string_elements(node: ast.expr) -> frozenset[str] | None:
-    """Extract string literals from a list or tuple AST node.
-
-    Args:
-        node: An AST expression, expected to be a ``List`` or ``Tuple``.
-
-    Returns:
-        A frozen set of strings when all elements are string constants,
-        otherwise ``None``.
-    """
-    match node:
-        case ast.List(elts=elts) | ast.Tuple(elts=elts):
-            names: list[str] = []
-            for elt in elts:
-                match elt:
-                    case ast.Constant(value=str(s)):
-                        names.append(s)
-                    case _:
-                        return None
-            return frozenset(names)
-        case _:
-            return None
+"""Type alias for the three concrete symbol types that can be resolved from an init module."""
 
 
 def _build_import_map(
