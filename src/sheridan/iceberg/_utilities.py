@@ -5,8 +5,7 @@ They operate on the stdlib ``ast`` module and carry no external dependencies
 beyond the standard library.
 """
 
-# Empty export list; all symbols in this module are private helpers.
-__all__: list[str] = []
+__all__ = ["extract_all"]
 
 import ast
 
@@ -44,7 +43,7 @@ def _collect_string_elements(node: ast.expr) -> frozenset[str] | None:
             return None
 
 
-def _extract_all(tree: ast.Module) -> frozenset[str] | None:
+def extract_all(tree: ast.Module) -> frozenset[str] | None:
     """Return the literal string members of ``__all__``, or ``None``.
 
     Scans the module body for the first simple assignment to ``__all__``

@@ -23,7 +23,7 @@ from collections.abc import Mapping
 from sheridan.iceberg._config import Config
 from sheridan.iceberg._exceptions import ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, ResolveReport
-from sheridan.iceberg._utilities import _extract_all
+from sheridan.iceberg._utilities import extract_all
 from sheridan.iceberg._visitor import visit_module
 
 # ---------------------------------------------------------------------------
@@ -81,7 +81,7 @@ def resolve_init(
     # extraction and the public-name filter internally.
     local_module = visit_module(init_source, dotted_package)
 
-    explicit_all = _extract_all(tree)
+    explicit_all = extract_all(tree)
     import_map = _build_import_map(tree, dotted_package)
     public_names = _compute_public_names(tree, explicit_all, import_map)
 

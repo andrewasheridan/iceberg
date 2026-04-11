@@ -21,7 +21,7 @@ import ast
 
 from sheridan.iceberg._exceptions import ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Parameter
-from sheridan.iceberg._utilities import _extract_all
+from sheridan.iceberg._utilities import extract_all
 
 
 def visit_module(source: str, dotted_name: str) -> Module:
@@ -42,7 +42,7 @@ def visit_module(source: str, dotted_name: str) -> Module:
     except SyntaxError as exc:
         raise ParseError(str(exc)) from exc
 
-    explicit_all = _extract_all(tree)
+    explicit_all = extract_all(tree)
     public = _top_level_public_names(tree, explicit_all)
 
     assignments: list[Assignment] = []
