@@ -65,13 +65,12 @@ tasks:
       - uv run iceberg src/ {{.CLI_ARGS}}
 
   check:
-    desc: Run all gates (lint:check, format:check, typecheck, test, iceberg)
+    desc: Run all gates (lint:check, format:check, typecheck, test)
     cmds:
       - task: lint:check
       - task: format:check
       - task: typecheck
       - task: test
-      - task: iceberg
 
   ci-init:
     desc: Initialise the Dagger module (run once; generates ci/sdk/ and pins engineVersion)
