@@ -1,0 +1,198 @@
+"""Single-pass filesystem discovery of Python source modules.
+
+Walks a package directory (or accepts a single ``.py`` file) and produces a
+tuple of :class:`DiscoveredModule` values describing every Python module to
+visit. Test modules are filtered out according to
+:attr:`~sheridan.iceberg._config.Config.test_module_pattern`.
+"""
+
+__all__ = ["DiscoveredModule", "discover"]
+
+from dataclasses import dataclass
+from pathlib import Path
+
+from sheridan.iceberg._config import Config
+from sheridan.iceberg._exceptions import InvalidPathError
+
+_PRUNED_DIRS = frozenset({"__pycache__", ".venv", ".git"})
+
+
+@dataclass(frozen=True, slots=True)
+class DiscoveredModule:
+    """A single Python source file identified during discovery.
+
+    Attributes:
+        dotted_name: The fully-qualified dotted module name, e.g. ``pkg.sub.mod``.
+        source_path: Absolute path to the ``.py`` file on disk.
+        is_init: ``True`` when the file is an ``__init__.py``.
+        package_parts: Tuple of ancestor directory names that form the dotted
+            prefix, excluding the module's own stem. Empty for top-level modules.
+    """
+
+    dotted_name: str
+    source_path: Path
+    is_init: bool
+    package_parts: tuple[str, ...]
+
+
+def _should_prune(name: str) -> bool:
+    """Return ``True`` if a directory name should be excluded from the walk.
+
+    Args:
+        name: The bare directory name (not a full path).
+
+    Returns:
+        ``True`` for ``__pycache__``, ``.venv``, ``.git``, and any name that
+        starts with ``'.'``.
+    """
+    return name in _PRUNED_DIRS or name.startswith(".")
+
+
+def _is_package_dir(path: Path) -> bool:
+    """Return ``True`` if *path* is a directory containing ``__init__.py``.
+
+    Args:
+        path: The directory to inspect.
+
+    Returns:
+        ``True`` when an ``__init__.py`` file exists directly inside *path*.
+    """
+    return (path / "__init__.py").is_file()
+
+
+def _compute_dotted_name(py_file: Path) -> tuple[str, tuple[str, ...]]:
+    """Compute the dotted module name and package_parts for a ``.py`` file.
+
+    Walks upward from the file's parent directory, collecting directory names
+    as long as each directory contains an ``__init__.py``. The topmost such
+    directory forms the root of the dotted name.
+
+    Args:
+        py_file: Absolute path to the ``.py`` source file.
+
+    Returns:
+        A two-tuple of ``(dotted_name, package_parts)`` where ``dotted_name``
+        is the fully-qualified module name and ``package_parts`` is the tuple
+        of ancestor directory names forming the dotted prefix (all components
+        except the module's own contribution).
+    """
+    is_init = py_file.name == "__init__.py"
+    parts: list[str] = []
+
+    current = py_file.parent
+    while _is_package_dir(current):
+        parts.append(current.name)
+        current = current.parent
+
+    # parts is ordered from innermost to outermost; reverse to get top-down order
+    parts.reverse()
+
+    if is_init:
+        # The module name IS the containing directory; package_parts are all
+        # ancestors above it that are also packages.
+        package_parts = tuple(parts[:-1]) if parts else ()
+        dotted_name = ".".join(parts) if parts else py_file.parent.name
+    else:
+        package_parts = tuple(parts)
+        dotted_name = ".".join([*parts, py_file.stem]) if parts else py_file.stem
+
+    return dotted_name, package_parts
+
+
+def _make_module(py_file: Path) -> DiscoveredModule:
+    """Build a :class:`DiscoveredModule` from a ``.py`` file path.
+
+    Args:
+        py_file: Absolute path to the ``.py`` source file.
+
+    Returns:
+        A fully populated :class:`DiscoveredModule` instance.
+    """
+    is_init = py_file.name == "__init__.py"
+    dotted_name, package_parts = _compute_dotted_name(py_file)
+
+    return DiscoveredModule(
+        dotted_name=dotted_name,
+        source_path=py_file,
+        is_init=is_init,
+        package_parts=package_parts,
+    )
+
+
+def _discover_single_file(root: Path) -> tuple[DiscoveredModule, ...]:
+    """Return a one-tuple for a single ``.py`` file input.
+
+    Args:
+        root: Path to a single ``.py`` source file.
+
+    Returns:
+        A one-tuple containing a :class:`DiscoveredModule` with
+        ``package_parts = ()``, ``is_init = False``, and
+        ``dotted_name = root.stem``.
+    """
+    module = DiscoveredModule(
+        dotted_name=root.stem,
+        source_path=root,
+        is_init=False,
+        package_parts=(),
+    )
+    return (module,)
+
+
+def _discover_directory(root: Path, config: Config) -> tuple[DiscoveredModule, ...]:
+    """Walk *root* once and return a tuple of all non-test Python modules found.
+
+    Args:
+        root: The package directory to walk.
+        config: Runtime configuration carrying the test-module filter pattern.
+
+    Returns:
+        A tuple of :class:`DiscoveredModule` values, one per qualifying
+        ``.py`` file found under *root*.
+    """
+    results: list[DiscoveredModule] = []
+
+    for dirpath, dirnames, filenames in root.walk():
+        # Mutate dirnames in-place to prune unwanted subtrees.
+        dirnames[:] = [d for d in dirnames if not _should_prune(d)]
+
+        for filename in filenames:
+            if not filename.endswith(".py"):
+                continue
+
+            py_file = dirpath / filename
+
+            if config.test_module_pattern.search(str(py_file.as_posix())):
+                continue
+
+            results.append(_make_module(py_file))
+
+    return tuple(results)
+
+
+def discover(root: Path, config: Config) -> tuple[DiscoveredModule, ...]:
+    """Discover all Python modules under *root*, filtered by *config*.
+
+    Performs exactly one :meth:`~pathlib.Path.walk` call when *root* is a
+    directory. Test modules are excluded via
+    :attr:`~sheridan.iceberg._config.Config.test_module_pattern`.
+
+    Args:
+        root: A path to either a single ``.py`` file or a package directory.
+        config: Runtime configuration used to filter test modules and control
+            other discovery behaviour.
+
+    Returns:
+        A tuple of :class:`DiscoveredModule` values describing every
+        qualifying Python source file found under *root*.
+
+    Raises:
+        InvalidPathError: If *root* does not exist on the filesystem.
+    """
+    if not root.exists():
+        raise InvalidPathError(f"Path does not exist: {root}")
+
+    if root.is_file():
+        return _discover_single_file(root)
+
+    return _discover_directory(root, config)
