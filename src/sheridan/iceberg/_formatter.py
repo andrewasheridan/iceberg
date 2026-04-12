@@ -55,8 +55,8 @@ def _param_str(parameter: Parameter) -> str:
     return "".join(parts)
 
 
-def _signature_str(function: Function) -> str:
-    """Render a function signature string (without the ``def`` keyword).
+def _function_str(function: Function) -> str:
+    """Render a function signature string (including the ``def`` keyword).
 
     Keyword-only parameters are sorted alphabetically for a stable output.
 
@@ -64,7 +64,7 @@ def _signature_str(function: Function) -> str:
         function: The function whose signature should be rendered.
 
     Returns:
-        A string such as ``name(param: type = default) -> return_type``.
+        A string such as ``def name(param: type = default) -> return_type``.
         The ``async `` prefix is prepended for async functions.
     """
     params: list[str] = []
@@ -84,7 +84,7 @@ def _signature_str(function: Function) -> str:
     if function.var_keyword is not None:
         params.append(f"**{_param_str(function.var_keyword)}")
 
-    signature = f"{'async ' if function.is_async else ''}{function.name}({', '.join(params)})"
+    signature = f"{'async def ' if function.is_async else 'def '}{function.name}({', '.join(params)})"
     if function.returns is not None:
         signature += f" -> {function.returns}"
     return signature
@@ -170,7 +170,7 @@ def _children(
             for cls in node.classes:
                 items.append((f"class {cls.name}", cls))
             for fn in node.functions:
-                items.append((_signature_str(fn), None))
+                items.append((_function_str(fn), None))
             return items
 
         case Class():
@@ -180,7 +180,7 @@ def _children(
             for a in node.assignments:
                 items.append((_assignment_str(a), None))
             for fn in node.methods:
-                items.append((_signature_str(fn), None))
+                items.append((_function_str(fn), None))
             return items
 
 
