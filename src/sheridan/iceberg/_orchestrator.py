@@ -1,6 +1,6 @@
 """Orchestrator that threads discovery, visiting, init-resolution, and trie assembly.
 
-Parallelises per-module AST visits across worker processes using
+Parallelizes per-module AST visits across worker processes using
 ``concurrent.futures.ProcessPoolExecutor``, then serially resolves each
 ``__init__.py`` with full access to the accumulated module map, and finally
 folds everything into a ``Package`` trie.
@@ -105,6 +105,7 @@ def _build_trie(
             pkg_parts = tuple(dm.dotted_name.split("."))
             modules_by_parts.setdefault(pkg_parts, []).append(module)
             parts_to_path[pkg_parts] = dm.source_path.parent
+
         else:
             pkg_parts = dm.package_parts
             modules_by_parts.setdefault(pkg_parts, []).append(module)

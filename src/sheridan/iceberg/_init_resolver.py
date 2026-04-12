@@ -205,7 +205,7 @@ def _compute_public_names(
     """Determine the public names exported by the init module.
 
     When ``__all__`` is present its literal string members are used directly.
-    Otherwise every top-level name (locally-defined or imported) that does not
+    Otherwise, every top-level name (locally-defined or imported) that does not
     start with ``_`` is included.
 
     Args:
@@ -287,7 +287,7 @@ def _resolve_name(
 
     Resolution order:
     1. If the name appears in *import_map*, look it up in *sibling_modules*.
-    2. Otherwise fall back to *local_index* (locally-defined in the init).
+    2. Otherwise, fall back to *local_index* (locally-defined in the init).
 
     Args:
         name: The public name to resolve.

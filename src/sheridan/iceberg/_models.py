@@ -27,8 +27,10 @@ class Parameter:
 
     name: str
     """Bare parameter name as written in the source."""
+
     annotation: str | None
     """Unparsed type annotation string, or ``None`` when absent."""
+
     default: str | None
     """Unparsed default-value string, or ``None`` when absent."""
 
@@ -79,8 +81,10 @@ class Assignment:
 
     name: str
     """Target name as written in the source."""
+
     annotation: str | None
     """Unparsed annotation string, or ``None`` for plain assignments."""
+
     value_repr: str | None
     """Unparsed RHS for simple expressions, or ``None`` otherwise."""
 
@@ -98,10 +102,13 @@ class Class:
 
     name: str
     """Unqualified class name."""
+
     assignments: tuple[Assignment, ...]
     """Class-level assignments (class variables) in source order."""
+
     methods: tuple[Function, ...]
     """Methods defined directly in the class body, in source order."""
+
     nested_classes: tuple[Class, ...]
     """Classes nested inside this class, in source order."""
 
@@ -119,10 +126,13 @@ class Module:
 
     name: str
     """Fully-qualified dotted module name, e.g. ``"pkg.sub.mod"``."""
+
     assignments: tuple[Assignment, ...]
     """Public module-level assignments in source order."""
+
     classes: tuple[Class, ...]
     """Public classes defined in this module, in source order."""
+
     functions: tuple[Function, ...]
     """Public functions defined in this module, in source order."""
 
@@ -140,10 +150,13 @@ class Package:
 
     name: str
     """Fully-qualified dotted package name, e.g. ``"pkg.sub"``."""
+
     path: Path
     """Absolute path to the package directory on disk."""
+
     modules: tuple[Module, ...]
     """Modules belonging directly to this package."""
+
     subpackages: tuple[Package, ...]
     """Child packages nested one level below this package, sorted by name."""
 
@@ -162,10 +175,13 @@ class DiscoveredModule:
 
     dotted_name: str
     """Fully-qualified dotted module name, e.g. ``"pkg.sub.mod"``."""
+
     source_path: Path
     """Absolute path to the ``.py`` source file on disk."""
+
     is_init: bool
     """``True`` when the file is an ``__init__.py``, ``False`` otherwise."""
+
     package_parts: tuple[str, ...]
     """Ancestor directory names forming the dotted prefix, excluding the module stem."""
 

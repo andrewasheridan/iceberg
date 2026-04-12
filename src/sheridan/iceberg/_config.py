@@ -46,8 +46,10 @@ class Config:
 
     test_module_pattern: re.Pattern[str] = field(default_factory=_default_test_pattern)
     """Compiled regex matched against module paths to identify test files."""
+
     include_subpackages_in_all: bool = True
     """When ``True``, subpackage names are included in synthesised ``__all__`` lists."""
+
     max_workers: int | None = None
     """Maximum worker threads for parallel processing; ``None`` defers to the executor default."""
 
