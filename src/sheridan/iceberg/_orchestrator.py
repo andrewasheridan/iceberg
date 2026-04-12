@@ -135,7 +135,7 @@ def _build_trie(
         name = ".".join(parts)
         path = parts_to_path.get(parts, root)
 
-        direct_modules = tuple(modules_by_parts.get(parts, []))
+        direct_modules = tuple(sorted(modules_by_parts.get(parts, []), key=lambda m: m.name))
 
         # Find immediate children (one level deeper).
         child_parts_set: set[tuple[str, ...]] = set()
@@ -143,7 +143,7 @@ def _build_trie(
             if len(pkg_parts) == len(parts) + 1 and pkg_parts[: len(parts)] == parts:
                 child_parts_set.add(pkg_parts)
 
-        subpackages = tuple(_make_package(child) for child in sorted(child_parts_set))
+        subpackages = tuple(sorted((_make_package(child) for child in sorted(child_parts_set)), key=lambda p: p.name))
 
         return Package(
             name=name,
