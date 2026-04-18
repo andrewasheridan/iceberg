@@ -76,8 +76,8 @@ extend-select = [
 [tool.ruff.lint.per-file-ignores]
 # Ignore `D` errors in tests dir
 "**/tests/**" = ["D"]
-# Ignore all files that start in `_test.py`.
 "test_*.py" = ["D"]
+"**/examples/**" = ["D"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["sheridan"]

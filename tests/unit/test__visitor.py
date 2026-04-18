@@ -323,7 +323,7 @@ def compute(n: int) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Scenario 8: Module-level annotated assignment captures annotation and value_repr
+# Scenario 8: Module-level annotated assignment captures annotation
 # ---------------------------------------------------------------------------
 
 
@@ -336,7 +336,6 @@ TIMEOUT: int = 30
     a: Assignment = module.assignments[0]
     assert a.name == "TIMEOUT"
     assert a.annotation == "int"
-    assert a.value_repr == "30"
 
 
 def test_annotated_assignment_string_literal() -> None:
@@ -347,7 +346,6 @@ VERSION: str = "1.0.0"
     a = module.assignments[0]
     assert a.name == "VERSION"
     assert a.annotation == "str"
-    assert a.value_repr == "'1.0.0'"
 
 
 def test_annotated_assignment_no_value() -> None:
@@ -358,7 +356,6 @@ x: int
     a = module.assignments[0]
     assert a.name == "x"
     assert a.annotation == "int"
-    assert a.value_repr is None
 
 
 def test_plain_assignment_no_annotation() -> None:
@@ -369,7 +366,6 @@ LIMIT = 100
     a = module.assignments[0]
     assert a.name == "LIMIT"
     assert a.annotation is None
-    assert a.value_repr == "100"
 
 
 # ---------------------------------------------------------------------------
@@ -415,7 +411,6 @@ def test_type_alias_pep695() -> None:
     a: Assignment = module.assignments[0]
     assert a.name == "X"
     assert a.annotation == "TypeAlias"
-    assert a.value_repr == "int"
 
 
 def test_type_alias_pep695_complex_rhs() -> None:
@@ -424,7 +419,6 @@ def test_type_alias_pep695_complex_rhs() -> None:
     a = module.assignments[0]
     assert a.name == "Vector"
     assert a.annotation == "TypeAlias"
-    assert a.value_repr == "list[float]"
 
 
 def test_type_alias_pep695_private_excluded_without_all() -> None:
@@ -477,41 +471,3 @@ def test_module_dotted_name_preserved() -> None:
     source = ""
     module = _visit(source, name="my_pkg.sub.core")
     assert module.name == "my_pkg.sub.core"
-
-
-# ---------------------------------------------------------------------------
-# Parametrize: various value types for _value_source coverage
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("source_fragment", "expected_value_repr"),
-    [
-        ("X = 42", "42"),
-        ("X = 3.14", "3.14"),
-        ("X = True", "True"),
-        ("X = None", "None"),
-        ('X = "hello"', "'hello'"),
-        ("X = some_name", "some_name"),
-        ("X = module.attr", "module.attr"),
-        ("X = typing.Optional[int]", "typing.Optional[int]"),
-    ],
-)
-def test_value_repr_simple_forms(source_fragment: str, expected_value_repr: str) -> None:
-    module = _visit(source_fragment)
-    assert len(module.assignments) == 1
-    assert module.assignments[0].value_repr == expected_value_repr
-
-
-def test_value_repr_complex_call_is_none() -> None:
-    source = "X = some_func()\n"
-    module = _visit(source)
-    assert len(module.assignments) == 1
-    assert module.assignments[0].value_repr is None
-
-
-def test_value_repr_list_literal_is_none() -> None:
-    source = "X = [1, 2, 3]\n"
-    module = _visit(source)
-    assert len(module.assignments) == 1
-    assert module.assignments[0].value_repr is None

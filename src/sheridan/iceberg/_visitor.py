@@ -7,10 +7,9 @@ Public names are determined as follows:
 - Otherwise every top-level name that does **not** start with ``_`` is public.
 
 PEP 695 ``type X = int`` statements are captured as ``Assignment`` with
-``annotation="TypeAlias"`` and ``value_repr`` set to the unparsed RHS. This
-maps the new syntax onto the same model field used for
-``X: TypeAlias = int`` style aliases so downstream tools see a consistent
-representation regardless of which form the source uses.
+``annotation="TypeAlias"``. This maps the new syntax onto the same model
+used for ``X: TypeAlias = int`` style aliases so downstream tools see a
+consistent representation regardless of which form the source uses.
 
 Explicitly excluded from capture: docstrings, decorators, class bases.
 """
@@ -273,18 +272,16 @@ def _build_assignment(node: ast.Assign | ast.AnnAssign) -> Assignment | None:
         An ``Assignment`` when the target is a plain name, otherwise ``None``.
     """
     match node:
-        case ast.AnnAssign(target=ast.Name(id=name), annotation=ann, value=value):
+        case ast.AnnAssign(target=ast.Name(id=name), annotation=ann):
             return Assignment(
                 name=name,
                 annotation=_annotation_source(ann),
-                value_repr=_value_source(value) if value is not None else None,
             )
 
-        case ast.Assign(targets=[ast.Name(id=name)], value=value):
+        case ast.Assign(targets=[ast.Name(id=name)]):
             return Assignment(
                 name=name,
                 annotation=None,
-                value_repr=_value_source(value),
             )
 
         case _:
@@ -330,9 +327,9 @@ def _value_source(node: ast.expr | None) -> str | None:
 def _build_type_alias(node: ast.TypeAlias) -> Assignment:
     """Build an ``Assignment`` from a PEP 695 ``type X = ...`` statement.
 
-    The alias is stored with ``annotation="TypeAlias"`` and ``value_repr``
-    set to the unparsed RHS so that downstream tools receive a representation
-    consistent with ``X: TypeAlias = ...`` style aliases.
+    The alias is stored with ``annotation="TypeAlias"`` so that downstream
+    tools receive a representation consistent with ``X: TypeAlias = ...``
+    style aliases.
 
     Args:
         node: A ``TypeAlias`` AST node.
@@ -345,7 +342,6 @@ def _build_type_alias(node: ast.TypeAlias) -> Assignment:
             return Assignment(
                 name=name,
                 annotation="TypeAlias",
-                value_repr=ast.unparse(node.value),
             )
         case _:
             # TypeAlias.name is always ast.Name per the grammar; this branch

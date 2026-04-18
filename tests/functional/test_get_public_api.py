@@ -228,15 +228,16 @@ class HttpClient:
 
     pkg = get_public_api(pkg_dir, config=_CFG)
 
-    # The class must appear on the init module (re-exported)
-    init_mod = _find_module(pkg, "transport")
-    assert init_mod is not None, "init module 'transport' not found"
+    # When __all__ is defined, private sub-modules are filtered; only the
+    # resolved init module is exposed at the package level.
+    assert len(pkg.modules) == 1
+    init_mod = pkg.modules[0]
+    assert init_mod.name == "transport"
     assert "HttpClient" in _class_names(init_mod)
 
-    # The class must also be present on the core module
-    http_mod = _find_module(pkg, "transport.http")
-    assert http_mod is not None, "module 'transport.http' not found"
-    assert "HttpClient" in _class_names(http_mod)
+    # http.py is not in __all__, so it is suppressed from the trie.
+    assert _find_module(pkg, "transport.http") is None
+    assert pkg.subpackages == ()
 
 
 # ---------------------------------------------------------------------------
@@ -251,14 +252,8 @@ def test_nested_subpackage_class_reachable(tmp_path: Path) -> None:
     root_dir.mkdir()
     sub_dir.mkdir()
 
-    (root_dir / "__init__.py").write_text(
-        """\
-from .storage import Store
-
-__all__ = ["Store"]
-""",
-        encoding="utf-8",
-    )
+    # No __all__ on the root init: subpackages are included in the trie as-is.
+    (root_dir / "__init__.py").write_text("", encoding="utf-8")
     (sub_dir / "__init__.py").write_text(
         """\
 from .backend import Store
@@ -282,13 +277,19 @@ class Store:
     pkg = get_public_api(root_dir, config=_CFG)
 
     assert pkg.name == "mylib"
-    assert len(pkg.subpackages) == 1
 
+    # Without __all__ on the root init, the storage subpackage is included.
+    assert len(pkg.subpackages) == 1
     storage_pkg = pkg.subpackages[0]
     assert storage_pkg.name == "mylib.storage"
 
-    # Store must be reachable somewhere in the whole trie
-    assert "Store" in _all_class_names(pkg)
+    # Within mylib.storage, __all__ = ["Store"] is defined, so only the
+    # resolved init module is exposed (backend.py is filtered out).
+    assert storage_pkg.subpackages == ()
+    assert len(storage_pkg.modules) == 1
+    storage_init = storage_pkg.modules[0]
+    assert storage_init.name == "mylib.storage"
+    assert "Store" in _class_names(storage_init)
 
 
 # ---------------------------------------------------------------------------

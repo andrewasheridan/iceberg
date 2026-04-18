@@ -52,9 +52,8 @@ def _make_function(
 def _make_assignment(
     name: str = "X",
     annotation: str | None = "int",
-    value_repr: str | None = "42",
 ) -> Assignment:
-    return Assignment(name=name, annotation=annotation, value_repr=value_repr)
+    return Assignment(name=name, annotation=annotation)
 
 
 def _make_class(

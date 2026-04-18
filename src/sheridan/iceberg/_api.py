@@ -6,11 +6,11 @@ from pathlib import Path
 
 from sheridan.iceberg._config import Config, load_config
 from sheridan.iceberg._exceptions import InvalidPathError
-from sheridan.iceberg._models import Package
+from sheridan.iceberg._models import Module, Package
 from sheridan.iceberg._orchestrator import build_package
 
 
-def get_public_api(path: Path, *, config: Config | None = None) -> Package:
+def get_public_api(path: Path, *, config: Config | None = None) -> Package | Module:
     """Return a snapshot of the public API rooted at ``path``.
 
     Args:
@@ -25,7 +25,9 @@ def get_public_api(path: Path, *, config: Config | None = None) -> Package:
     Raises:
         InvalidPathError: If ``path`` does not exist.
     """
+    path = Path(path).resolve()
     if not path.exists():
         raise InvalidPathError(f"path does not exist: {path}")
-    effective_config = config if config is not None else load_config(path)
+
+    effective_config = config or load_config(path)
     return build_package(path, effective_config)

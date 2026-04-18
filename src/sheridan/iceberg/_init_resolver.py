@@ -131,10 +131,7 @@ _Symbol = Assignment | Class | Function
 """Type alias for the three concrete symbol types that can be resolved from an init module."""
 
 
-def _build_import_map(
-    tree: ast.Module,
-    dotted_package: str,
-) -> dict[str, tuple[str, str]]:
+def _build_import_map(tree: ast.Module, dotted_package: str) -> dict[str, tuple[str, str]]:
     """Map each imported name to ``(dotted_module, original_name)``.
 
     Handles:
@@ -245,10 +242,13 @@ def _index_module(module: Module) -> dict[str, _Symbol]:
     index: dict[str, _Symbol] = {}
     for fn in module.functions:
         index[fn.name] = fn
+
     for cls in module.classes:
         index[cls.name] = cls
+
     for asgn in module.assignments:
         index[asgn.name] = asgn
+
     return index
 
 

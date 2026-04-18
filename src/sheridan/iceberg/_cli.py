@@ -31,6 +31,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument(
         "path",
+        type=Path,
         help="Path to a Python package directory or module file.",
     )
     parser.add_argument(
@@ -43,7 +44,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        package = get_public_api(Path(args.path))
+        package = get_public_api(args.path)
     except IcebergError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -54,3 +55,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     output = format_json(package) if args.json else format_tree(package)
     print(output)
     return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

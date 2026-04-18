@@ -207,6 +207,7 @@ def load_config(start: Path) -> Config:
 
     for directory in ancestors:
         candidate = directory / "pyproject.toml"
+
         if candidate.is_file():
             text = _read_text(candidate)
             doc = _parse_toml(text, candidate)

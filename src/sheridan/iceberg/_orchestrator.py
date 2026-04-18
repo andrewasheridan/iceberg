@@ -8,6 +8,7 @@ folds everything into a ``Package`` trie.
 
 __all__ = ["build_package"]
 
+import ast
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from sheridan.iceberg._config import Config
 from sheridan.iceberg._discovery import discover
 from sheridan.iceberg._init_resolver import resolve_init
 from sheridan.iceberg._models import DiscoveredModule, Module, Package
+from sheridan.iceberg._utilities import extract_all
 from sheridan.iceberg._visitor import visit_module
 
 
@@ -75,6 +77,7 @@ def _build_trie(
     module_map: dict[str, Module],
     all_discovered: tuple[DiscoveredModule, ...],
     root: Path,
+    package_all_map: dict[str, frozenset[str] | None],
 ) -> Package:
     """Fold a flat module map into a ``Package`` trie.
 
@@ -83,16 +86,28 @@ def _build_trie(
     name is derived from the first component common to all discovered
     modules (or from ``root.name`` as a fallback).
 
+    When a package's ``__init__.py`` defines ``__all__``, the resulting
+    ``Package`` is filtered as follows:
+
+    - ``Package.modules`` contains only the package-level ``Module`` (the
+      resolved init module, which already holds all hoisted public symbols).
+      Submodules whose short names do not appear in ``__all__`` are excluded.
+    - ``Package.subpackages`` contains only sub-packages whose short name
+      appears in ``__all__``.
+
     Args:
         module_map: Mapping of dotted module name to resolved ``Module``.
         all_discovered: All discovered modules, used to infer trie structure.
         root: The root directory of the package being assembled.
+        package_all_map: Mapping from dotted package name to the literal
+            ``__all__`` frozenset, or ``None`` when ``__all__`` is absent.
 
     Returns:
         The assembled ``Package`` trie.
     """
-    # Build a mapping of package_parts → list of modules belonging there.
-    modules_by_parts: dict[tuple[str, ...], list[Module]] = {}
+    # Separate init modules from regular modules by parts key.
+    init_modules_by_parts: dict[tuple[str, ...], Module] = {}
+    regular_modules_by_parts: dict[tuple[str, ...], list[Module]] = {}
     parts_to_path: dict[tuple[str, ...], Path] = {}
 
     for dm in all_discovered:
@@ -101,14 +116,12 @@ def _build_trie(
             continue
 
         if dm.is_init:
-            # For init modules the package is identified by splitting dotted_name.
             pkg_parts = tuple(dm.dotted_name.split("."))
-            modules_by_parts.setdefault(pkg_parts, []).append(module)
+            init_modules_by_parts[pkg_parts] = module
             parts_to_path[pkg_parts] = dm.source_path.parent
-
         else:
             pkg_parts = dm.package_parts
-            modules_by_parts.setdefault(pkg_parts, []).append(module)
+            regular_modules_by_parts.setdefault(pkg_parts, []).append(module)
             if pkg_parts not in parts_to_path:
                 parts_to_path[pkg_parts] = dm.source_path.parent
 
@@ -135,7 +148,8 @@ def _build_trie(
         name = ".".join(parts)
         path = parts_to_path.get(parts, root)
 
-        direct_modules = tuple(sorted(modules_by_parts.get(parts, []), key=lambda m: m.name))
+        explicit_all = package_all_map.get(name)
+        init_module = init_modules_by_parts.get(parts)
 
         # Find immediate children (one level deeper).
         child_parts_set: set[tuple[str, ...]] = set()
@@ -143,13 +157,37 @@ def _build_trie(
             if len(pkg_parts) == len(parts) + 1 and pkg_parts[: len(parts)] == parts:
                 child_parts_set.add(pkg_parts)
 
-        subpackages = tuple(sorted((_make_package(child) for child in sorted(child_parts_set)), key=lambda p: p.name))
+        if explicit_all is not None:
+            # When __all__ is defined, hoist all public symbols into a single
+            # package-level Module (the resolved init module) and suppress
+            # private sub-modules.  Only sub-packages explicitly named in
+            # __all__ are kept.
+            direct_modules: tuple[Module, ...] = (init_module,) if init_module is not None else ()
+
+            filtered_children = {child for child in child_parts_set if child[-1] in explicit_all}
+            subpackages = tuple(
+                sorted(
+                    (_make_package(child) for child in sorted(filtered_children)),
+                    key=lambda p: p.name,
+                )
+            )
+        else:
+            # No __all__: include all regular modules plus the init module.
+            all_direct = regular_modules_by_parts.get(parts, [])
+            all_direct = [direct_module for direct_module in all_direct if direct_module.is_public]
+            # if init_module is not None:
+            #     all_direct.append(init_module)
+            direct_modules = tuple(sorted(all_direct, key=lambda m: m.name))
+            subpackages = (_make_package(child) for child in sorted(child_parts_set))
+            subpackages = sorted(
+                (subpackage for subpackage in subpackages if subpackage.is_public), key=lambda p: p.name
+            )
 
         return Package(
             name=name,
             path=path,
             modules=direct_modules,
-            subpackages=subpackages,
+            subpackages=tuple(subpackages),
         )
 
     # Determine the root package parts.
@@ -161,7 +199,7 @@ def _build_trie(
     return _make_package(root_parts)
 
 
-def build_package(root: Path, config: Config) -> Package:
+def build_package(root: Path, config: Config) -> Package | Module:
     """Build a ``Package`` snapshot for the Python source rooted at *root*.
 
     When *root* is a single ``.py`` file, discovery is skipped and the file
@@ -183,13 +221,7 @@ def build_package(root: Path, config: Config) -> Package:
     """
     if root.is_file():
         source = root.read_text(encoding="utf-8")
-        module = visit_module(source, root.stem)
-        return Package(
-            name=root.stem,
-            path=root,
-            modules=(module,),
-            subpackages=(),
-        )
+        return visit_module(source, root.stem)
 
     # 1. Discover all Python source files under root.
     all_discovered = discover(root, config)
@@ -210,17 +242,30 @@ def build_package(root: Path, config: Config) -> Package:
     #    parent package is available in module_map before its children run.
     sorted_inits = sorted(init_modules, key=lambda dm: len(dm.package_parts))
 
-    for dm in sorted_inits:
-        source = dm.source_path.read_text(encoding="utf-8")
-        subpackage_names = _subpackage_names_at_level(dm.package_parts, all_discovered)
+    # Track the __all__ for each package so _build_trie can filter modules and
+    # subpackages accordingly.  A value of None means __all__ was absent.
+    package_all_map: dict[str, frozenset[str] | None] = {}
+
+    for init_module in sorted_inits:
+        source = init_module.source_path.read_text(encoding="utf-8")
+        subpackage_names = _subpackage_names_at_level(init_module.package_parts, all_discovered)
+
+        # Extract __all__ from the init source to record for the trie step.
+        try:
+            init_tree = ast.parse(source, feature_version=(3, 14))
+        except SyntaxError:
+            init_tree = None
+
+        package_all_map[init_module.dotted_name] = extract_all(init_tree) if init_tree is not None else None
+
         module, _report = resolve_init(
             source,
-            dm.dotted_name,
+            init_module.dotted_name,
             module_map,
             subpackage_names,
             config,
         )
-        module_map[dm.dotted_name] = module
+        module_map[init_module.dotted_name] = module
 
     # 5. Fold the completed module map into a Package trie.
-    return _build_trie(module_map, all_discovered, root)
+    return _build_trie(module_map, all_discovered, root, package_all_map)

@@ -52,9 +52,8 @@ def _make_function(
 def _make_assignment(
     name: str = "X",
     annotation: str | None = "int",
-    value_repr: str | None = "42",
 ) -> Assignment:
-    return Assignment(name=name, annotation=annotation, value_repr=value_repr)
+    return Assignment(name=name, annotation=annotation)
 
 
 def _make_class(
@@ -134,25 +133,16 @@ def test_format_tree_two_modules_branch_and_last() -> None:
 
 def test_format_tree_module_with_assignment_annotation() -> None:
     """An annotated assignment renders as ``name: annotation``."""
-    a = _make_assignment(name="VERSION", annotation="str", value_repr=None)
+    a = _make_assignment(name="VERSION", annotation="str")
     mod = _make_module(name="core", assignments=(a,))
     pkg = _make_package(name="mylib", modules=(mod,))
     result = format_tree(pkg)
     assert "VERSION: str" in result
 
 
-def test_format_tree_module_with_assignment_value_only() -> None:
-    """An assignment with no annotation renders as ``name = value_repr``."""
-    a = Assignment(name="MAX", annotation=None, value_repr="100")
-    mod = _make_module(name="core", assignments=(a,))
-    pkg = _make_package(name="mylib", modules=(mod,))
-    result = format_tree(pkg)
-    assert "MAX = 100" in result
-
-
 def test_format_tree_module_with_bare_assignment() -> None:
-    """An assignment with neither annotation nor value_repr renders as just the name."""
-    a = Assignment(name="SENTINEL", annotation=None, value_repr=None)
+    """An assignment with no annotation renders as just the name."""
+    a = Assignment(name="SENTINEL", annotation=None)
     mod = _make_module(name="core", assignments=(a,))
     pkg = _make_package(name="mylib", modules=(mod,))
     result = format_tree(pkg)
@@ -178,12 +168,12 @@ def test_format_tree_function_with_return() -> None:
 
 
 def test_format_tree_async_function() -> None:
-    """An async function is prefixed with ``async``."""
+    """An async function is prefixed with ``async def``."""
     fn = _make_function(name="fetch", is_async=True, returns="str")
     mod = _make_module(name="net", functions=(fn,))
     pkg = _make_package(name="mylib", modules=(mod,))
     result = format_tree(pkg)
-    assert "async fetch() -> str" in result
+    assert "async def fetch() -> str" in result
 
 
 def test_format_tree_function_positional_params() -> None:
@@ -280,7 +270,7 @@ def test_format_tree_golden_string() -> None:
     #       └── render() -> str
     #     do_thing()
     #   package sub
-    version = Assignment(name="VERSION", annotation="str", value_repr=None)
+    version = Assignment(name="VERSION", annotation="str")
     render = _make_function(name="render", returns="str")
     widget = _make_class(name="Widget", methods=(render,))
     do_thing = _make_function(name="do_thing")
@@ -300,8 +290,8 @@ def test_format_tree_golden_string() -> None:
         "├── module core\n"
         "│   ├── VERSION: str\n"
         "│   ├── class Widget\n"
-        "│   │   └── render() -> str\n"
-        "│   └── do_thing()\n"
+        "│   │   └── def render() -> str\n"
+        "│   └── def do_thing()\n"
         "└── package sub"
     )
     assert result == expected
@@ -487,7 +477,7 @@ def test_format_tree_single_module_single_function() -> None:
     mod = _make_module(name="greetings", functions=(fn,))
     pkg = _make_package(name="mylib", modules=(mod,))
     result = format_tree(pkg)
-    expected = "package mylib\n└── module greetings\n    └── hello() -> None"
+    expected = "package mylib\n└── module greetings\n    └── def hello() -> None"
     assert result == expected
 
 
@@ -526,20 +516,18 @@ def test_format_json_nested_class_serialised() -> None:
 
 
 @pytest.mark.parametrize(
-    "annotation, value_repr, expected_label",
+    "annotation, expected_label",
     [
-        ("str", None, "CONST: str"),
-        (None, "42", "CONST = 42"),
-        (None, None, "CONST"),
+        ("str", "CONST: str"),
+        (None, "CONST"),
     ],
 )
 def test_format_tree_assignment_label_variants(
     annotation: str | None,
-    value_repr: str | None,
     expected_label: str,
 ) -> None:
-    """Parametrised: all three rendering paths for Assignment labels."""
-    a = Assignment(name="CONST", annotation=annotation, value_repr=value_repr)
+    """Parametrised: both rendering paths for Assignment labels."""
+    a = Assignment(name="CONST", annotation=annotation)
     mod = _make_module(name="m", assignments=(a,))
     pkg = _make_package(name="p", modules=(mod,))
     result = format_tree(pkg)

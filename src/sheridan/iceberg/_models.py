@@ -34,6 +34,10 @@ class Parameter:
     default: str | None
     """Unparsed default-value string, or ``None`` when absent."""
 
+    @property
+    def is_public(self) -> bool:
+        return self.name == "__init__" or not self.name.startswith("_")
+
 
 @dataclass(frozen=True, slots=True)
 class Function:
@@ -52,18 +56,28 @@ class Function:
 
     name: str
     """Unqualified function or method name."""
+
     positional_parameters: tuple[Parameter, ...]
     """Ordered tuple of positional-only and positional-or-keyword parameters."""
+
     keyword_parameters: frozenset[Parameter]
     """Unordered frozenset of keyword-only parameters."""
+
     var_positional: Parameter | None
     """The ``*args`` parameter, or ``None`` when absent."""
+
     var_keyword: Parameter | None
     """The ``**kwargs`` parameter, or ``None`` when absent."""
+
     returns: str | None
     """Unparsed return-annotation string, or ``None`` when absent."""
+
     is_async: bool
     """``True`` for ``async def`` functions, ``False`` otherwise."""
+
+    @property
+    def is_public(self) -> bool:
+        return self.name == "__init__" or not self.name.startswith("_")
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,9 +88,6 @@ class Assignment:
         name: The target name as written in the source.
         annotation: Unparsed annotation string (from annotated assignments),
             or ``None`` for plain assignments.
-        value_repr: Unparsed RHS string for simple expressions (literals,
-            names, attributes, subscripts), or ``None`` when the RHS is
-            complex or absent.
     """
 
     name: str
@@ -85,8 +96,9 @@ class Assignment:
     annotation: str | None
     """Unparsed annotation string, or ``None`` for plain assignments."""
 
-    value_repr: str | None
-    """Unparsed RHS for simple expressions, or ``None`` otherwise."""
+    @property
+    def is_public(self) -> bool:
+        return self.name == "__init__" or not self.name.startswith("_")
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,6 +124,10 @@ class Class:
     nested_classes: tuple[Class, ...]
     """Classes nested inside this class, in source order."""
 
+    @property
+    def is_public(self) -> bool:
+        return self.name == "__init__" or not self.name.startswith("_")
+
 
 @dataclass(frozen=True, slots=True)
 class Module:
@@ -135,6 +151,11 @@ class Module:
 
     functions: tuple[Function, ...]
     """Public functions defined in this module, in source order."""
+
+    @property
+    def is_public(self) -> bool:
+        *_, stem = self.name.split(".")
+        return stem == "__init__" or not stem.startswith("_")
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,6 +181,36 @@ class Package:
     subpackages: tuple[Package, ...]
     """Child packages nested one level below this package, sorted by name."""
 
+    @property
+    def _init_module(self) -> Module | None:
+        for module in self.modules:
+            if module.name.startswith("__init__"):
+                return module
+        return None
+
+    @property
+    def assignments(self) -> tuple[Assignment, ...]:
+        if init_module := self._init_module:
+            return init_module.assignments
+        return ()
+
+    @property
+    def classes(self) -> tuple[Class, ...]:
+        if init_module := self._init_module:
+            return init_module.classes
+        return ()
+
+    @property
+    def functions(self) -> tuple[Function, ...]:
+        if init_module := self._init_module:
+            return init_module.functions
+        return ()
+
+    @property
+    def is_public(self) -> bool:
+        *_, stem = self.name.split(".")
+        return stem == "__init__" or not stem.startswith("_")
+
 
 @dataclass(frozen=True, slots=True)
 class DiscoveredModule:
@@ -184,6 +235,11 @@ class DiscoveredModule:
 
     package_parts: tuple[str, ...]
     """Ancestor directory names forming the dotted prefix, excluding the module stem."""
+
+    @property
+    def is_public(self) -> bool:
+        *_, stem = self.dotted_name.split(".")
+        return stem == "__init__" or not stem.startswith("_")
 
 
 @dataclass(frozen=True, slots=True)

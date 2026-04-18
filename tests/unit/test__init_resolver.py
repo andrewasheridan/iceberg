@@ -37,7 +37,7 @@ def _make_class(name: str) -> Class:
 
 
 def _make_assignment(name: str) -> Assignment:
-    return Assignment(name=name, annotation=None, value_repr=None)
+    return Assignment(name=name, annotation=None)
 
 
 def _make_module(

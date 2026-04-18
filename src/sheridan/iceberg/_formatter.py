@@ -91,22 +91,17 @@ def _function_str(function: Function) -> str:
 
 
 def _assignment_str(assignment: Assignment) -> str:
-    """Render an assignment as ``name: annotation`` or ``name = value``.
-
-    Prefers the annotation form when present. Falls back to the value form,
-    then to the bare name if neither is available.
+    """Render an assignment as ``name: annotation`` or ``name``.
 
     Args:
         assignment: The assignment to render.
 
     Returns:
-        A short human-readable label for the assignment.
+        A short human-readable label for the assignment: ``name: annotation``
+        when an annotation is present, otherwise the bare ``name``.
     """
     if assignment.annotation is not None:
         return f"{assignment.name}: {assignment.annotation}"
-
-    if assignment.value_repr is not None:
-        return f"{assignment.name} = {assignment.value_repr}"
 
     return assignment.name
 
@@ -184,17 +179,17 @@ def _children(
             return items
 
 
-def format_tree(package: Package) -> str:
+def format_tree(api: Package | Module) -> str:
     """Render a Unicode box-drawing tree of *package*'s public API.
 
     Args:
-        package: The root package to render.
+        api: The root package/module to render.
 
     Returns:
         A multi-line string suitable for printing to a terminal.
     """
-    header = f"package {package.name}"
-    body = _render_lines(package, prefix="")
+    header = f"package {api.name}" if isinstance(api, Package) else f"module {api.name}"
+    body = _render_lines(api, prefix="")
     return "\n".join([header, *body])
 
 

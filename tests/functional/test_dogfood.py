@@ -10,8 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from sheridan.iceberg import get_public_api
-from sheridan.iceberg._models import Module, Package
+from sheridan.iceberg import Class, Module, Package, get_public_api
 
 # ---------------------------------------------------------------------------
 # Expected public surface
@@ -83,7 +82,7 @@ def _collect_public_names(pkg: Package) -> set[str]:
     - module-level assignments
     """
 
-    def _collect_class_names(cls: Module.classes.__class__) -> set[str]:  # type: ignore[type-arg]
+    def _collect_class_names(cls: Class) -> set[str]:
         """Recursively collect the class name plus nested class names."""
         names: set[str] = {cls.name}
         for nested in cls.nested_classes:
@@ -113,7 +112,7 @@ def test_get_public_api_on_iceberg_returns_package(iceberg_package: Package) -> 
 
 def test_iceberg_package_name(iceberg_package: Package) -> None:
     """The root Package name must be 'iceberg'."""
-    assert iceberg_package.name == "iceberg"
+    assert iceberg_package.name == "sheridan.iceberg"
 
 
 def test_iceberg_package_path(iceberg_package: Package) -> None:

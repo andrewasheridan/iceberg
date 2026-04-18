@@ -31,27 +31,19 @@ def _should_prune(name: str) -> bool:
     return name in _PRUNED_DIRS or name.startswith(".")
 
 
-def _is_package_dir(path: Path) -> bool:
-    """Return ``True`` if *path* is a directory containing ``__init__.py``.
-
-    Args:
-        path: The directory to inspect.
-
-    Returns:
-        ``True`` when an ``__init__.py`` file exists directly inside *path*.
-    """
-    return (path / "__init__.py").is_file()
-
-
-def _compute_dotted_name(py_file: Path) -> tuple[str, tuple[str, ...]]:
+def _compute_dotted_name(py_file: Path, root: Path) -> tuple[str, tuple[str, ...]]:
     """Compute the dotted module name and package_parts for a ``.py`` file.
 
     Walks upward from the file's parent directory, collecting directory names
-    as long as each directory contains an ``__init__.py``. The topmost such
-    directory forms the root of the dotted name.
+    until *root* is reached or a component that is not a valid Python identifier
+    is encountered. This supports both traditional packages (with
+    ``__init__.py``) and namespace packages (directories without
+    ``__init__.py``, such as the ``sheridan/`` layer in ``src/sheridan/iceberg/``).
 
     Args:
         py_file: Absolute path to the ``.py`` source file.
+        root: The top-level search root passed to :func:`discover`. The walk
+            stops when *current* reaches this directory.
 
     Returns:
         A two-tuple of ``(dotted_name, package_parts)`` where ``dotted_name``
@@ -63,7 +55,7 @@ def _compute_dotted_name(py_file: Path) -> tuple[str, tuple[str, ...]]:
     parts: list[str] = []
 
     current = py_file.parent
-    while _is_package_dir(current):
+    while current != root and current.name.isidentifier():
         parts.append(current.name)
         current = current.parent
 
@@ -82,17 +74,19 @@ def _compute_dotted_name(py_file: Path) -> tuple[str, tuple[str, ...]]:
     return dotted_name, package_parts
 
 
-def _make_module(py_file: Path) -> DiscoveredModule:
+def _make_module(py_file: Path, root: Path) -> DiscoveredModule:
     """Build a :class:`DiscoveredModule` from a ``.py`` file path.
 
     Args:
         py_file: Absolute path to the ``.py`` source file.
+        root: The top-level search root passed to :func:`discover`.
+            The walk stops when *current* reaches this directory.
 
     Returns:
         A fully populated :class:`DiscoveredModule` instance.
     """
     is_init = py_file.name == "__init__.py"
-    dotted_name, package_parts = _compute_dotted_name(py_file)
+    dotted_name, package_parts = _compute_dotted_name(py_file, root)
 
     return DiscoveredModule(
         dotted_name=dotted_name,
@@ -125,14 +119,27 @@ def _discover_single_file(root: Path) -> tuple[DiscoveredModule, ...]:
 def _discover_directory(root: Path, config: Config) -> tuple[DiscoveredModule, ...]:
     """Walk *root* once and return a tuple of all non-test Python modules found.
 
+    The *name_root* passed to :func:`_make_module` is chosen based on whether
+    *root* itself is a proper Python package (contains ``__init__.py``) or a
+    namespace container such as a ``src/`` layout directory.  When *root* is a
+    package, its parent is used so that *root*'s own name becomes part of every
+    dotted module name.  When *root* is a namespace container, *root* itself is
+    used so that its name is omitted from dotted names.
+
     Args:
-        root: The package directory to walk.
+        root: The package directory (or namespace container) to walk.
         config: Runtime configuration carrying the test-module filter pattern.
 
     Returns:
         A tuple of :class:`DiscoveredModule` values, one per qualifying
         ``.py`` file found under *root*.
     """
+    # If root itself is a package, its name should appear in every dotted name,
+    # so the naming root must be root's parent.  Otherwise (src/-layout or
+    # plain namespace container), root's name must NOT appear, so root itself
+    # is the naming root.
+    name_root = root.parent if (root / "__init__.py").exists() else root
+
     results: list[DiscoveredModule] = []
 
     for dirpath, dirnames, filenames in root.walk():
@@ -148,7 +155,7 @@ def _discover_directory(root: Path, config: Config) -> tuple[DiscoveredModule, .
             if config.test_module_pattern.search(str(py_file.as_posix())):
                 continue
 
-            results.append(_make_module(py_file))
+            results.append(_make_module(py_file, name_root))
 
     return tuple(results)
 
