@@ -230,23 +230,29 @@ def _build_class(node: ast.ClassDef) -> Class:
     for child in node.body:
         match child:
             case (ast.FunctionDef() | ast.AsyncFunctionDef()) as fn_child:
-                methods.append(_build_function(fn_child))
+                fn = _build_function(fn_child)
+                if fn.is_public:
+                    methods.append(fn)
 
             case ast.ClassDef() as cls_child:
-                nested_classes.append(_build_class(cls_child))
+                nested = _build_class(cls_child)
+                if nested.is_public:
+                    nested_classes.append(nested)
 
             case ast.Assign() as assign_child:
                 result = _build_assignment(assign_child)
-                if result is not None:
+                if result is not None and result.is_public:
                     assignments.append(result)
 
             case ast.AnnAssign() as ann_child:
                 result = _build_assignment(ann_child)
-                if result is not None:
+                if result is not None and result.is_public:
                     assignments.append(result)
 
             case ast.TypeAlias() as alias_child:
-                assignments.append(_build_type_alias(alias_child))
+                alias = _build_type_alias(alias_child)
+                if alias.is_public:
+                    assignments.append(alias)
 
             case _:
                 pass

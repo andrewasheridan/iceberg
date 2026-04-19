@@ -6,6 +6,8 @@ from typing import Any
 
 import pytest
 
+from sheridan.iceberg._api import get_public_api
+from sheridan.iceberg._config import Config
 from sheridan.iceberg._formatter import format_json, format_tree
 from sheridan.iceberg._models import (
     Assignment,
@@ -556,3 +558,143 @@ def test_format_tree_parameter_rendering(
     pkg = _make_package(name="p", modules=(mod,))
     result = format_tree(pkg)
     assert expected_param_str in result
+
+
+# ---------------------------------------------------------------------------
+# 5. __init__ module hoisting behaviour
+# ---------------------------------------------------------------------------
+
+
+def test_format_tree_init_module_hoisted_no_intermediate_node() -> None:
+    """A Package whose only module is the init module (module.name == package.name)
+    must NOT produce an intermediate ``module <name>`` node — its contents are
+    hoisted directly to the package level.
+    """
+    fn = _make_function(name="do_work", returns="None")
+    init_mod = _make_module(name="mylib", functions=(fn,))  # name matches package
+    pkg = _make_package(name="mylib", modules=(init_mod,))
+
+    result = format_tree(pkg)
+    lines = result.splitlines()
+
+    # The spurious intermediate node must be absent.
+    assert not any("module mylib" in line for line in lines), (
+        "init module was not hoisted; found unexpected 'module mylib' node"
+    )
+    # The function must appear directly as a child of the package header.
+    assert any("do_work()" in line for line in lines), "hoisted function not found in output"
+
+
+def test_format_tree_init_module_hoisted_class_and_assignment() -> None:
+    """Classes and assignments from the init module are also hoisted, each
+    appearing at the package level without an intermediate module node.
+    """
+    a = _make_assignment(name="VERSION", annotation="str")
+    cls = _make_class(name="Client")
+    init_mod = _make_module(name="mylib", assignments=(a,), classes=(cls,))
+    pkg = _make_package(name="mylib", modules=(init_mod,))
+
+    result = format_tree(pkg)
+    lines = result.splitlines()
+
+    assert not any("module mylib" in line for line in lines)
+    assert any("VERSION: str" in line for line in lines)
+    assert any("class Client" in line for line in lines)
+
+
+def test_format_tree_non_init_module_still_has_module_node() -> None:
+    """A module whose name does NOT match the package name must still render
+    as a ``module <name>`` child — the hoisting logic must not swallow it.
+    """
+    fn = _make_function(name="helper")
+    non_init = _make_module(name="utils", functions=(fn,))
+    pkg = _make_package(name="mylib", modules=(non_init,))
+
+    result = format_tree(pkg)
+    lines = result.splitlines()
+
+    assert any("module utils" in line for line in lines), "non-init module should appear as 'module utils'"
+
+
+def test_format_tree_mixed_init_and_non_init_modules() -> None:
+    """A Package with both an init module (hoisted) and a regular submodule
+    renders the init contents at package level while the submodule still
+    appears as ``module <name>``.
+    """
+    init_fn = _make_function(name="top_level_func")
+    init_mod = _make_module(name="mylib", functions=(init_fn,))
+
+    sub_fn = _make_function(name="internal")
+    sub_mod = _make_module(name="helpers", functions=(sub_fn,))
+
+    pkg = _make_package(name="mylib", modules=(init_mod, sub_mod))
+
+    result = format_tree(pkg)
+
+    assert "module helpers" in result, "non-init submodule must appear as 'module helpers'"
+    assert "module mylib" not in result, "init module must not produce its own node"
+    assert "top_level_func()" in result, "init-level function must be present"
+
+
+def test_format_tree_case_05_golden() -> None:
+    """Golden test: running iceberg against cases/case_05 must produce the
+    exact tree documented in cases/case_05/README.md.
+
+    Expected output::
+
+        package case_05
+        ├── class Foo
+        │   ├── def __init__(self, value: int) -> None
+        │   └── def greet(self) -> str
+        └── def bar_func(x: int, y: int = 0) -> int
+    """
+    case_05_path = Path(__file__).parent.parent.parent / "cases" / "case_05"
+    config = Config(max_workers=1)
+    api = get_public_api(case_05_path, config=config)
+
+    result = format_tree(api)
+
+    expected = (
+        "package case_05\n"
+        "├── class Foo\n"
+        "│   ├── def __init__(self, value: int) -> None\n"
+        "│   └── def greet(self) -> str\n"
+        "└── def bar_func(x: int, y: int = 0) -> int"
+    )
+    assert result == expected
+
+
+def test_format_tree_case_06_golden() -> None:
+    """Golden test: running iceberg against cases/case_06/foo.py must produce
+    the exact tree documented in cases/case_06/README.md.
+
+    Expected output::
+
+        module foo
+        ├── class Widget
+        │   ├── MAX_SIZE: int
+        │   ├── DEFAULT_NAME
+        │   ├── count: int
+        │   ├── def __init__(self, name: str = 'widget', size: int = 10) -> None
+        │   ├── def resize(self, new_size: int) -> None
+        │   └── def describe(self) -> str
+        └── def create_widget(name: str, size: int = 10) -> Widget
+    """
+    case_06_path = Path(__file__).parent.parent.parent / "cases" / "case_06" / "foo.py"
+    config = Config(max_workers=1)
+    api = get_public_api(case_06_path, config=config)
+
+    result = format_tree(api)
+
+    expected = (
+        "module foo\n"
+        "├── class Widget\n"
+        "│   ├── MAX_SIZE: int\n"
+        "│   ├── DEFAULT_NAME\n"
+        "│   ├── count: int\n"
+        "│   ├── def __init__(self, name: str = 'widget', size: int = 10) -> None\n"
+        "│   ├── def resize(self, new_size: int) -> None\n"
+        "│   └── def describe(self) -> str\n"
+        "└── def create_widget(name: str, size: int = 10) -> Widget"
+    )
+    assert result == expected

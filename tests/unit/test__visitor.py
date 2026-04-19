@@ -471,3 +471,108 @@ def test_module_dotted_name_preserved() -> None:
     source = ""
     module = _visit(source, name="my_pkg.sub.core")
     assert module.name == "my_pkg.sub.core"
+
+
+# ---------------------------------------------------------------------------
+# Scenario 12: Class body privacy filtering
+# ---------------------------------------------------------------------------
+
+
+def test_class_private_method_excluded() -> None:
+    """A method whose name starts with ``_`` (but is not a dunder) is excluded."""
+    source = """
+class MyClass:
+    def public_method(self) -> None:
+        pass
+
+    def _helper(self) -> int:
+        pass
+"""
+    module = _visit(source)
+    cls: Class = module.classes[0]
+    method_names = {m.name for m in cls.methods}
+    assert "public_method" in method_names
+    assert "_helper" not in method_names
+
+
+def test_class_private_attribute_excluded() -> None:
+    """An annotated class attribute whose name starts with ``_`` is excluded."""
+    source = """
+class MyClass:
+    count: int = 0
+    _count: int = 0
+"""
+    module = _visit(source)
+    cls: Class = module.classes[0]
+    assignment_names = {a.name for a in cls.assignments}
+    assert "count" in assignment_names
+    assert "_count" not in assignment_names
+
+
+def test_class_private_nested_class_excluded() -> None:
+    """A nested class whose name starts with ``_`` is excluded."""
+    source = """
+class Outer:
+    class PublicInner:
+        pass
+
+    class _Inner:
+        pass
+"""
+    module = _visit(source)
+    cls: Class = module.classes[0]
+    nested_names = {nc.name for nc in cls.nested_classes}
+    assert "PublicInner" in nested_names
+    assert "_Inner" not in nested_names
+
+
+def test_class_dunder_method_included() -> None:
+    """Dunder methods like ``__init__`` are treated as public and included."""
+    source = """
+class MyClass:
+    def __init__(self, value: int) -> None:
+        pass
+
+    def _private(self) -> None:
+        pass
+"""
+    module = _visit(source)
+    cls: Class = module.classes[0]
+    method_names = {m.name for m in cls.methods}
+    assert "__init__" in method_names
+    assert "_private" not in method_names
+
+
+def test_class_mixed_members_all_filtered_correctly() -> None:
+    """All three member kinds are filtered in a single class definition."""
+    source = """
+class Service:
+    timeout: int = 30
+    _cache: dict = {}
+
+    def run(self) -> None:
+        pass
+
+    def _setup(self) -> None:
+        pass
+
+    class Config:
+        pass
+
+    class _State:
+        pass
+"""
+    module = _visit(source)
+    cls: Class = module.classes[0]
+
+    assignment_names = {a.name for a in cls.assignments}
+    assert "timeout" in assignment_names
+    assert "_cache" not in assignment_names
+
+    method_names = {m.name for m in cls.methods}
+    assert "run" in method_names
+    assert "_setup" not in method_names
+
+    nested_names = {nc.name for nc in cls.nested_classes}
+    assert "Config" in nested_names
+    assert "_State" not in nested_names

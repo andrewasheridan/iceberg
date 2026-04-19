@@ -153,7 +153,18 @@ def _children(
         case Package():
             items: list[tuple[str, Package | Module | Class | None]] = []
             for m in node.modules:
-                items.append((f"module {m.name}", m))
+                if m.name == node.name:
+                    # This is the __init__ module: hoist its contents directly
+                    # at the package level rather than nesting under a spurious
+                    # "module <name>" node.
+                    for a in m.assignments:
+                        items.append((_assignment_str(a), None))
+                    for cls in m.classes:
+                        items.append((f"class {cls.name}", cls))
+                    for fn in m.functions:
+                        items.append((_function_str(fn), None))
+                else:
+                    items.append((f"module {m.name}", m))
             for sp in node.subpackages:
                 items.append((f"package {sp.name}", sp))
             return items
