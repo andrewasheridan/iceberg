@@ -134,11 +134,13 @@ def _discover_directory(root: Path, config: Config) -> tuple[DiscoveredModule, .
         A tuple of :class:`DiscoveredModule` values, one per qualifying
         ``.py`` file found under *root*.
     """
-    # If root itself is a package, its name should appear in every dotted name,
-    # so the naming root must be root's parent.  Otherwise (src/-layout or
-    # plain namespace container), root's name must NOT appear, so root itself
-    # is the naming root.
-    name_root = root.parent if (root / "__init__.py").exists() else root
+    # Always use root's parent as the naming boundary so that the user-supplied
+    # path is treated as authoritative regardless of whether it contains an
+    # ``__init__.py``.  This ensures that:
+    #   ``iceberg src``              → dotted names start with ``src.…``
+    #   ``iceberg src/sheridan``     → dotted names start with ``sheridan.…``
+    #   ``iceberg src/sheridan/iceberg`` → dotted names start with ``iceberg.…``
+    name_root = root.parent
 
     results: list[DiscoveredModule] = []
 
@@ -170,7 +172,7 @@ def discover(root: Path, config: Config) -> tuple[DiscoveredModule, ...]:
     Args:
         root: A path to either a single ``.py`` file or a package directory.
         config: Runtime configuration used to filter test modules and control
-            other discovery behaviour.
+            other discovery behavior.
 
     Returns:
         A tuple of :class:`DiscoveredModule` values describing every

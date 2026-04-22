@@ -273,3 +273,35 @@ def test_discovered_module_is_frozen(tmp_path: Path) -> None:
 def test_discovered_module_has_slots() -> None:
     """DiscoveredModule uses __slots__ for memory efficiency."""
     assert hasattr(DiscoveredModule, "__slots__")
+
+
+# ---------------------------------------------------------------------------
+# Scenario 9 — Namespace package as root includes namespace in dotted names
+# ---------------------------------------------------------------------------
+
+
+def test_namespace_package_as_root_includes_namespace_in_dotted_name(
+    tmp_path: Path,
+) -> None:
+    """A namespace-package root (no __init__.py, valid identifier, not 'src'/'lib'/'source')
+    has its name included in all computed dotted names.
+
+    Regression guard: before the fix, calling discover() on a directory like
+    ``acme/`` (no __init__.py) would strip ``acme`` from every dotted name,
+    producing ``widgets`` and ``widgets.core`` instead of ``acme.widgets`` and
+    ``acme.widgets.core``.
+    """
+    acme = tmp_path / "acme"
+    _write(acme / "widgets" / "__init__.py")
+    _write(acme / "widgets" / "core.py", "def make_widget(name: str) -> str: ...")
+    config = Config(max_workers=1)
+
+    result = discover(acme, config)
+    dotted_names = {m.dotted_name for m in result}
+
+    # The namespace prefix must appear in every dotted name
+    assert "acme.widgets" in dotted_names
+    assert "acme.widgets.core" in dotted_names
+
+    # Regression guard: no name may start with just "widgets" (without the namespace)
+    assert not any(name == "widgets" or name.startswith("widgets.") for name in dotted_names)

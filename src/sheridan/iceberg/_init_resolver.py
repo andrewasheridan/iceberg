@@ -165,6 +165,35 @@ def _build_import_map(tree: ast.Module, dotted_package: str) -> dict[str, tuple[
                     for alias in aliases:
                         local_name = alias.asname if alias.asname else alias.name
                         result[local_name] = (module, alias.name)
+                else:
+                    # Fallback 1: the init may use absolute imports whose prefix
+                    # differs from dotted_package (e.g. ``from sheridan.iceberg._api
+                    # import X`` when dotted_package is ``"iceberg"``).  Find
+                    # dotted_package as a component sequence inside module and use
+                    # the suffix starting at that position as the resolved key so
+                    # it matches entries in sibling_modules.
+                    module_parts = module.split(".")
+                    pkg_parts = dotted_package.split(".")
+                    n = len(pkg_parts)
+                    matched = False
+                    for i in range(len(module_parts) - n + 1):
+                        if module_parts[i : i + n] == pkg_parts:
+                            resolved_module = ".".join(module_parts[i:])
+                            for alias in aliases:
+                                local_name = alias.asname if alias.asname else alias.name
+                                result[local_name] = (resolved_module, alias.name)
+                            matched = True
+                            break
+
+                    if not matched:
+                        # Fallback 2: dotted_package has a leading namespace
+                        # component absent from the import (e.g. dotted_package=
+                        # "src.sheridan.iceberg", import="sheridan.iceberg._api").
+                        # Store the raw module string; _lookup_in_sibling will
+                        # find the correct sibling_modules key via suffix match.
+                        for alias in aliases:
+                            local_name = alias.asname if alias.asname else alias.name
+                            result[local_name] = (module, alias.name)
 
             case _:
                 pass
@@ -270,6 +299,17 @@ def _lookup_in_sibling(
         The resolved symbol, or ``None`` when the module or name is absent.
     """
     sibling = sibling_modules.get(dotted_module)
+    if sibling is None:
+        # Fallback: dotted_package may have a leading namespace component that
+        # the import string lacks (e.g. dotted_module="sheridan.iceberg._api"
+        # but sibling_modules keys are "src.sheridan.iceberg._api").  Check
+        # whether any key ends with ".<dotted_module>" or equals dotted_module.
+        suffix = "." + dotted_module
+        for key, candidate in sibling_modules.items():
+            if key == dotted_module or key.endswith(suffix):
+                sibling = candidate
+                break
+
     if sibling is None:
         return None
 

@@ -698,3 +698,46 @@ def test_format_tree_case_06_golden() -> None:
         "└── def create_widget(name: str, size: int = 10) -> Widget"
     )
     assert result == expected
+
+
+def test_format_tree_case_10_golden() -> None:
+    """Golden test: running iceberg against cases/case_10/src must produce the
+    exact tree for a namespace package (acme) containing a regular subpackage
+    (acme.widgets) with one module (acme.widgets.core).
+
+    Expected output::
+
+        package acme.widgets
+        └── module acme.widgets.core
+            └── def make_widget(name: str) -> str
+    """
+    case_10_src_path = Path(__file__).parent.parent.parent / "cases" / "case_10" / "src"
+    config = Config(max_workers=1)
+    api = get_public_api(case_10_src_path, config=config)
+
+    result = format_tree(api)
+
+    expected = "package acme.widgets\n└── module acme.widgets.core\n    └── def make_widget(name: str) -> str"
+    assert result == expected
+
+
+def test_format_tree_case_10_namespace_root_golden() -> None:
+    """Golden test: passing cases/case_10/src/acme (the namespace package root
+    itself) to get_public_api must produce the same output as passing the parent
+    src directory, i.e. the bug where ``iceberg cases/case_10/src/acme`` gave
+    ``package widgets`` instead of ``package acme.widgets`` must stay fixed.
+
+    Expected output (identical to test_format_tree_case_10_golden)::
+
+        package acme.widgets
+        └── module acme.widgets.core
+            └── def make_widget(name: str) -> str
+    """
+    case_10_acme_path = Path(__file__).parent.parent.parent / "cases" / "case_10" / "src" / "acme"
+    config = Config(max_workers=1)
+    api = get_public_api(case_10_acme_path, config=config)
+
+    result = format_tree(api)
+
+    expected = "package acme.widgets\n└── module acme.widgets.core\n    └── def make_widget(name: str) -> str"
+    assert result == expected

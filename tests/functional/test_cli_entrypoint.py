@@ -21,7 +21,7 @@ import pytest
 # location relative to this file so the tests are portable.
 _TESTS_FUNCTIONAL_DIR = Path(__file__).parent
 _PROJECT_ROOT = _TESTS_FUNCTIONAL_DIR.parent.parent
-_REAL_PACKAGE_PATH = _PROJECT_ROOT / "src" / "sheridan" / "iceberg"
+_REAL_PACKAGE_PATH = _PROJECT_ROOT / "src"
 
 
 @pytest.fixture(scope="session")

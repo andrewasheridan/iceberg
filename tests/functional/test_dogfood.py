@@ -48,12 +48,12 @@ EXPECTED_PUBLIC_NAMES: frozenset[str] = frozenset(
 #     ^parents[0] = tests/functional
 #     ^parents[1] = tests
 #     ^parents[2] = repo root
-_ICEBERG_SRC: Path = Path(__file__).parents[2] / "src" / "sheridan" / "iceberg"
+_ICEBERG_SRC: Path = Path(__file__).parents[2] / "src"
 
 
 @pytest.fixture(scope="module")
-def iceberg_package() -> Package:
-    """Return the Package produced by analysing the iceberg source tree."""
+def iceberg_package() -> Package | Module:
+    """Return the Package produced by analyzing the iceberg source tree."""
     assert _ICEBERG_SRC.is_dir(), (
         f"Expected iceberg source directory at {_ICEBERG_SRC}; check that the repo layout has not changed."
     )
