@@ -119,12 +119,9 @@ def _discover_single_file(root: Path) -> tuple[DiscoveredModule, ...]:
 def _discover_directory(root: Path, config: Config) -> tuple[DiscoveredModule, ...]:
     """Walk *root* once and return a tuple of all non-test Python modules found.
 
-    The *name_root* passed to :func:`_make_module` is chosen based on whether
-    *root* itself is a proper Python package (contains ``__init__.py``) or a
-    namespace container such as a ``src/`` layout directory.  When *root* is a
-    package, its parent is used so that *root*'s own name becomes part of every
-    dotted module name.  When *root* is a namespace container, *root* itself is
-    used so that its name is omitted from dotted names.
+    The user-supplied *root* is treated as authoritative: ``root.parent`` is
+    used as the naming boundary so that *root*'s own name becomes part of every
+    dotted module name.
 
     Args:
         root: The package directory (or namespace container) to walk.
@@ -134,12 +131,8 @@ def _discover_directory(root: Path, config: Config) -> tuple[DiscoveredModule, .
         A tuple of :class:`DiscoveredModule` values, one per qualifying
         ``.py`` file found under *root*.
     """
-    # Always use root's parent as the naming boundary so that the user-supplied
-    # path is treated as authoritative regardless of whether it contains an
-    # ``__init__.py``.  This ensures that:
-    #   ``iceberg src``              → dotted names start with ``src.…``
-    #   ``iceberg src/sheridan``     → dotted names start with ``sheridan.…``
-    #   ``iceberg src/sheridan/iceberg`` → dotted names start with ``iceberg.…``
+    # The user-supplied path is authoritative: always use root.parent so that
+    # root's own name becomes part of every dotted module name.
     name_root = root.parent
 
     results: list[DiscoveredModule] = []

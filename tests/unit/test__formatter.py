@@ -666,7 +666,7 @@ def test_format_tree_case_05_golden() -> None:
 
 def test_format_tree_case_06_golden() -> None:
     """Golden test: running iceberg against cases/case_06/foo.py must produce
-    the exact tree documented in cases/case_06/README.md.
+    the exact tree for a bare module (single .py file → Module, not Package).
 
     Expected output::
 
@@ -701,7 +701,7 @@ def test_format_tree_case_06_golden() -> None:
 
 
 def test_format_tree_case_10_golden() -> None:
-    """Golden test: running iceberg against cases/case_10/src must produce the
+    """Golden test: running iceberg against cases/case_10/src/acme must produce the
     exact tree for a namespace package (acme) containing a regular subpackage
     (acme.widgets) with one module (acme.widgets.core).
 
@@ -711,7 +711,7 @@ def test_format_tree_case_10_golden() -> None:
         └── module acme.widgets.core
             └── def make_widget(name: str) -> str
     """
-    case_10_src_path = Path(__file__).parent.parent.parent / "cases" / "case_10" / "src"
+    case_10_src_path = Path(__file__).parent.parent.parent / "cases" / "case_10" / "src" / "acme"
     config = Config(max_workers=1)
     api = get_public_api(case_10_src_path, config=config)
 

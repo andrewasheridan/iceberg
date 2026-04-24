@@ -13,6 +13,7 @@ verifies the three behaviours introduced by __all__-driven filtering:
    Package.modules when __all__ is defined).
 """
 
+import re
 from pathlib import Path
 
 import pytest
@@ -25,7 +26,7 @@ from sheridan.iceberg._models import Module, Package
 # Shared config — single worker keeps process overhead minimal in tests.
 # ---------------------------------------------------------------------------
 
-_CFG = Config(max_workers=1)
+_CFG = Config(max_workers=1, test_module_pattern=re.compile(r"(^|/)test_[^/]*\.py$|_test\.py$"))
 
 _FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
@@ -135,10 +136,15 @@ def test_nested_pkg_private_subpackage_excluded(nested_pkg: Package) -> None:
     assert "_private_sub" not in names
 
 
-def test_nested_pkg_public_sub_present(nested_pkg: Package) -> None:
-    """public_sub is named in __all__ so it must appear in subpackages."""
+def test_nested_pkg_public_sub_not_a_subpackage(nested_pkg: Package) -> None:
+    """public_sub's directory name is not listed in __all__, so it must not appear as a subpackage.
+
+    __all__ = ['PublicSub', 'top_level_func'] names the class, not the subpackage directory.
+    Per the design contract, only subpackages whose short name appears in __all__ are included.
+    """
     names = _subpackage_names(nested_pkg)
-    assert "nested_pkg.public_sub" in names
+    assert "nested_pkg.public_sub" not in names
+    assert "public_sub" not in names
 
 
 def test_nested_pkg_top_level_func_hoisted(nested_pkg: Package) -> None:
@@ -148,15 +154,9 @@ def test_nested_pkg_top_level_func_hoisted(nested_pkg: Package) -> None:
     assert "top_level_func" in _function_names(init_mod)
 
 
-def test_nested_pkg_public_sub_class_present(nested_pkg: Package) -> None:
-    """PublicSub class must be reachable — either hoisted or inside public_sub."""
-    all_class_names: set[str] = set()
-    for mod in nested_pkg.modules:
-        all_class_names |= _class_names(mod)
-    for sub in nested_pkg.subpackages:
-        for mod in sub.modules:
-            all_class_names |= _class_names(mod)
-    assert "PublicSub" in all_class_names
+def test_nested_pkg_no_subpackages(nested_pkg: Package) -> None:
+    """With __all__ listing only symbols (not subpackage names), subpackages is empty."""
+    assert nested_pkg.subpackages == ()
 
 
 # ---------------------------------------------------------------------------

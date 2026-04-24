@@ -41,8 +41,8 @@ def _all_module_names(pkg: Package) -> set[str]:
 # ---------------------------------------------------------------------------
 
 
-def test_single_file_returns_one_module_package(tmp_path: Path) -> None:
-    """A single .py file produces a Package with name == stem and one module."""
+def test_single_file_returns_module(tmp_path: Path) -> None:
+    """A single .py file produces a bare Module (not a Package) with name == stem."""
     py_file = _write(
         tmp_path / "mymodule.py",
         "def greet() -> str:\n    return 'hello'\n",
@@ -51,21 +51,19 @@ def test_single_file_returns_one_module_package(tmp_path: Path) -> None:
 
     result = build_package(py_file, config)
 
-    assert isinstance(result, Package)
+    assert isinstance(result, Module)
     assert result.name == "mymodule"
-    assert result.path == py_file
-    assert len(result.modules) == 1
-    assert result.subpackages == ()
 
 
 def test_single_file_module_has_correct_name(tmp_path: Path) -> None:
-    """The single Module inside the one-file Package carries the stem as its name."""
+    """A single .py file returns a Module whose name equals the file stem."""
     py_file = _write(tmp_path / "utils.py", "CONSTANT = 42\n")
     config = _default_config()
 
     result = build_package(py_file, config)
 
-    assert result.modules[0].name == "utils"
+    assert isinstance(result, Module)
+    assert result.name == "utils"
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +74,7 @@ def test_single_file_module_has_correct_name(tmp_path: Path) -> None:
 def test_flat_package_modules_populated(tmp_path: Path) -> None:
     """Flat __init__.py + 2 siblings → Package.modules is non-empty."""
     pkg = tmp_path / "mypkg"
-    _write(pkg / "__init__.py", "__all__ = ['alpha', 'beta']\n")
+    _write(pkg / "__init__.py", "")
     _write(pkg / "alpha.py", "def alpha() -> int:\n    return 1\n")
     _write(pkg / "beta.py", "def beta() -> int:\n    return 2\n")
     config = _default_config()

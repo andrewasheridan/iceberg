@@ -175,8 +175,8 @@ def _build_trie(
             # No __all__: include all regular modules plus the init module.
             all_direct = regular_modules_by_parts.get(parts, [])
             all_direct = [direct_module for direct_module in all_direct if direct_module.is_public]
-            # if init_module is not None:
-            #     all_direct.append(init_module)
+            if init_module is not None:
+                all_direct.append(init_module)
             direct_modules = tuple(sorted(all_direct, key=lambda m: m.name))
             subpackages = (_make_package(child) for child in sorted(child_parts_set))
             subpackages = sorted(
@@ -217,7 +217,8 @@ def build_package(root: Path, config: Config) -> Package | Module:
         config: Runtime configuration controlling workers, filters, etc.
 
     Returns:
-        A ``Package`` containing the full public API surface of *root*.
+        A ``Package`` containing the full public API surface of *root*. When
+        *root* is a single file, the bare ``Module`` is returned directly.
     """
     if root.is_file():
         source = root.read_text(encoding="utf-8")

@@ -123,14 +123,17 @@ def test_nested_package_three_levels_deep(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_src_layout_does_not_include_src_in_dotted_name(tmp_path: Path) -> None:
-    """When root is src/ (no __init__.py), pkg appears as 'pkg', not 'src.pkg'."""
+def test_root_name_is_first_dotted_component(tmp_path: Path) -> None:
+    """The root directory name is the first component of every dotted name.
+
+    root.parent is the naming boundary, so only names at or below root appear.
+    """
     src = tmp_path / "src"
     _write(src / "pkg" / "__init__.py")
     _write(src / "pkg" / "mod.py")
     config = _default_config()
 
-    result = discover(src, config)
+    result = discover(src / "pkg", config)
     by_name = _by_dotted(result)
 
     assert set(by_name.keys()) == {"pkg", "pkg.mod"}
@@ -283,13 +286,10 @@ def test_discovered_module_has_slots() -> None:
 def test_namespace_package_as_root_includes_namespace_in_dotted_name(
     tmp_path: Path,
 ) -> None:
-    """A namespace-package root (no __init__.py, valid identifier, not 'src'/'lib'/'source')
-    has its name included in all computed dotted names.
+    """A namespace-package root (no __init__.py) has its name included in all dotted names.
 
-    Regression guard: before the fix, calling discover() on a directory like
-    ``acme/`` (no __init__.py) would strip ``acme`` from every dotted name,
-    producing ``widgets`` and ``widgets.core`` instead of ``acme.widgets`` and
-    ``acme.widgets.core``.
+    The path is authoritative: root.parent is the naming boundary regardless of
+    whether root contains an __init__.py.
     """
     acme = tmp_path / "acme"
     _write(acme / "widgets" / "__init__.py")

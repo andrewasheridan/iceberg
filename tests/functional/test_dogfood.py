@@ -48,7 +48,7 @@ EXPECTED_PUBLIC_NAMES: frozenset[str] = frozenset(
 #     ^parents[0] = tests/functional
 #     ^parents[1] = tests
 #     ^parents[2] = repo root
-_ICEBERG_SRC: Path = Path(__file__).parents[2] / "src"
+_ICEBERG_SRC: Path = Path(__file__).parents[2] / "src" / "sheridan"
 
 
 @pytest.fixture(scope="module")
@@ -117,7 +117,7 @@ def test_iceberg_package_name(iceberg_package: Package) -> None:
 
 def test_iceberg_package_path(iceberg_package: Package) -> None:
     """Package.path must resolve to the iceberg source directory."""
-    assert iceberg_package.path.resolve() == _ICEBERG_SRC.resolve()
+    assert iceberg_package.path.resolve() == (_ICEBERG_SRC / "iceberg").resolve()
 
 
 def test_expected_public_names_present(iceberg_package: Package) -> None:

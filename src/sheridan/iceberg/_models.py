@@ -184,7 +184,7 @@ class Package:
     @property
     def _init_module(self) -> Module | None:
         for module in self.modules:
-            if module.name.startswith("__init__"):
+            if module.name == self.name:
                 return module
         return None
 

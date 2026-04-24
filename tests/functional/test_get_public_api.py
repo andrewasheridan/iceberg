@@ -70,8 +70,8 @@ def test_nonexistent_path_raises_invalid_path_error(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_single_file_returns_package_with_one_module(tmp_path: Path) -> None:
-    """A single .py file produces a one-module Package with the file's stem as name."""
+def test_single_file_returns_module(tmp_path: Path) -> None:
+    """A single .py file produces a Module with the file's stem as name."""
     src = tmp_path / "utils.py"
     src.write_text(
         """\
@@ -90,18 +90,13 @@ class Converter:
         encoding="utf-8",
     )
 
-    pkg = get_public_api(src, config=_CFG)
+    result = get_public_api(src, config=_CFG)
 
-    assert pkg.name == "utils"
-    assert pkg.path == src
-    assert len(pkg.modules) == 1
-    assert pkg.subpackages == ()
-
-    mod = pkg.modules[0]
-    assert mod.name == "utils"
-    assert "helper" in _function_names(mod)
-    assert "_private" not in _function_names(mod)
-    assert "Converter" in _class_names(mod)
+    assert isinstance(result, Module)
+    assert result.name == "utils"
+    assert "helper" in _function_names(result)
+    assert "_private" not in _function_names(result)
+    assert "Converter" in _class_names(result)
 
 
 # ---------------------------------------------------------------------------
@@ -386,10 +381,10 @@ async def fetch(url: str) -> bytes:
         encoding="utf-8",
     )
 
-    pkg = get_public_api(src, config=_CFG)
+    result = get_public_api(src, config=_CFG)
 
-    mod = pkg.modules[0]
-    func_map: dict[str, Function] = {f.name: f for f in mod.functions}
+    assert isinstance(result, Module)
+    func_map: dict[str, Function] = {f.name: f for f in result.functions}
     assert "fetch" in func_map
     assert func_map["fetch"].is_async is True
 
@@ -410,10 +405,10 @@ def square(n: int) -> int:
         encoding="utf-8",
     )
 
-    pkg = get_public_api(src, config=_CFG)
+    result = get_public_api(src, config=_CFG)
 
-    mod = pkg.modules[0]
-    func_map: dict[str, Function] = {f.name: f for f in mod.functions}
+    assert isinstance(result, Module)
+    func_map: dict[str, Function] = {f.name: f for f in result.functions}
     assert func_map["square"].returns == "int"
 
 
