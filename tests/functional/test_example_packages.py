@@ -154,6 +154,12 @@ def test_nested_pkg_top_level_func_hoisted(nested_pkg: Package) -> None:
     assert "top_level_func" in _function_names(init_mod)
 
 
+def test_nested_pkg_public_sub_hoisted(nested_pkg: Package) -> None:
+    """PublicSub is imported from public_sub subpackage and named in __all__; must be hoisted."""
+    init_mod = nested_pkg.modules[0]
+    assert "PublicSub" in _class_names(init_mod)
+
+
 def test_nested_pkg_no_subpackages(nested_pkg: Package) -> None:
     """With __all__ listing only symbols (not subpackage names), subpackages is empty."""
     assert nested_pkg.subpackages == ()
@@ -242,3 +248,14 @@ def test_mixed_pkg_private_module_not_in_any_module(mixed_pkg: Package, private_
     """_private_module must not be the name of any Module in the trie."""
     all_mod_names = {m.name for m in mixed_pkg.modules}
     assert private_name not in all_mod_names
+
+
+def test_mixed_pkg_public_module_present(mixed_pkg: Package) -> None:
+    """public_module is listed in __all__; it must appear as a Module in the package."""
+    assert "mixed_pkg.public_module" in _module_names(mixed_pkg)
+
+
+def test_mixed_pkg_public_module_has_members(mixed_pkg: Package) -> None:
+    """public_module must surface its own public members."""
+    public_mod = next(m for m in mixed_pkg.modules if m.name == "mixed_pkg.public_module")
+    assert "public_fn" in _function_names(public_mod)

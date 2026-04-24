@@ -18,6 +18,7 @@ Callers must assemble ``Package.subpackages`` separately.
 __all__ = ["ResolveReport", "resolve_init"]
 
 import ast
+import dataclasses
 from collections.abc import Mapping
 
 from sheridan.iceberg._config import Config
@@ -303,6 +304,8 @@ def _resolve_name(
         dotted_module, source_name = import_map[name]
         resolved = _lookup_in_sibling(name, source_name, dotted_module, sibling_modules)
         if resolved is not None:
+            if resolved.name != name:
+                resolved = dataclasses.replace(resolved, name=name)
             return resolved
 
     return local_index.get(name)

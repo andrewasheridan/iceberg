@@ -196,7 +196,7 @@ from .c import CONST_C
 
 
 def test_all_driven_aliased_import_resolved() -> None:
-    """import X as Y — local alias Y should be resolved from sibling's X."""
+    """import X as Y — the resolved symbol must use the local alias Y, not the source name X."""
     source = """
 __all__ = ["Y"]
 from .core import X as Y
@@ -205,7 +205,7 @@ from .core import X as Y
     sibling = _make_module("mypkg.core", functions=(fn,))
     module, _ = _resolve(source, siblings={"mypkg.core": sibling})
     assert len(module.functions) == 1
-    assert module.functions[0] == fn
+    assert module.functions[0].name == "Y"
 
 
 def test_all_locally_defined_name_attached() -> None:

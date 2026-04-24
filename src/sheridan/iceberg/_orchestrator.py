@@ -160,9 +160,17 @@ def _build_trie(
         if explicit_all is not None:
             # When __all__ is defined, hoist all public symbols into a single
             # package-level Module (the resolved init module) and suppress
-            # private sub-modules.  Only sub-packages explicitly named in
-            # __all__ are kept.
-            direct_modules: tuple[Module, ...] = (init_module,) if init_module is not None else ()
+            # private sub-modules.  Regular submodules and sub-packages are
+            # included only when their short name appears in __all__.
+            direct_modules_list: list[Module] = []
+            if init_module is not None:
+                direct_modules_list.append(init_module)
+
+            for mod in regular_modules_by_parts.get(parts, []):
+                if mod.name.split(".")[-1] in explicit_all:
+                    direct_modules_list.append(mod)
+
+            direct_modules: tuple[Module, ...] = tuple(sorted(direct_modules_list, key=lambda m: m.name))
 
             filtered_children = {child for child in child_parts_set if child[-1] in explicit_all}
             subpackages = tuple(
@@ -239,9 +247,10 @@ def build_package(root: Path, config: Config) -> Package | Module:
         for dm, module in zip(non_init_modules, visited_modules, strict=True):
             module_map[dm.dotted_name] = module
 
-    # 4. Resolve __init__.py files serially, shallowest first, so each
-    #    parent package is available in module_map before its children run.
-    sorted_inits = sorted(init_modules, key=lambda dm: len(dm.package_parts))
+    # 4. Resolve __init__.py files serially, deepest first, so each
+    #    sub-package init is in module_map before its parent init tries to
+    #    resolve imports from it.
+    sorted_inits = sorted(init_modules, key=lambda dm: len(dm.package_parts), reverse=True)
 
     # Track the __all__ for each package so _build_trie can filter modules and
     # subpackages accordingly.  A value of None means __all__ was absent.
