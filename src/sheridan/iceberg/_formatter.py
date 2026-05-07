@@ -254,16 +254,16 @@ def _to_plain(obj: Any) -> Any:
             return obj
 
 
-def format_json(package: Package) -> str:
-    """Render *package* as deterministic, indented JSON.
+def format_json(api: Package | Module) -> str:
+    """Render *api* as deterministic, indented JSON.
 
     ``frozenset`` fields are serialized as sorted lists so that output is
     stable across interpreter runs.
 
     Args:
-        package: The root package to serialize.
+        api: The root package or module to serialize.
 
     Returns:
         A JSON string with two-space indentation and sorted keys.
     """
-    return json.dumps(_to_plain(package), indent=2)
+    return json.dumps(_to_plain(api), indent=2)

@@ -173,11 +173,9 @@ def _build_trie(
             direct_modules: tuple[Module, ...] = tuple(sorted(direct_modules_list, key=lambda m: m.name))
 
             filtered_children = {child for child in child_parts_set if child[-1] in explicit_all}
-            subpackages = tuple(
-                sorted(
-                    (_make_package(child) for child in sorted(filtered_children)),
-                    key=lambda p: p.name,
-                )
+            subpackages = sorted(
+                (_make_package(child) for child in sorted(filtered_children)),
+                key=lambda p: p.name,
             )
         else:
             # No __all__: include all regular modules plus the init module.
@@ -186,9 +184,9 @@ def _build_trie(
             if init_module is not None:
                 all_direct.append(init_module)
             direct_modules = tuple(sorted(all_direct, key=lambda m: m.name))
-            subpackages = (_make_package(child) for child in sorted(child_parts_set))
+            all_subpackages = (_make_package(child) for child in sorted(child_parts_set))
             subpackages = sorted(
-                (subpackage for subpackage in subpackages if subpackage.is_public), key=lambda p: p.name
+                (subpackage for subpackage in all_subpackages if subpackage.is_public), key=lambda p: p.name
             )
 
         return Package(
