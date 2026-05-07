@@ -78,14 +78,6 @@ class SheridanIcebergCi:
         return await _base(source).with_exec(["uv", "run", "bandit", "-r", "src/"]).stdout()
 
     @function
-    async def docs(
-        self,
-        source: Annotated[dagger.Directory, DefaultPath(".")],
-    ) -> str:
-        """Build Zensical documentation."""
-        return await _base(source).with_exec(["uv", "run", "zensical", "build"]).stdout()
-
-    @function
     async def iceberg_check(
         self,
         source: Annotated[dagger.Directory, DefaultPath(".")],
@@ -109,7 +101,6 @@ class SheridanIcebergCi:
             ("typecheck", base.with_exec(["uv", "run", "mypy", "--strict", "src/"])),
             ("test", base.with_exec(["uv", "run", "pytest", "--cov"])),
             ("security", base.with_exec(["uv", "run", "bandit", "-r", "src/"])),
-            ("docs", base.with_exec(["uv", "run", "zensical", "build"])),
             ("iceberg", base.with_exec(["uv", "run", "iceberg", "src/sheridan/"])),
         ]
 
