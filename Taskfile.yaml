@@ -110,6 +110,11 @@ tasks:
       - cp README.md docs/index.md
       - uv run zensical serve
 
+  changelog:
+    desc: Generate/update CHANGELOG.md from conventional commits
+    cmds:
+      - uv run cz changelog {{.CLI_ARGS}}
+
   clean:
     desc: Remove build artifacts
     cmds:
