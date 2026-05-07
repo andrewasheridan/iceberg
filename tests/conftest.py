@@ -1,4 +1,4 @@
-"""Shared fixtures for sheridan-iceberg tests."""
+"""Shared fixtures for iceberg tests."""
 
 import textwrap
 from collections.abc import Callable
@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 
 
-@pytest.fixture()
-def tmp_py(tmp_path: Path) -> Callable[..., Path]:
+@pytest.fixture
+def tmp_py(tmp_path: Path) -> Callable[[str, str], Path]:
     """Factory fixture that writes a .py file and returns its Path.
 
     Args:

@@ -27,19 +27,19 @@ Changelog = "https://github.com/andrewasheridan/iceberg/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [
-    "ruff>=0.15.7",
-    "mypy>=1.19.1",
-    "pytest>=9.0.2",
+    "ruff>=0.15.10",
+    "mypy>=1.20.0",
+    "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
-    "commitizen>=4.13.9",
+    "commitizen>=4.13.10",
     "pre-commit>=4.5.1",
     "bandit[toml]>=1.9.4",
-    "zensical>=0.0.30",
+    "zensical>=0.0.32",
     "mkdocstrings[python]>=1.0.3",
 ]
 
 [project.scripts]
-iceberg = "sheridan.iceberg.cli:main"
+iceberg = "sheridan.iceberg._cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sheridan"]
@@ -76,8 +76,8 @@ extend-select = [
 [tool.ruff.lint.per-file-ignores]
 # Ignore `D` errors in tests dir
 "**/tests/**" = ["D"]
-# Ignore all files that start in `_test.py`.
 "test_*.py" = ["D"]
+"**/examples/**" = ["D"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["sheridan"]
@@ -118,6 +118,7 @@ version_files = [
     "pyproject.toml:^version",
 ]
 tag_format = "v$version"
+update_changelog_on_bump = true
 
 [dependency-groups]
 dev = [

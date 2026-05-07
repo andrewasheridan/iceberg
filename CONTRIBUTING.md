@@ -74,8 +74,3 @@ task check        # all gates (read-only: lint:check, format:check, …)
 Per the project conventions, **propose the dependency first**. The
 `dependency-auditor` agent reviews all new dependencies before they are added.
 Do not open PRs that add unapproved dependencies.
-
-## Architecture Decision Records
-
-Significant decisions are recorded as ADRs in `docs/decisions/`. Use the
-`adr-writer` agent or follow the template in that directory.
