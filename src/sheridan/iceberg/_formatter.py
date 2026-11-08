@@ -14,6 +14,7 @@ from sheridan.iceberg._models import (
     Module,
     Package,
     Parameter,
+    Reference,
 )
 
 # ---------------------------------------------------------------------------
@@ -106,6 +107,31 @@ def _assignment_str(assignment: Assignment) -> str:
     return assignment.name
 
 
+def _reference_str(reference: Reference) -> str:
+    """Render an unresolved public name as the import statement that binds it.
+
+    Args:
+        reference: The reference to render.
+
+    Returns:
+        ``from module import attribute [as name]``, ``import module [as name]``,
+        or ``name (unresolved)`` when no binding import was found.
+    """
+    if reference.module is None:
+        return f"{reference.name} (unresolved)"
+
+    if reference.attribute is not None:
+        label = f"from {reference.module} import {reference.attribute}"
+        bound = reference.attribute
+    else:
+        label = f"import {reference.module}"
+        bound = reference.module.split(".")[0]
+
+    if bound != reference.name:
+        label += f" as {reference.name}"
+    return label
+
+
 def _render_lines(node: Package | Module | Class, prefix: str) -> list[str]:
     """Recursively collect tree lines for *node* using *prefix* for indentation.
 
@@ -136,7 +162,7 @@ def _children(
 ) -> list[tuple[str, Package | Module | Class | None]]:
     """Return an ordered list of ``(label, child_node_or_None)`` pairs.
 
-    Leaf items (assignments, functions) have ``None`` as the second element
+    Leaf items (assignments, functions, references) have ``None`` as the second element
     because they have no subtree to recurse into. Container items (modules,
     subpackages, classes) carry the node itself so ``_render_lines`` can
     recurse.
@@ -163,6 +189,8 @@ def _children(
                         items.append((f"class {cls.name}", cls))
                     for fn in m.functions:
                         items.append((_function_str(fn), None))
+                    for ref in m.references:
+                        items.append((_reference_str(ref), None))
                 else:
                     items.append((f"module {m.name}", m))
             for sp in node.subpackages:
@@ -177,6 +205,8 @@ def _children(
                 items.append((f"class {cls.name}", cls))
             for fn in node.functions:
                 items.append((_function_str(fn), None))
+            for ref in node.references:
+                items.append((_reference_str(ref), None))
             return items
 
         case Class():

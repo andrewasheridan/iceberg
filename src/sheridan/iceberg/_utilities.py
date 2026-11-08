@@ -5,9 +5,10 @@ They operate on the stdlib ``ast`` module and carry no external dependencies
 beyond the standard library.
 """
 
-__all__ = ["extract_all", "infer_all"]
+__all__ = ["collect_imports", "extract_all", "infer_all", "resolve_relative"]
 
 import ast
+from collections.abc import Iterator
 
 
 def _collect_string_elements(node: ast.expr) -> frozenset[str] | None:
@@ -135,3 +136,103 @@ def infer_all(tree: ast.Module) -> frozenset[str]:
                 pass
 
     return frozenset(names)
+
+
+def resolve_relative(package: str, module: str | None, level: int) -> str:
+    """Compute the fully-qualified module name for a relative import.
+
+    Args:
+        package: Dotted name of the package the importing module lives in
+            (the anchor for a single leading dot).
+        module: The module part after the dots, or ``None`` for ``from . import``.
+        level: The number of leading dots (always >= 1 for relative imports).
+
+    Returns:
+        The fully-qualified dotted module name.
+    """
+    # level=1 means "this package"; level>1 means walk up that many levels.
+    parts = package.split(".")
+    anchor = ".".join(parts[: len(parts) - (level - 1)])
+
+    if not module:
+        return anchor
+
+    return f"{anchor}.{module}" if anchor else module
+
+
+def _module_level_statements(body: list[ast.stmt]) -> Iterator[ast.stmt]:
+    """Yield statements that execute at module import time.
+
+    Descends into ``if`` / ``try`` blocks (all branches) because names bound
+    there are still module globals, e.g. the common ``try: from ._version
+    import version`` fallback pattern. Function and class bodies are skipped.
+
+    Args:
+        body: A list of statements, typically ``ast.Module.body``.
+
+    Yields:
+        Each module-level statement, depth first, in source order.
+    """
+    for node in body:
+        yield node
+        match node:
+            case ast.If(body=if_body, orelse=orelse):
+                yield from _module_level_statements(if_body)
+                yield from _module_level_statements(orelse)
+
+            case (
+                ast.Try(body=try_body, handlers=handlers, orelse=orelse, finalbody=finalbody)
+                | ast.TryStar(body=try_body, handlers=handlers, orelse=orelse, finalbody=finalbody)
+            ):
+                yield from _module_level_statements(try_body)
+                for handler in handlers:
+                    yield from _module_level_statements(handler.body)
+                yield from _module_level_statements(orelse)
+                yield from _module_level_statements(finalbody)
+
+            case _:
+                pass
+
+
+def collect_imports(tree: ast.Module, package: str) -> dict[str, tuple[str, str | None]]:
+    """Map each name bound by a module-level import to where it came from.
+
+    Relative imports are resolved against *package*. The first binding of a
+    name wins, so in ``try: from .a import x`` / ``except: from .b import x``
+    the ``try`` branch is reported.
+
+    Args:
+        tree: Parsed module AST.
+        package: Dotted name of the package the module lives in, used as the
+            anchor for relative imports. For an ``__init__.py`` this is the
+            package itself; for a regular module it is the parent package.
+
+    Returns:
+        A mapping from local name to ``(module, attribute)``. ``attribute`` is
+        the original imported name for ``from module import attribute`` and
+        ``None`` for ``import module`` bindings. Star imports are ignored.
+    """
+    result: dict[str, tuple[str, str | None]] = {}
+
+    for node in _module_level_statements(tree.body):
+        match node:
+            case ast.ImportFrom(module=module, names=aliases, level=level):
+                source = resolve_relative(package, module, level) if level else (module or "")
+                for alias in aliases:
+                    if alias.name == "*":
+                        continue
+                    result.setdefault(alias.asname or alias.name, (source, alias.name))
+
+            case ast.Import(names=aliases):
+                for alias in aliases:
+                    if alias.asname:
+                        result.setdefault(alias.asname, (alias.name, None))
+                    else:
+                        # ``import a.b`` binds ``a``.
+                        top = alias.name.split(".")[0]
+                        result.setdefault(top, (top, None))
+
+            case _:
+                pass
+
+    return result

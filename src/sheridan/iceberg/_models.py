@@ -8,6 +8,7 @@ __all__ = [
     "Module",
     "Package",
     "Parameter",
+    "Reference",
     "ResolveReport",
 ]
 
@@ -102,6 +103,40 @@ class Assignment:
 
 
 @dataclass(frozen=True, slots=True)
+class Reference:
+    """A public name that iceberg could not resolve to a definition.
+
+    References cover names that a module exports (usually via ``__all__``) but
+    whose definition lives outside the analyzed source, for example a
+    re-export from another distribution (``from math import sqrt``), or a name
+    that is never bound statically at all (for example one provided by a
+    module-level ``__getattr__``). They are reported rather than dropped so
+    that the public surface never silently shrinks.
+
+    Attributes:
+        name: The public name as it is exported.
+        module: Fully-qualified module the name was imported from, or ``None``
+            when no import binding the name was found.
+        attribute: The original attribute name for ``from module import
+            attribute`` imports, or ``None`` for ``import module`` bindings and
+            names with no import.
+    """
+
+    name: str
+    """Public name as it is exported."""
+
+    module: str | None
+    """Fully-qualified source module, or ``None`` when no import binds the name."""
+
+    attribute: str | None
+    """Original attribute name for ``from ... import`` bindings, otherwise ``None``."""
+
+    @property
+    def is_public(self) -> bool:
+        return not self.name.startswith("_")
+
+
+@dataclass(frozen=True, slots=True)
 class Class:
     """A class in the captured public API.
 
@@ -138,6 +173,8 @@ class Module:
         assignments: Public module-level assignments in source order.
         classes: Public classes in source order.
         functions: Public functions in source order.
+        references: Public names that could not be resolved to a definition,
+            sorted by name.
     """
 
     name: str
@@ -151,6 +188,9 @@ class Module:
 
     functions: tuple[Function, ...]
     """Public functions defined in this module, in source order."""
+
+    references: tuple[Reference, ...] = ()
+    """Public names that could not be resolved to a definition, sorted by name."""
 
     @property
     def is_public(self) -> bool:
@@ -204,6 +244,12 @@ class Package:
     def functions(self) -> tuple[Function, ...]:
         if init_module := self._init_module:
             return init_module.functions
+        return ()
+
+    @property
+    def references(self) -> tuple[Reference, ...]:
+        if init_module := self._init_module:
+            return init_module.references
         return ()
 
     @property

@@ -33,6 +33,7 @@ def test_all_equals_expected_names() -> None:
         "InvalidPathError",
         "ParseError",
         "ConfigError",
+        "Reference",
         "utilities",
     }
     assert set(iceberg.__all__) == expected

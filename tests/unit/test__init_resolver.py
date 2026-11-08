@@ -5,7 +5,7 @@ import pytest
 from sheridan.iceberg._config import Config
 from sheridan.iceberg._exceptions import ParseError
 from sheridan.iceberg._init_resolver import ResolveReport, resolve_init
-from sheridan.iceberg._models import Assignment, Class, Function, Module
+from sheridan.iceberg._models import Assignment, Class, Function, Module, Reference
 
 # ---------------------------------------------------------------------------
 # Shared helpers / fixtures
@@ -499,3 +499,176 @@ from . import bare_fn
     sibling = _make_module("mypkg", functions=(fn,))
     module, _ = _resolve(source, package="mypkg", siblings={"mypkg": sibling})
     assert module.functions[0] == fn
+
+
+# ---------------------------------------------------------------------------
+# Unresolved names become References
+# ---------------------------------------------------------------------------
+
+
+def test_unresolved_external_reexport_becomes_reference() -> None:
+    source = """
+__all__ = ["sqrt"]
+from math import sqrt
+"""
+    module, report = _resolve(source)
+    assert module.references == (Reference(name="sqrt", module="math", attribute="sqrt"),)
+    assert report.unresolved == ("sqrt",)
+
+
+def test_unresolved_aliased_external_reexport_keeps_original_attribute() -> None:
+    source = """
+__all__ = ["Ordered"]
+from collections import OrderedDict as Ordered
+"""
+    module, _ = _resolve(source)
+    assert module.references == (Reference(name="Ordered", module="collections", attribute="OrderedDict"),)
+
+
+def test_unresolved_module_import_becomes_reference() -> None:
+    source = """
+__all__ = ["json"]
+import json
+"""
+    module, _ = _resolve(source)
+    assert module.references == (Reference(name="json", module="json", attribute=None),)
+
+
+def test_unbound_name_becomes_reference_without_source() -> None:
+    source = """
+__all__ = ["ghost"]
+"""
+    module, _ = _resolve(source)
+    assert module.references == (Reference(name="ghost", module=None, attribute=None),)
+
+
+def test_intra_package_lookup_failure_reference_is_absolute() -> None:
+    source = """
+__all__ = ["missing"]
+from ._core import missing
+"""
+    module, _ = _resolve(source, siblings={"mypkg._core": _make_module("mypkg._core")})
+    assert module.references == (Reference(name="missing", module="mypkg._core", attribute="missing"),)
+
+
+def test_resolved_names_are_not_references() -> None:
+    source = """
+__all__ = ["real_func"]
+from .core import real_func
+"""
+    sibling = _make_module("mypkg.core", functions=(_make_function("real_func"),))
+    module, _ = _resolve(source, siblings={"mypkg.core": sibling})
+    assert module.references == ()
+
+
+def test_child_names_are_not_references() -> None:
+    source = """
+__all__ = ["sub", "helpers"]
+"""
+    module, report = _resolve(source, subpackage_names=frozenset({"sub", "helpers"}))
+    assert module.references == ()
+    assert report.unresolved == ()
+
+
+def test_no_all_external_imports_are_not_public() -> None:
+    source = """
+from pathlib import Path
+"""
+    module, _ = _resolve(source)
+    assert module.references == ()
+
+
+# ---------------------------------------------------------------------------
+# Imports nested in try / if blocks
+# ---------------------------------------------------------------------------
+
+
+def test_try_except_reexport_resolved_from_first_branch() -> None:
+    source = """
+__all__ = ["parse"]
+try:
+    from ._fast import parse
+except ImportError:
+    from ._slow import parse
+"""
+    fast = _make_function("parse")
+    siblings = {
+        "mypkg._fast": _make_module("mypkg._fast", functions=(fast,)),
+        "mypkg._slow": _make_module("mypkg._slow", functions=(_make_function("other"),)),
+    }
+    module, report = _resolve(source, siblings=siblings)
+    assert module.functions == (fast,)
+    assert report.unresolved == ()
+
+
+# ---------------------------------------------------------------------------
+# Absolute imports: whole root package and namespace prefixes
+# ---------------------------------------------------------------------------
+
+
+def test_absolute_import_from_elsewhere_in_root_package_resolved() -> None:
+    source = """
+__all__ = ["fn"]
+from mypkg.other import fn
+"""
+    fn = _make_function("fn")
+    module, _ = _resolve(
+        source, package="mypkg.sub", siblings={"mypkg.other": _make_module("mypkg.other", functions=(fn,))}
+    )
+    assert module.functions == (fn,)
+
+
+def test_namespace_prefixed_absolute_import_resolved() -> None:
+    source = """
+__all__ = ["get_public_api"]
+from sheridan.iceberg._api import get_public_api
+"""
+    fn = _make_function("get_public_api")
+    module, report = resolve_init(
+        init_source=source,
+        dotted_package="iceberg",
+        sibling_modules={"iceberg._api": _make_module("iceberg._api", functions=(fn,))},
+        subpackage_names=frozenset(),
+        config=_DEFAULT_CONFIG,
+        namespace_parents=("home", "src", "sheridan"),
+    )
+    assert module.functions == (fn,)
+    assert report.unresolved == ()
+
+
+def test_namespace_prefix_must_match_directories_above_root() -> None:
+    source = """
+__all__ = ["get_public_api"]
+from other.iceberg._api import get_public_api
+"""
+    fn = _make_function("get_public_api")
+    module, report = resolve_init(
+        init_source=source,
+        dotted_package="iceberg",
+        sibling_modules={"iceberg._api": _make_module("iceberg._api", functions=(fn,))},
+        subpackage_names=frozenset(),
+        config=_DEFAULT_CONFIG,
+        namespace_parents=("src", "sheridan"),
+    )
+    assert module.functions == ()
+    assert module.references == (
+        Reference(name="get_public_api", module="other.iceberg._api", attribute="get_public_api"),
+    )
+    assert report.unresolved == ("get_public_api",)
+
+
+def test_multi_level_namespace_prefix_resolved() -> None:
+    source = """
+__all__ = ["fn"]
+from org.team.pkg.core import fn
+"""
+    fn = _make_function("fn")
+    module, _ = resolve_init(
+        init_source=source,
+        dotted_package="pkg",
+        sibling_modules={"pkg.core": _make_module("pkg.core", functions=(fn,))},
+        subpackage_names=frozenset(),
+        config=_DEFAULT_CONFIG,
+        namespace_parents=("src", "org", "team"),
+    )
+    assert module.functions == (fn,)

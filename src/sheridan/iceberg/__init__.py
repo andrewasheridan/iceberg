@@ -11,6 +11,7 @@ __all__ = [
     "Package",
     "Parameter",
     "ParseError",
+    "Reference",
     "get_public_api",
     "utilities",
 ]
@@ -18,4 +19,4 @@ __all__ = [
 from sheridan.iceberg import utilities
 from sheridan.iceberg._api import get_public_api
 from sheridan.iceberg._exceptions import ConfigError, IcebergError, InvalidPathError, ParseError
-from sheridan.iceberg._models import Assignment, Class, Function, Module, Package, Parameter
+from sheridan.iceberg._models import Assignment, Class, Function, Module, Package, Parameter, Reference

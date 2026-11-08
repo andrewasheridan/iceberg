@@ -6,6 +6,10 @@ Public names are determined as follows:
   there are considered public.
 - Otherwise every top-level name that does **not** start with ``_`` is public.
 
+Names listed in ``__all__`` that are not defined in the module itself (for
+example re-exports of imported names) are captured as ``Reference`` entries so
+they are never silently dropped.
+
 PEP 695 ``type X = int`` statements are captured as ``Assignment`` with
 ``annotation="TypeAlias"``. This maps the new syntax onto the same model
 used for ``X: TypeAlias = int`` style aliases so downstream tools see a
@@ -19,8 +23,8 @@ __all__ = ["visit_module"]
 import ast
 
 from sheridan.iceberg._exceptions import ParseError
-from sheridan.iceberg._models import Assignment, Class, Function, Module, Parameter
-from sheridan.iceberg._utilities import extract_all, infer_all
+from sheridan.iceberg._models import Assignment, Class, Function, Module, Parameter, Reference
+from sheridan.iceberg._utilities import collect_imports, extract_all, infer_all
 
 
 def visit_module(source: str, dotted_name: str) -> Module:
@@ -76,11 +80,17 @@ def visit_module(source: str, dotted_name: str) -> Module:
             case _:
                 pass
 
+    references: tuple[Reference, ...] = ()
+    if explicit_all is not None:
+        defined = {a.name for a in assignments} | {c.name for c in classes} | {f.name for f in functions}
+        references = _build_references(tree, explicit_all - defined, dotted_name.rpartition(".")[0])
+
     return Module(
         name=dotted_name,
         assignments=tuple(assignments),
         classes=tuple(classes),
         functions=tuple(functions),
+        references=references,
     )
 
 
@@ -107,6 +117,26 @@ def _top_level_public_names(
         return explicit_all
 
     return infer_all(tree)
+
+
+def _build_references(tree: ast.Module, names: frozenset[str], package: str) -> tuple[Reference, ...]:
+    """Build ``Reference`` entries for exported names with no local definition.
+
+    Args:
+        tree: Parsed module AST.
+        names: Exported names that were not captured as a definition.
+        package: Dotted name of the containing package, used to absolutize
+            relative imports.
+
+    Returns:
+        One ``Reference`` per name, sorted by name.
+    """
+    imports = collect_imports(tree, package)
+    references: list[Reference] = []
+    for name in sorted(names):
+        module, attribute = imports.get(name, (None, None))
+        references.append(Reference(name=name, module=module, attribute=attribute))
+    return tuple(references)
 
 
 def _build_function(

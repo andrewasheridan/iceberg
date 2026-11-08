@@ -38,37 +38,52 @@ def _visit_worker(discovered: DiscoveredModule) -> Module:
     return visit_module(source, discovered.dotted_name)
 
 
-def _subpackage_names_at_level(
-    package_parts: tuple[str, ...],
-    all_discovered: tuple[DiscoveredModule, ...],
-) -> frozenset[str]:
-    """Return the names of direct sub-packages under a given package.
+def _namespace_parents(root: Path) -> tuple[str, ...]:
+    """Return the identifier-named directories above *root*, outermost first.
 
-    A direct sub-package is one whose ``package_parts`` is exactly one
-    element longer than *package_parts* and whose prefix matches.
+    These let ``resolve_init`` recognize absolute imports such as
+    ``sheridan.iceberg._api`` when the analyzed root is ``src/sheridan/iceberg``
+    (and so is named ``iceberg``). The walk stops at the first directory whose
+    name is not a valid Python identifier.
 
     Args:
-        package_parts: The ``package_parts`` tuple of the init module being
-            resolved.
+        root: The analyzed root directory.
+
+    Returns:
+        A tuple of directory names, e.g. ``("src", "sheridan")``.
+    """
+    names: list[str] = []
+    for parent in root.parents:
+        if not parent.name.isidentifier():
+            break
+        names.append(parent.name)
+    return tuple(reversed(names))
+
+
+def _child_names_at_level(
+    init_dotted_name: str,
+    all_discovered: tuple[DiscoveredModule, ...],
+) -> frozenset[str]:
+    """Return the short names of everything directly below a package.
+
+    That is every sub-module, sub-package, and namespace sub-directory
+    (a directory without ``__init__.py`` that still contains modules).
+
+    Args:
+        init_dotted_name: Dotted name of the package itself.
         all_discovered: All discovered modules from the full walk.
 
     Returns:
-        A frozenset of short names (not dotted) for each direct sub-package.
+        A frozenset of short names (not dotted) for each direct child.
     """
+    own_parts = init_dotted_name.split(".")
+    depth = len(own_parts)
     names: set[str] = set()
 
     for dm in all_discovered:
-        if not dm.is_init:
-            continue
-
-        if len(dm.package_parts) != len(package_parts) + 1:
-            continue
-
-        if dm.package_parts[: len(package_parts)] != package_parts:
-            continue
-
-        # The last part of this init's package_parts is the sub-package name.
-        names.add(dm.package_parts[-1])
+        parts = dm.dotted_name.split(".")
+        if len(parts) > depth and parts[:depth] == own_parts:
+            names.add(parts[depth])
 
     return frozenset(names)
 
@@ -253,10 +268,11 @@ def build_package(root: Path, config: Config) -> Package | Module:
     # Track the __all__ for each package so _build_trie can filter modules and
     # subpackages accordingly.  A value of None means __all__ was absent.
     package_all_map: dict[str, frozenset[str] | None] = {}
+    namespace_parents = _namespace_parents(root)
 
     for init_module in sorted_inits:
         source = init_module.source_path.read_text(encoding="utf-8")
-        subpackage_names = _subpackage_names_at_level(init_module.package_parts, all_discovered)
+        child_names = _child_names_at_level(init_module.dotted_name, all_discovered)
 
         # Extract __all__ from the init source to record for the trie step.
         try:
@@ -270,8 +286,9 @@ def build_package(root: Path, config: Config) -> Package | Module:
             source,
             init_module.dotted_name,
             module_map,
-            subpackage_names,
+            child_names,
             config,
+            namespace_parents=namespace_parents,
         )
         module_map[init_module.dotted_name] = module
 

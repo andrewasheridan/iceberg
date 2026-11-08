@@ -35,6 +35,7 @@ EXPECTED_PUBLIC_NAMES: frozenset[str] = frozenset(
         "InvalidPathError",
         "ParseError",
         "ConfigError",
+        "Reference",
     }
 )
 
@@ -134,3 +135,16 @@ def test_expected_public_names_present(iceberg_package: Package) -> None:
         f"package trie: {sorted(missing)}.  Either the symbols were removed "
         f"from the implementation or EXPECTED_PUBLIC_NAMES needs updating."
     )
+
+
+def test_expected_public_names_present_when_rooted_at_inner_package() -> None:
+    """Pointing iceberg at ``src/sheridan/iceberg`` (not ``src/sheridan``) must
+    still resolve the ``from sheridan.iceberg... import`` re-exports in the
+    package's ``__init__.py``.
+    """
+    api = get_public_api(_ICEBERG_SRC / "iceberg")
+    assert isinstance(api, Package)
+    assert api.name == "iceberg"
+    missing = EXPECTED_PUBLIC_NAMES - _collect_public_names(api)
+    assert not missing, f"Missing when rooted at the inner package: {sorted(missing)}"
+    assert api.references == ()

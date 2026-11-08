@@ -16,6 +16,7 @@ from sheridan.iceberg._models import (
     Module,
     Package,
     Parameter,
+    Reference,
 )
 
 # ---------------------------------------------------------------------------
@@ -741,3 +742,80 @@ def test_format_tree_case_10_namespace_root_golden() -> None:
 
     expected = "package acme.widgets\n└── module acme.widgets.core\n    └── def make_widget(name: str) -> str"
     assert result == expected
+
+
+# ---------------------------------------------------------------------------
+# References
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("reference", "expected"),
+    [
+        (Reference(name="sqrt", module="math", attribute="sqrt"), "from math import sqrt"),
+        (
+            Reference(name="Ordered", module="collections", attribute="OrderedDict"),
+            "from collections import OrderedDict as Ordered",
+        ),
+        (Reference(name="json", module="json", attribute=None), "import json"),
+        (Reference(name="os", module="os", attribute=None), "import os"),
+        (Reference(name="la", module="numpy.linalg", attribute=None), "import numpy.linalg as la"),
+        (Reference(name="ghost", module=None, attribute=None), "ghost (unresolved)"),
+    ],
+)
+def test_format_tree_renders_module_references(reference: Reference, expected: str) -> None:
+    module = Module(name="m", assignments=(), classes=(), functions=(), references=(reference,))
+    assert format_tree(module) == f"module m\n└── {expected}"
+
+
+def test_format_tree_hoists_init_references_to_package_level() -> None:
+    init_mod = Module(
+        name="pkg",
+        assignments=(),
+        classes=(),
+        functions=(),
+        references=(Reference(name="sqrt", module="math", attribute="sqrt"),),
+    )
+    pkg = Package(name="pkg", path=Path("/fake"), modules=(init_mod,), subpackages=())
+    assert format_tree(pkg) == "package pkg\n└── from math import sqrt"
+
+
+def test_format_json_includes_references() -> None:
+    module = Module(
+        name="m",
+        assignments=(),
+        classes=(),
+        functions=(),
+        references=(Reference(name="json", module="json", attribute=None),),
+    )
+    data = json.loads(format_json(module))
+    assert data["references"] == [{"name": "json", "module": "json", "attribute": None}]
+
+
+def _case_tree(*parts: str) -> str:
+    path = Path(__file__).parent.parent.parent / "cases" / Path(*parts)
+    return format_tree(get_public_api(path, config=Config(max_workers=1)))
+
+
+def test_format_tree_case_11_golden() -> None:
+    """Golden test: unresolved re-exports are reported as references (cases/case_11)."""
+    assert _case_tree("case_11") == (
+        "package case_11\n"
+        "├── def area(radius: float) -> float\n"
+        "├── from collections import OrderedDict as Ordered\n"
+        "├── import json\n"
+        "├── lazy_thing (unresolved)\n"
+        "└── from math import sqrt"
+    )
+
+
+def test_format_tree_case_12_golden() -> None:
+    """Golden test: re-exports bound inside try/except are resolved (cases/case_12)."""
+    assert _case_tree("case_12") == "package case_12\n├── version: str\n└── def parse(text: str) -> list[str]"
+
+
+def test_format_tree_case_13_golden() -> None:
+    """Golden test: namespace-prefixed absolute imports resolve when the root is
+    the inner package (cases/case_13)."""
+    assert _case_tree("case_13", "src", "acme", "widgets") == "package widgets\n└── def make_widget(name: str) -> str"
+    assert _case_tree("case_13", "src", "acme") == "package acme.widgets\n└── def make_widget(name: str) -> str"

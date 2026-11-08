@@ -23,8 +23,8 @@ from collections.abc import Mapping
 
 from sheridan.iceberg._config import Config
 from sheridan.iceberg._exceptions import ParseError
-from sheridan.iceberg._models import Assignment, Class, Function, Module, ResolveReport
-from sheridan.iceberg._utilities import extract_all, infer_all
+from sheridan.iceberg._models import Assignment, Class, Function, Module, Reference, ResolveReport
+from sheridan.iceberg._utilities import collect_imports, extract_all, infer_all
 from sheridan.iceberg._visitor import visit_module
 
 # ---------------------------------------------------------------------------
@@ -38,6 +38,8 @@ def resolve_init(
     sibling_modules: Mapping[str, Module],
     subpackage_names: frozenset[str],
     config: Config,
+    *,
+    namespace_parents: tuple[str, ...] = (),
 ) -> tuple[Module, ResolveReport]:
     """Resolve an ``__init__.py`` source into a ``Module`` with re-exports attached.
 
@@ -50,7 +52,8 @@ def resolve_init(
     2. If the name is defined locally in the init file, use whatever
        ``visit_module`` captured.
     3. If the name cannot be resolved from either source, record it in
-       ``ResolveReport.unresolved`` — no exception is raised.
+       ``ResolveReport.unresolved`` and attach a ``Reference`` describing
+       where it was imported from (if anywhere) — no exception is raised.
 
     ``config.include_subpackages_in_all`` is intentionally ignored here;
     subpackage visibility is the orchestrator's concern.
@@ -60,10 +63,15 @@ def resolve_init(
         dotted_package: Fully-qualified package name (e.g. ``"my_pkg.sub"``).
         sibling_modules: Mapping from dotted module name to ``Module`` for all
             modules visible to this init file.
-        subpackage_names: Names of direct sub-packages under this package.
-            Used only to avoid recording subpackage names as unresolved — they
-            are not attached to the returned ``Module``.
+        subpackage_names: Names of direct sub-packages and sub-modules under
+            this package. Used only to avoid recording them as unresolved —
+            they are not attached to the returned ``Module``.
         config: Iceberg runtime configuration.
+        namespace_parents: Names of the directories above the analyzed root,
+            outermost first (e.g. ``("src", "sheridan")`` for a root of
+            ``src/sheridan/iceberg``). Absolute imports spelled with a trailing
+            run of these as a prefix (``from sheridan.iceberg._api import x``)
+            are treated as intra-package imports.
 
     Returns:
         A two-tuple of ``(module, report)`` where *module* is the resolved
@@ -83,7 +91,8 @@ def resolve_init(
     local_module = visit_module(init_source, dotted_package)
 
     explicit_all = extract_all(tree)
-    import_map = _build_import_map(tree, dotted_package)
+    all_imports = collect_imports(tree, dotted_package)
+    import_map = _build_import_map(all_imports, dotted_package, namespace_parents)
     public_names = _compute_public_names(tree, explicit_all, import_map)
 
     # Index locally-captured objects by name for fast lookup.
@@ -92,6 +101,7 @@ def resolve_init(
     assignments: list[Assignment] = []
     classes: list[Class] = []
     functions: list[Function] = []
+    references: list[Reference] = []
     unresolved: list[str] = []
 
     for name in sorted(public_names):
@@ -103,6 +113,8 @@ def resolve_init(
 
         if obj is None:
             unresolved.append(name)
+            module_name, attribute = all_imports.get(name, (None, None))
+            references.append(Reference(name=name, module=module_name, attribute=attribute))
             continue
 
         match obj:
@@ -118,6 +130,7 @@ def resolve_init(
         assignments=tuple(assignments),
         classes=tuple(classes),
         functions=tuple(functions),
+        references=tuple(references),
     )
 
     return module, ResolveReport(unresolved=tuple(unresolved))
@@ -132,67 +145,65 @@ _Symbol = Assignment | Class | Function
 """Type alias for the three concrete symbol types that can be resolved from an init module."""
 
 
-def _build_import_map(tree: ast.Module, dotted_package: str) -> dict[str, tuple[str, str]]:
-    """Map each imported name to ``(dotted_module, original_name)``.
+def _build_import_map(
+    all_imports: Mapping[str, tuple[str, str | None]],
+    dotted_package: str,
+    namespace_parents: tuple[str, ...] = (),
+) -> dict[str, tuple[str, str]]:
+    """Select the ``from ... import`` bindings that point inside the analyzed tree.
 
-    Handles:
-    - Relative imports with no module part: ``from . import X``
-    - Relative imports with a sibling path: ``from .sibling import X``
-    - Relative imports with a deeper path: ``from .sub.deep import X``
-    - Absolute imports that name a module inside the same package.
+    Handles relative imports (already absolutized by ``collect_imports``) and
+    absolute imports that name a module under the same root package, including
+    absolute imports spelled with a namespace prefix above the analyzed root
+    (see ``namespace_parents``).
 
     Args:
-        tree: Parsed module AST.
+        all_imports: Output of ``collect_imports`` for the init module.
         dotted_package: Fully-qualified package name of the init being resolved.
+        namespace_parents: Directory names above the analyzed root, outermost
+            first.
 
     Returns:
-        A mapping from local alias to ``(dotted_module_name, original_name)``.
+        A mapping from local alias to ``(dotted_module_name, original_name)``
+        where ``dotted_module_name`` uses the analyzed tree's own naming.
     """
+    root_package = dotted_package.split(".")[0]
     result: dict[str, tuple[str, str]] = {}
 
-    for node in tree.body:
-        match node:
-            case ast.ImportFrom(module=module, names=aliases, level=level) if level is not None and level > 0:
-                # Relative import: level is the number of leading dots.
-                resolved_module = _resolve_relative(dotted_package, module, level)
-                for alias in aliases:
-                    local_name = alias.asname if alias.asname else alias.name
-                    result[local_name] = (resolved_module, alias.name)
+    for local_name, (module, attribute) in all_imports.items():
+        if attribute is None:
+            continue
 
-            case ast.ImportFrom(module=module, names=aliases, level=0) if module is not None:
-                # Absolute import — only consider siblings inside our package.
-                pkg_prefix = dotted_package + "."
-                if module == dotted_package or module.startswith(pkg_prefix):
-                    for alias in aliases:
-                        local_name = alias.asname if alias.asname else alias.name
-                        result[local_name] = (module, alias.name)
-
-            case _:
-                pass
+        normalized = _strip_namespace_prefix(module, root_package, namespace_parents)
+        if normalized == root_package or normalized.startswith(root_package + "."):
+            result[local_name] = (normalized, attribute)
 
     return result
 
 
-def _resolve_relative(dotted_package: str, module: str | None, level: int) -> str:
-    """Compute the fully-qualified module name for a relative import.
+def _strip_namespace_prefix(module: str, root_package: str, namespace_parents: tuple[str, ...]) -> str:
+    """Rewrite *module* into the analyzed tree's naming when it carries a namespace prefix.
+
+    When iceberg is pointed at ``src/sheridan/iceberg`` the root package is
+    named ``iceberg``, but the code itself imports ``sheridan.iceberg.x``. If
+    the components before ``root_package`` exactly match the innermost
+    directories above the root, they are stripped.
 
     Args:
-        dotted_package: The package containing the init file.
-        module: The module part after the dots, or ``None`` for ``from . import``.
-        level: The number of leading dots (always >= 1 for relative imports).
+        module: Absolute dotted module name as written in the import.
+        root_package: First component of the analyzed tree's dotted names.
+        namespace_parents: Directory names above the analyzed root, outermost
+            first.
 
     Returns:
-        The fully-qualified dotted module name.
+        The module name with the prefix removed, or *module* unchanged when no
+        prefix matches.
     """
-    # level=1 means "this package"; level>1 means walk up that many levels.
-    parts = dotted_package.split(".")
-    anchor_parts = parts[: len(parts) - (level - 1)]
-    anchor = ".".join(anchor_parts)
-
-    if not module:
-        return anchor
-
-    return f"{anchor}.{module}"
+    parts = module.split(".")
+    for depth in range(min(len(namespace_parents), len(parts) - 1), 0, -1):
+        if parts[depth] == root_package and tuple(parts[:depth]) == namespace_parents[-depth:]:
+            return ".".join(parts[depth:])
+    return module
 
 
 def _compute_public_names(

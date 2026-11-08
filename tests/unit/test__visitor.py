@@ -3,7 +3,7 @@
 import pytest
 
 from sheridan.iceberg._exceptions import ParseError
-from sheridan.iceberg._models import Assignment, Class, Function, Module
+from sheridan.iceberg._models import Assignment, Class, Function, Module, Reference
 from sheridan.iceberg._visitor import visit_module
 
 # ---------------------------------------------------------------------------
@@ -576,3 +576,36 @@ class Service:
     nested_names = {nc.name for nc in cls.nested_classes}
     assert "Config" in nested_names
     assert "_State" not in nested_names
+
+
+# ---------------------------------------------------------------------------
+# References: names in __all__ with no local definition
+# ---------------------------------------------------------------------------
+
+
+def test_all_reexport_of_import_becomes_reference() -> None:
+    source = """
+from math import sqrt
+from ._impl import helper
+
+__all__ = ["sqrt", "helper", "local"]
+
+def local():
+    pass
+"""
+    module = visit_module(source, "pkg.mod")
+    assert [f.name for f in module.functions] == ["local"]
+    assert module.references == (
+        Reference(name="helper", module="pkg._impl", attribute="helper"),
+        Reference(name="sqrt", module="math", attribute="sqrt"),
+    )
+
+
+def test_all_unbound_name_becomes_reference_without_source() -> None:
+    module = _visit('__all__ = ["ghost"]')
+    assert module.references == (Reference(name="ghost", module=None, attribute=None),)
+
+
+def test_no_all_means_no_references() -> None:
+    module = _visit("from math import sqrt\n\ndef f():\n    pass\n")
+    assert module.references == ()
