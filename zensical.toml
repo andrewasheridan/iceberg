@@ -1,8 +1,8 @@
 [project]
 site_name = "sheridan-iceberg"
-site_description = "Enforce __all__ correctness in Python modules"
-repo_url = "https://github.com/sheridan/sheridan-iceberg"
-repo_name = "sheridan/sheridan-iceberg"
+site_description = "Inspect and snapshot the public API surface of a Python package"
+repo_url = "https://github.com/andrewasheridan/iceberg"
+repo_name = "andrewasheridan/iceberg"
 docs_dir = "docs"
 site_dir = "site"
 nav = [
