@@ -108,6 +108,12 @@ A `Package` is a trie of `modules` and `subpackages`; its `assignments`,
 smaller inputs: `get_function`, `get_class`, `get_assignment`, `get_module`, and
 `get_package` accept source strings, AST nodes, paths, or live objects.
 
+When it walks a directory, iceberg skips hidden directories, `__pycache__`, and
+any directory or `.py` file whose name cannot be imported because it is not a
+Python identifier or is a keyword (for example `my-dir/` or `my-script.py`).
+The directory you pass is always analyzed, even if its own name is not an
+identifier.
+
 ## Configuration
 
 iceberg walks up from the analyzed path looking for `.iceberg.toml` or a

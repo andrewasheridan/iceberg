@@ -332,3 +332,35 @@ def test_namespace_package_as_root_includes_namespace_in_dotted_name(
 
     # Regression guard: no name may start with just "widgets" (without the namespace)
     assert not any(name == "widgets" or name.startswith("widgets.") for name in dotted_names)
+
+
+# ---------------------------------------------------------------------------
+# Scenario 10 — Paths that are not Python identifiers are not importable
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("dirname", ["my-dir", "1abc", "class", "has space"])
+def test_non_identifier_directory_is_pruned(tmp_path: Path, dirname: str) -> None:
+    """A directory whose name is not an identifier (or is a keyword) is skipped with its contents."""
+    pkg = tmp_path / "pkg"
+    _write(pkg / "__init__.py")
+    _write(pkg / "core.py")
+    _write(pkg / dirname / "thing.py", "def h() -> None: ...")
+    _write(pkg / dirname / "inner" / "deep.py")
+
+    result = discover(pkg, _default_config())
+
+    assert set(_by_dotted(result)) == {"pkg", "pkg.core"}
+
+
+@pytest.mark.parametrize("filename", ["my-script.py", "1abc.py", "import.py", "a.b.py"])
+def test_non_identifier_file_is_skipped(tmp_path: Path, filename: str) -> None:
+    """A .py file whose stem is not an identifier (or is a keyword) is skipped."""
+    pkg = tmp_path / "pkg"
+    _write(pkg / "__init__.py")
+    _write(pkg / "core.py")
+    _write(pkg / filename)
+
+    result = discover(pkg, _default_config())
+
+    assert set(_by_dotted(result)) == {"pkg", "pkg.core"}

@@ -8,6 +8,7 @@ visit. Test modules are filtered out according to
 
 __all__ = ["DiscoveredModule", "discover"]
 
+import keyword
 from pathlib import Path
 
 from sheridan.iceberg._config import Config
@@ -18,6 +19,18 @@ _PRUNED_DIRS = frozenset({"__pycache__", ".venv", ".git"})
 """Directory names that are unconditionally excluded from the filesystem walk."""
 
 
+def _is_importable_name(name: str) -> bool:
+    """Return ``True`` if *name* can be a component of an import statement.
+
+    Args:
+        name: A bare directory name or file stem.
+
+    Returns:
+        ``True`` when *name* is a valid Python identifier and not a keyword.
+    """
+    return name.isidentifier() and not keyword.iskeyword(name)
+
+
 def _should_prune(name: str) -> bool:
     """Return ``True`` if a directory name should be excluded from the walk.
 
@@ -25,10 +38,12 @@ def _should_prune(name: str) -> bool:
         name: The bare directory name (not a full path).
 
     Returns:
-        ``True`` for ``__pycache__``, ``.venv``, ``.git``, and any name that
-        starts with ``'.'``.
+        ``True`` for ``__pycache__``, ``.venv``, ``.git``, any name that
+        starts with ``'.'``, and any name that cannot be imported (not an
+        identifier, or a keyword). Modules under such a directory are not
+        importable, so they are skipped silently.
     """
-    return name in _PRUNED_DIRS or name.startswith(".")
+    return name in _PRUNED_DIRS or name.startswith(".") or not _is_importable_name(name)
 
 
 def _compute_dotted_name(py_file: Path, root: Path) -> tuple[str, tuple[str, ...]]:
@@ -131,7 +146,9 @@ def _discover_directory(root: Path, config: Config) -> tuple[DiscoveredModule, .
 
     Returns:
         A tuple of :class:`DiscoveredModule` values, one per qualifying
-        ``.py`` file found under *root*.
+        ``.py`` file found under *root*. Directories below *root* and file
+        stems that are not importable names are skipped. *root* itself is
+        never skipped.
     """
     # The user-supplied path is authoritative: always use root.parent so that
     # root's own name becomes part of every dotted module name.
@@ -145,6 +162,10 @@ def _discover_directory(root: Path, config: Config) -> tuple[DiscoveredModule, .
 
         for filename in filenames:
             if not filename.endswith(".py"):
+                continue
+
+            # A file such as my-script.py cannot be imported; skip it silently.
+            if not _is_importable_name(filename.removesuffix(".py")):
                 continue
 
             py_file = dirpath / filename
