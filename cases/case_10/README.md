@@ -5,12 +5,9 @@ Case 10: Passing a source root containing a namespace package to iceberg:
 - `acme/widgets/` is a regular package — it has an empty `__init__.py`
 - `acme/widgets/core.py` contains a single public function
 
-```shell
-$ iceberg /Users/andrew/Projects/iceberg/cases/case_10/src/acme
-```
-
 ## CLI Output
-```text
+```console
+$ iceberg cases/case_10/src/acme
 package acme.widgets
 └── module acme.widgets.core
     └── def make_widget(name: str) -> str

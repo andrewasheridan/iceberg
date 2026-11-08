@@ -7,12 +7,9 @@ analyzed source:
 - `lazy_thing` is provided at runtime by a module-level `__getattr__`
 - `area` is re-exported from a private sibling module (resolved normally)
 
-```shell
-$ iceberg cases/case_11
-```
-
 ## CLI Output
-```text
+```console
+$ iceberg cases/case_11
 package case_11
 ├── def area(radius: float) -> float
 ├── from collections import OrderedDict as Ordered

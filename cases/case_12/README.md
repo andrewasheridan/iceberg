@@ -3,12 +3,9 @@
 Case 12: A package that binds its re-exports inside `try` / `except` blocks,
 a common pattern for optional accelerators and generated version files.
 
-```shell
-$ iceberg cases/case_12
-```
-
 ## CLI Output
-```text
+```console
+$ iceberg cases/case_12
 package case_12
 ├── version: str
 └── def parse(text: str) -> list[str]

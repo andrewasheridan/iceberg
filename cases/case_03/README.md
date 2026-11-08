@@ -5,19 +5,9 @@ Case 01: Passing a package path directly to iceberg:
 - a subpackage `foo` exists
   - It's init module is effectively empty
 
-```shell
-$ cd cases
-$ iceberg case_03
-```
-
-or
-
-```shell
-$ iceberg /Users/andrew/Projects/iceberg/cases/case_03
-```
-
 ## CLI Output
-```text
+```console
+$ iceberg cases/case_03
 package case_03
 └── package case_03.foo
 ```

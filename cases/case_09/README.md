@@ -4,19 +4,9 @@ Case 09: Passing a package path directly to iceberg:
 - the package has three non-empty public modules, each contributing different
   content nodes to the rendered tree
 
-```shell
-$ cd cases
-$ iceberg case_09
-```
-
-or
-
-```shell
-$ iceberg /Users/andrew/Projects/iceberg/cases/case_09
-```
-
 ## CLI Output
-```text
+```console
+$ iceberg cases/case_09
 package case_09
 ├── module case_09.alpha
 │   ├── def add(x: int, y: int) -> int

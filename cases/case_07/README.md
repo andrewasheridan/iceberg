@@ -4,24 +4,14 @@ Case 07: Passing a single module directly to iceberg:
 - the module contains functions that exercise parameter forms not covered by case_04:
   positional-only parameters (the `/` separator) and `*args` (var-positional)
 
-```shell
-$ cd cases/case_07
-$ iceberg foo.py
-```
-
-or
-
-```shell
-$ iceberg /Users/andrew/Projects/iceberg/cases/case_07/foo.py
-```
-
 ## CLI Output
-```text
+```console
+$ iceberg cases/case_07/foo.py
 module foo
 ├── def make_point(x: float, y: float, label: str = '') -> str
-├── def join_strings(*parts: str, *, separator: str = ', ') -> str
+├── def join_strings(*parts: str, separator: str = ', ') -> str
 ├── def format_record(id: int, *fields: str, prefix: str = '', sep: str = '|') -> str
-└── def full_spectrum(a: int, b: int, c: int, *args: float, *, key: str = 'x', **kwargs: bool) -> None
+└── def full_spectrum(a: int, b: int, c: int, *args: float, key: str = 'x', **kwargs: bool) -> None
 ```
 - positional-only parameters (`/` separator) are stored in
   `Function.positional_parameters` alongside regular positional params —

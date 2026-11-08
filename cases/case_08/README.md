@@ -4,19 +4,9 @@ Case 08: Passing a package path directly to iceberg:
 - the package contains a public subpackage (`pub/`) and a private subpackage (`_priv/`)
 - the private subpackage should be absent from the output
 
-```shell
-$ cd cases
-$ iceberg case_08
-```
-
-or
-
-```shell
-$ iceberg /Users/andrew/Projects/iceberg/cases/case_08
-```
-
 ## CLI Output
-```text
+```console
+$ iceberg cases/case_08
 package case_08
 ├── module case_08.helper
 └── package case_08.pub
