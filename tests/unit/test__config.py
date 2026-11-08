@@ -32,15 +32,14 @@ def test_config_defaults() -> None:
     cfg = Config()
     assert isinstance(cfg.test_module_pattern, re.Pattern)
     assert cfg.test_module_pattern.pattern == _DEFAULT_PATTERN_SRC
-    assert cfg.include_subpackages_in_all is True
-    assert cfg.max_workers is None
+    assert cfg.max_workers == 1
 
 
 def test_config_is_frozen() -> None:
     cfg = Config()
     assert dataclasses.is_dataclass(cfg)
     with pytest.raises(dataclasses.FrozenInstanceError):
-        cfg.include_subpackages_in_all = False  # type: ignore[misc]
+        cfg.max_workers = 2  # type: ignore[misc]
 
 
 def test_config_has_slots() -> None:
@@ -52,11 +51,9 @@ def test_config_explicit_values() -> None:
     pattern = re.compile(r"test_.*\.py$")
     cfg = Config(
         test_module_pattern=pattern,
-        include_subpackages_in_all=False,
         max_workers=4,
     )
     assert cfg.test_module_pattern is pattern
-    assert cfg.include_subpackages_in_all is False
     assert cfg.max_workers == 4
 
 
@@ -69,8 +66,7 @@ def test_load_config_no_file_returns_defaults(tmp_path: Path) -> None:
     # tmp_path/src does not exist; the walk resolves to tmp_path itself
     cfg = load_config(tmp_path / "src")
     assert cfg.test_module_pattern.pattern == _DEFAULT_PATTERN_SRC
-    assert cfg.include_subpackages_in_all is True
-    assert cfg.max_workers is None
+    assert cfg.max_workers == 1
 
 
 # ---------------------------------------------------------------------------
@@ -99,11 +95,17 @@ def test_load_config_iceberg_toml_wins_over_pyproject(tmp_path: Path) -> None:
 def test_load_config_pyproject_toml_respected(tmp_path: Path) -> None:
     _write(
         tmp_path / "pyproject.toml",
-        "[tool.iceberg]\ninclude_subpackages_in_all = false\nmax_workers = 8\n",
+        "[tool.iceberg]\nmax_workers = 8\n",
     )
     cfg = load_config(tmp_path)
-    assert cfg.include_subpackages_in_all is False
     assert cfg.max_workers == 8
+
+
+def test_load_config_removed_include_subpackages_key_rejected(tmp_path: Path) -> None:
+    """``include_subpackages_in_all`` was removed in 4.0 and is now an unknown key."""
+    _write(tmp_path / ".iceberg.toml", "include_subpackages_in_all = false\n")
+    with pytest.raises(ConfigError, match="include_subpackages_in_all"):
+        load_config(tmp_path)
 
 
 def test_load_config_pyproject_without_iceberg_table_returns_defaults(tmp_path: Path) -> None:

@@ -111,14 +111,27 @@ smaller inputs: `get_function`, `get_class`, `get_assignment`, `get_module`, and
 ## Configuration
 
 iceberg walks up from the analyzed path looking for `.iceberg.toml` or a
-`[tool.iceberg]` table in `pyproject.toml`:
+`[tool.iceberg]` table in `pyproject.toml`. Unknown keys are rejected.
 
 ```toml
 [tool.iceberg]
 # Regex matched against each file's POSIX path; matches are skipped.
 test_module_pattern = '(^|/)tests?(/|$)|(^|/)test_[^/]*\.py$|_test\.py$'
-# Worker processes used to parse modules in parallel (default: CPU count).
-max_workers = 4
+# Worker processes used to parse modules (default: 1, in-process). Only very
+# large trees benefit; values above 1 require scripts calling get_public_api
+# to be guarded by `if __name__ == "__main__":`.
+max_workers = 1
+```
+
+To bypass file discovery, pass a `Config` directly:
+
+```python
+import re
+from pathlib import Path
+
+from sheridan.iceberg import Config, get_public_api
+
+api = get_public_api(Path("src/mypkg"), config=Config(test_module_pattern=re.compile(r"_test\.py$")))
 ```
 
 ## Development

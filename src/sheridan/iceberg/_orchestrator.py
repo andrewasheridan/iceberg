@@ -1,7 +1,8 @@
 """Orchestrator that threads discovery, visiting, init-resolution, and trie assembly.
 
-Parallelizes per-module AST visits across worker processes using
-``concurrent.futures.ProcessPoolExecutor``, then serially resolves each
+Visits each module's AST (in-process by default, or across worker processes
+via ``concurrent.futures.ProcessPoolExecutor`` when ``Config.max_workers`` is
+greater than 1), then serially resolves each
 ``__init__.py`` with full access to the accumulated module map, and finally
 folds everything into a ``Package`` trie.
 """
@@ -229,7 +230,8 @@ def build_package(root: Path, config: Config) -> Package | Module:
 
     1. Discover all Python modules under *root*.
     2. Partition into non-init and init modules.
-    3. Parallel-visit non-init modules via ``ProcessPoolExecutor``.
+    3. Visit non-init modules, in a ``ProcessPoolExecutor`` when
+       ``config.max_workers > 1``.
     4. Serially resolve each ``__init__.py`` against the accumulated map.
     5. Fold the completed map into a ``Package`` trie.
 
@@ -252,13 +254,19 @@ def build_package(root: Path, config: Config) -> Package | Module:
     non_init_modules = [dm for dm in all_discovered if not dm.is_init]
     init_modules = [dm for dm in all_discovered if dm.is_init]
 
-    # 3. Visit non-init modules in parallel.
-    module_map: dict[str, Module] = {}
+    # 3. Visit non-init modules. A process pool costs more to start than it
+    #    saves for typical packages, and spawning workers re-imports the
+    #    caller's __main__, so it is strictly opt-in.
+    visited_modules: list[Module]
+    if config.max_workers > 1:
+        with ProcessPoolExecutor(max_workers=config.max_workers) as executor:
+            visited_modules = list(executor.map(_visit_worker, non_init_modules))
+    else:
+        visited_modules = [_visit_worker(dm) for dm in non_init_modules]
 
-    with ProcessPoolExecutor(max_workers=config.max_workers) as executor:
-        visited_modules = executor.map(_visit_worker, non_init_modules)
-        for dm, module in zip(non_init_modules, visited_modules, strict=True):
-            module_map[dm.dotted_name] = module
+    module_map: dict[str, Module] = {
+        dm.dotted_name: module for dm, module in zip(non_init_modules, visited_modules, strict=True)
+    }
 
     # 4. Resolve __init__.py files serially, deepest first, so each
     #    sub-package init is in module_map before its parent init tries to
@@ -287,7 +295,6 @@ def build_package(root: Path, config: Config) -> Package | Module:
             init_module.dotted_name,
             module_map,
             child_names,
-            config,
             namespace_parents=namespace_parents,
         )
         module_map[init_module.dotted_name] = module

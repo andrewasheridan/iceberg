@@ -2,6 +2,8 @@
 sheridan.iceberg._api (get_public_api).
 """
 
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -264,7 +266,7 @@ def test_many_modules_all_appear_in_result(tmp_path: Path, module_count: int) ->
 
 
 def test_eight_modules_parallel_path(tmp_path: Path) -> None:
-    """8-module package with default config exercises the parallel executor path."""
+    """8-module package with max_workers > 1 exercises the process pool path."""
     pkg = tmp_path / "parallel_pkg"
     _write(pkg / "__init__.py", "")
 
@@ -274,9 +276,30 @@ def test_eight_modules_parallel_path(tmp_path: Path) -> None:
         _write(pkg / f"{mod_name}.py", f"N = {i}\n")
         expected.add(f"parallel_pkg.{mod_name}")
 
-    # Use default config (max_workers=None → executor chooses)
-    config = Config()
+    config = Config(max_workers=2)
     result = build_package(pkg, config)
 
     all_names = _all_module_names(result)
     assert expected.issubset(all_names), f"Missing modules: {sorted(expected - all_names)}"
+
+
+def test_default_config_safe_in_unguarded_script(tmp_path: Path) -> None:
+    """A plain script with no ``if __name__ == "__main__":`` guard must work.
+
+    Worker processes re-import ``__main__`` under the spawn / forkserver start
+    methods, so a process pool here would crash with BrokenProcessPool.
+    """
+    pkg = tmp_path / "pkg"
+    _write(pkg / "__init__.py", "")
+    _write(pkg / "mod.py", "def f() -> None: ...\n")
+    script = _write(
+        tmp_path / "script.py",
+        "from pathlib import Path\n"
+        "from sheridan.iceberg import get_public_api\n"
+        f"print(get_public_api(Path({str(pkg)!r})).name)\n",
+    )
+
+    completed = subprocess.run([sys.executable, str(script)], capture_output=True, text=True, timeout=60, check=False)
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "pkg"

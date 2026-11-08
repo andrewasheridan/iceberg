@@ -32,6 +32,7 @@ def test_all_equals_expected_names() -> None:
         "IcebergError",
         "InvalidPathError",
         "ParseError",
+        "Config",
         "ConfigError",
         "Reference",
         "utilities",

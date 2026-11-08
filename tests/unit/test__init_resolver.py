@@ -2,7 +2,6 @@
 
 import pytest
 
-from sheridan.iceberg._config import Config
 from sheridan.iceberg._exceptions import ParseError
 from sheridan.iceberg._init_resolver import ResolveReport, resolve_init
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Reference
@@ -10,10 +9,6 @@ from sheridan.iceberg._models import Assignment, Class, Function, Module, Refere
 # ---------------------------------------------------------------------------
 # Shared helpers / fixtures
 # ---------------------------------------------------------------------------
-
-_DEFAULT_CONFIG = Config()
-_CONFIG_SUBPKG_FALSE = Config(include_subpackages_in_all=False)
-_CONFIG_SUBPKG_TRUE = Config(include_subpackages_in_all=True)
 
 _EMPTY_MODULE = Module(name="", assignments=(), classes=(), functions=())
 _EMPTY_SIBLINGS: dict[str, Module] = {}
@@ -55,14 +50,12 @@ def _resolve(
     package: str = "mypkg",
     siblings: dict[str, Module] | None = None,
     subpackage_names: frozenset[str] = frozenset(),
-    config: Config = _DEFAULT_CONFIG,
 ) -> tuple[Module, ResolveReport]:
     return resolve_init(
         init_source=source,
         dotted_package=package,
         sibling_modules=siblings if siblings is not None else {},
         subpackage_names=subpackage_names,
-        config=config,
     )
 
 
@@ -321,11 +314,11 @@ from .utils.strings import helper
 
 
 # ---------------------------------------------------------------------------
-# Scenario 5: include_subpackages_in_all orthogonality
+# Scenario 5: subpackage names are skipped, not reported
 # ---------------------------------------------------------------------------
 
 
-def test_subpackage_names_excluded_from_members_flag_true() -> None:
+def test_subpackage_names_excluded_from_members() -> None:
     source = """
 __all__ = ["sub", "real_fn"]
 from .core import real_fn
@@ -336,54 +329,11 @@ from .core import real_fn
         source,
         siblings={"mypkg.core": sibling},
         subpackage_names=frozenset({"sub"}),
-        config=_CONFIG_SUBPKG_TRUE,
     )
-    names = {f.name for f in module.functions}
-    assert "real_fn" in names
+    assert module.functions == (fn,)
     # sub is a subpackage name — resolver skips it silently (not in unresolved)
     assert "sub" not in report.unresolved
-    all_names = (
-        {f.name for f in module.functions} | {c.name for c in module.classes} | {a.name for a in module.assignments}
-    )
-    assert "sub" not in all_names
-
-
-def test_subpackage_names_excluded_from_members_flag_false() -> None:
-    source = """
-__all__ = ["sub", "real_fn"]
-from .core import real_fn
-"""
-    fn = _make_function("real_fn")
-    sibling = _make_module("mypkg.core", functions=(fn,))
-    module_false, report_false = _resolve(
-        source,
-        siblings={"mypkg.core": sibling},
-        subpackage_names=frozenset({"sub"}),
-        config=_CONFIG_SUBPKG_FALSE,
-    )
-    module_true, report_true = _resolve(
-        source,
-        siblings={"mypkg.core": sibling},
-        subpackage_names=frozenset({"sub"}),
-        config=_CONFIG_SUBPKG_TRUE,
-    )
-    # Both configs produce identical modules and reports
-    assert module_false == module_true
-    assert report_false == report_true
-
-
-@pytest.mark.parametrize("flag", [True, False])
-def test_include_subpackages_flag_orthogonal(flag: bool) -> None:
-    source = """
-__all__ = ["exported_fn"]
-from .impl import exported_fn
-"""
-    fn = _make_function("exported_fn")
-    sibling = _make_module("mypkg.impl", functions=(fn,))
-    config = Config(include_subpackages_in_all=flag)
-    module, report = _resolve(source, siblings={"mypkg.impl": sibling}, config=config)
-    assert module.functions[0] == fn
-    assert report.unresolved == ()
+    assert module.references == ()
 
 
 # ---------------------------------------------------------------------------
@@ -629,7 +579,6 @@ from sheridan.iceberg._api import get_public_api
         dotted_package="iceberg",
         sibling_modules={"iceberg._api": _make_module("iceberg._api", functions=(fn,))},
         subpackage_names=frozenset(),
-        config=_DEFAULT_CONFIG,
         namespace_parents=("home", "src", "sheridan"),
     )
     assert module.functions == (fn,)
@@ -647,7 +596,6 @@ from other.iceberg._api import get_public_api
         dotted_package="iceberg",
         sibling_modules={"iceberg._api": _make_module("iceberg._api", functions=(fn,))},
         subpackage_names=frozenset(),
-        config=_DEFAULT_CONFIG,
         namespace_parents=("src", "sheridan"),
     )
     assert module.functions == ()
@@ -668,7 +616,6 @@ from org.team.pkg.core import fn
         dotted_package="pkg",
         sibling_modules={"pkg.core": _make_module("pkg.core", functions=(fn,))},
         subpackage_names=frozenset(),
-        config=_DEFAULT_CONFIG,
         namespace_parents=("src", "org", "team"),
     )
     assert module.functions == (fn,)

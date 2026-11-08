@@ -9,8 +9,7 @@ sibling module rather than nothing at all.
 Architectural split
 -------------------
 Subpackage visibility (whether a sub-package appears in the parent's public
-surface) is controlled by ``Config.include_subpackages_in_all`` and is the
-orchestrator's responsibility.  This resolver returns only the init module's
+surface) is the orchestrator's responsibility.  This resolver returns only the init module's
 own ``Module``; it never synthesises placeholder entries for subpackages.
 Callers must assemble ``Package.subpackages`` separately.
 """
@@ -21,7 +20,6 @@ import ast
 import dataclasses
 from collections.abc import Mapping
 
-from sheridan.iceberg._config import Config
 from sheridan.iceberg._exceptions import ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Reference, ResolveReport
 from sheridan.iceberg._utilities import collect_imports, extract_all, infer_all
@@ -37,7 +35,6 @@ def resolve_init(
     dotted_package: str,
     sibling_modules: Mapping[str, Module],
     subpackage_names: frozenset[str],
-    config: Config,
     *,
     namespace_parents: tuple[str, ...] = (),
 ) -> tuple[Module, ResolveReport]:
@@ -55,8 +52,7 @@ def resolve_init(
        ``ResolveReport.unresolved`` and attach a ``Reference`` describing
        where it was imported from (if anywhere) — no exception is raised.
 
-    ``config.include_subpackages_in_all`` is intentionally ignored here;
-    subpackage visibility is the orchestrator's concern.
+    Subpackage visibility is the orchestrator's concern, not this resolver's.
 
     Args:
         init_source: Raw Python source text of the ``__init__.py`` file.
@@ -66,7 +62,6 @@ def resolve_init(
         subpackage_names: Names of direct sub-packages and sub-modules under
             this package. Used only to avoid recording them as unresolved —
             they are not attached to the returned ``Module``.
-        config: Iceberg runtime configuration.
         namespace_parents: Names of the directories above the analyzed root,
             outermost first (e.g. ``("src", "sheridan")`` for a root of
             ``src/sheridan/iceberg``). Absolute imports spelled with a trailing

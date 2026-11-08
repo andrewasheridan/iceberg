@@ -17,7 +17,7 @@ from sheridan.iceberg._exceptions import ConfigError
 _DEFAULT_TEST_MODULE_PATTERN = r"(^|/)tests?(/|$)|(^|/)test_[^/]*\.py$|_test\.py$"
 """Default regex pattern used to identify test module paths when none is configured."""
 
-_ALLOWED_KEYS = frozenset({"test_module_pattern", "include_subpackages_in_all", "max_workers"})
+_ALLOWED_KEYS = frozenset({"test_module_pattern", "max_workers"})
 """Set of recognised keys in the ``[tool.iceberg]`` / ``.iceberg.toml`` configuration table."""
 
 
@@ -38,20 +38,18 @@ class Config:
         test_module_pattern: Compiled regular expression used to identify test
             modules by their file path. Matched paths are excluded from the
             public API surface.
-        include_subpackages_in_all: When ``True``, subpackage names are
-            included when synthesising ``__all__`` for a package.
-        max_workers: Maximum number of worker threads used for parallel
-            processing. ``None`` lets the executor choose based on CPU count.
+        max_workers: Number of worker processes used to parse modules. The
+            default of ``1`` parses in-process, which is fastest for typical
+            packages. Values above ``1`` parse in a process pool, which only
+            pays off for very large trees and requires the calling script to
+            be import-safe (guarded by ``if __name__ == "__main__":``).
     """
 
     test_module_pattern: re.Pattern[str] = field(default_factory=_default_test_pattern)
     """Compiled regex matched against module paths to identify test files."""
 
-    include_subpackages_in_all: bool = True
-    """When ``True``, subpackage names are included in synthesised ``__all__`` lists."""
-
-    max_workers: int | None = None
-    """Maximum worker threads for parallel processing; ``None`` defers to the executor default."""
+    max_workers: int = 1
+    """Worker processes used to parse modules; ``1`` (the default) parses in-process."""
 
 
 def _build_config(table: dict[str, object]) -> Config:
@@ -87,18 +85,7 @@ def _build_config(table: dict[str, object]) -> Config:
     else:
         pattern = _default_test_pattern()
 
-    include_subpackages: bool
-    if "include_subpackages_in_all" in table:
-        include_value = table["include_subpackages_in_all"]
-
-        if not isinstance(include_value, bool):
-            raise ConfigError(f"'include_subpackages_in_all' must be a boolean, got {type(include_value).__name__!r}.")
-
-        include_subpackages = include_value
-    else:
-        include_subpackages = True
-
-    max_workers: int | None
+    max_workers: int
     if "max_workers" in table:
         workers_value = table["max_workers"]
 
@@ -110,11 +97,10 @@ def _build_config(table: dict[str, object]) -> Config:
 
         max_workers = workers_value
     else:
-        max_workers = None
+        max_workers = 1
 
     return Config(
         test_module_pattern=pattern,
-        include_subpackages_in_all=include_subpackages,
         max_workers=max_workers,
     )
 

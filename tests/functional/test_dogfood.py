@@ -34,6 +34,7 @@ EXPECTED_PUBLIC_NAMES: frozenset[str] = frozenset(
         "IcebergError",
         "InvalidPathError",
         "ParseError",
+        "Config",
         "ConfigError",
         "Reference",
     }
