@@ -338,26 +338,31 @@ def _annotation_source(node: ast.expr | None) -> str | None:
     return ast.unparse(node)
 
 
-def _value_source(node: ast.expr | None) -> str | None:
-    """Return the source representation for simple RHS expressions only.
+_MAX_DEFAULT_LENGTH = 80
+"""Defaults whose source is longer than this are reported as ``...``."""
 
-    Covers literals, names, attribute accesses, and subscripts. Returns
-    ``None`` for anything more complex (calls, comprehensions, etc.).
+
+def _value_source(node: ast.expr | None) -> str | None:
+    """Return the source representation of a parameter default.
+
+    Any expression is rendered with ``ast.unparse``. A rendering longer than
+    ``_MAX_DEFAULT_LENGTH`` characters is replaced by ``...`` so that the
+    parameter is still reported as having a default.
 
     Args:
         node: An AST expression node, or ``None``.
 
     Returns:
-        The unparsed string for *node* when it is a supported simple form,
-        otherwise ``None``.
+        The unparsed string for *node* (or ``...`` when it is too long), or
+        ``None`` when *node* is ``None``.
     """
     if node is None:
         return None
 
-    if isinstance(node, (ast.Constant, ast.Name, ast.Attribute, ast.Subscript)):
-        return ast.unparse(node)
-
-    return None
+    source = ast.unparse(node)
+    if len(source) > _MAX_DEFAULT_LENGTH:
+        return "..."
+    return source
 
 
 def _build_type_alias(node: ast.TypeAlias) -> Assignment:
