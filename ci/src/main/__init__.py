@@ -110,7 +110,7 @@ class SheridanIcebergCi:
             ("test", base.with_exec(["uv", "run", "pytest", "--cov"])),
             ("security", base.with_exec(["uv", "run", "bandit", "-r", "src/"])),
             ("docs", base.with_exec(["uv", "run", "zensical", "build"])),
-            ("iceberg", base.with_exec(["uv", "run", "iceberg", "src/"])),
+            ("iceberg", base.with_exec(["uv", "run", "iceberg", "src/sheridan/"])),
         ]
 
         results: list[str | BaseException] = list(

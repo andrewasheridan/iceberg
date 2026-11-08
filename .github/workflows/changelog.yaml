@@ -1,0 +1,56 @@
+name: Update changelog
+
+on:
+  workflow_dispatch:
+
+jobs:
+  changelog:
+    name: Regenerate CHANGELOG.md
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Regenerate CHANGELOG.md
+        run: uv run cz changelog
+
+      - name: Open PR if changelog changed
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          if git diff --quiet CHANGELOG.md; then
+            echo "No changelog updates needed."
+          else
+            BRANCH="chore/changelog-update-${{ github.run_number }}"
+            git checkout -b "$BRANCH"
+            git add CHANGELOG.md
+            git commit -m "chore: update CHANGELOG.md"
+            git push origin "$BRANCH"
+            gh pr create \
+              --title "chore: update CHANGELOG.md" \
+              --body "Automated CHANGELOG.md regeneration triggered via workflow dispatch." \
+              --base main \
+              --head "$BRANCH"
+            gh pr edit "$BRANCH" --add-label automated || true
+          fi

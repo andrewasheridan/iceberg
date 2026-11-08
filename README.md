@@ -2,22 +2,27 @@
 
 [![CI](https://github.com/andrewasheridan/iceberg/actions/workflows/ci.yaml/badge.svg)](https://github.com/andrewasheridan/iceberg/actions/workflows/ci.yaml)
 [![PyPI](https://img.shields.io/pypi/v/sheridan-iceberg)](https://pypi.org/project/sheridan-iceberg/)
-[![Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen)](https://github.com/andrewasheridan/iceberg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
 
 > The public API is the tip of the iceberg. `iceberg` marks the waterline.
 
-`iceberg` reports the public API surface of Python modules. It uses
-Python's `ast` module for static analysis — no importing of user code.
+`iceberg` inspects and snapshots the public API surface of a Python package.
+It reads source with Python's `ast` module and never imports or executes your
+code, and it has no runtime dependencies.
 
 ## Features
 
-- Report the effective public API of any module or project; includes function signatures (parameter names, types, defaults) and class member surfaces (attributes, properties, methods)
-- Uses `__all__` as the authoritative public API surface when present; falls back to inferring non-underscore top-level names when absent
-- `--use-ast` forces AST-only inference regardless of `__all__`
-- Walks an entire Python project's module tree via AST (safe, no imports)
-- Machine-readable JSON output and human-readable tree output
+- Reports every public module, class, function, and assignment, with full
+  signatures (parameter names, annotations, defaults) and class members.
+- Uses `__all__` as the source of truth when present and falls back to
+  underscore-prefix inference when it is absent.
+- Resolves re-exports through `__init__.py`, including relative imports,
+  absolute imports, namespace packages, and imports inside `try` / `if` blocks.
+- Never drops a public name silently: anything it cannot resolve to a
+  definition (e.g. `from math import sqrt` listed in `__all__`) is reported as
+  a reference.
+- Human-readable tree output and deterministic JSON output.
 
 ## Installation
 
@@ -25,152 +30,115 @@ Python's `ast` module for static analysis — no importing of user code.
 pip install sheridan-iceberg
 ```
 
-## Usage
+## CLI
 
 ```bash
-# Report the public API of a project
-iceberg src/
-
-# Show as JSON (machine-readable)
-iceberg src/ --format json
-
-# Ignore __all__ entirely — always use AST inference
-iceberg src/ --use-ast
+iceberg src/mypkg            # tree output
+iceberg src/mypkg --json     # machine-readable output
+python -m sheridan.iceberg src/mypkg
 ```
 
-Exit codes: `0` always (path existence aside); `2` if path not found.
+The path may be a package directory, a directory containing packages (such as
+`src/` or a namespace package), or a single `.py` file. iceberg names packages
+after the path it is given: `iceberg src/sheridan` reports `sheridan.iceberg`,
+while `iceberg src/sheridan/iceberg` reports `iceberg`.
+
+Exit codes: `0` on success, `1` for iceberg errors (missing path, invalid
+config, unparseable source), `2` for unexpected errors.
 
 ### Example output
 
-`iceberg` produces an indented tree by default. Functions are shown with their
-full signatures; classes are followed by an indented list of their public
-members. When `__init__.py` declares `__all__`, it is the source of truth for
-the whole package — only that module is shown:
+```console
+$ iceberg cases/case_11
+package case_11
+├── def area(radius: float) -> float
+├── from collections import OrderedDict as Ordered
+├── import json
+├── lazy_thing (unresolved)
+└── from math import sqrt
+```
+
+Definitions come first. Public names that iceberg could not resolve to a
+definition follow, shown as the import that binds them. A name with no binding
+import at all (here, one served by a module-level `__getattr__`) is marked
+`(unresolved)`.
+
+When a package's `__init__.py` defines `__all__`, its exports are hoisted to
+the package level and private submodules are hidden. Without `__all__`, every
+public module is listed:
 
 ```console
-$ iceberg src/mypackage/
-
-mypackage/
-  __init__
-    Role
-      name: str
-      level: int
-      permissions (property) → list[str]
-      classmethod create(cls, name: str, level: int = ...) → Role
-      promote(self) → None
-    User
-      email: str
-      role: Role
-      is_active: bool
-      save(self) → None
-    helper(path: Path) → list[str]
+$ iceberg cases/case_09
+package case_09
+├── module case_09.alpha
+│   ├── def add(x: int, y: int) -> int
+│   └── def subtract(x: int, y: int) -> int
+├── module case_09.beta
+│   └── class Counter
+│       ├── def __init__(self, start: int = 0) -> None
+│       ├── def increment(self) -> None
+│       └── def value(self) -> int
+└── module case_09.gamma
+    ├── VERSION: str
+    └── MAX_RETRIES: int
 ```
 
-Pass `--use-ast` to bypass `__all__` and see every module's inferred names:
+The [`cases/`](cases) directory documents each supported layout and edge case
+alongside its expected output.
 
-```console
-$ iceberg src/mypackage/ --use-ast
-
-mypackage/
-  __init__
-    Role
-      ...
-    User
-      ...
-    helper(path: Path) → list[str]
-  core
-    Alpha
-    Beta
-    Gamma
-  utils
-    helper(path: Path) → list[str]
-    parse(text: str, strict: bool = ...) → dict[str, object]
-```
-
-### JSON output
-
-```console
-$ iceberg --format json
-```
-
-```json
-[
-  {
-    "module": "mypackage.utils",
-    "path": "src/mypackage/utils.py",
-    "source": "ast",
-    "names": ["helper", "parse"],
-    "detail": {
-      "helper": {
-        "kind": "function",
-        "signature": {
-          "params": [
-            {"name": "path", "annotation": "Path", "has_default": false, "kind": "positional_or_keyword"}
-          ],
-          "return_annotation": "list[str]",
-          "is_async": false
-        }
-      },
-      "parse": {
-        "kind": "function",
-        "signature": {
-          "params": [
-            {"name": "text", "annotation": "str", "has_default": false, "kind": "positional_or_keyword"},
-            {"name": "strict", "annotation": "bool", "has_default": true, "kind": "positional_or_keyword"}
-          ],
-          "return_annotation": "dict[str, object]",
-          "is_async": false
-        }
-      }
-    }
-  }
-]
-```
-
-The `source` field is `"__all__"` when the module has an `__all__` (and `--use-ast` is not set), `"ast"` otherwise.
-
-The `detail` object maps each public name to its rich info. Functions have `kind: "function"` (or `"async function"`) and a `signature` object. Classes have `kind: "class"`, a `bases` list, and a `members` array. Plain variables (no static type info available) are absent from `detail`.
-
-## Programmatic usage
+## Programmatic use
 
 ```python
+from pathlib import Path
+
 from sheridan.iceberg import get_public_api
 
-# Get the public API surface — __init__.__all__ is the source of truth
-api = get_public_api("src/")
-# {"mypackage": ["Role", "User", "helper"]}
-
-# Bypass __all__ and see every module's AST-inferred names
-api = get_public_api("src/", use_ast=True)
-# {"mypackage": [...], "mypackage.core": [...], "mypackage.utils": [...]}
+api = get_public_api(Path("src/mypkg"))
+for function in api.functions:
+    print(function.name)
 ```
 
-## How inference works
+`get_public_api` returns a `Package` (or a `Module` when given a single file).
+A `Package` is a trie of `modules` and `subpackages`; its `assignments`,
+`classes`, `functions`, and `references` properties expose the package-level
+(`__init__.py`) surface. All models are frozen dataclasses: `Package`,
+`Module`, `Class`, `Function`, `Parameter`, `Assignment`, and `Reference`.
 
-For regular modules, iceberg infers the public API from top-level definitions —
-functions, classes, and assignments whose names do not start with `_`.
+`sheridan.iceberg.utilities` provides helpers for building the same models from
+smaller inputs: `get_function`, `get_class`, `get_assignment`, `get_module`, and
+`get_package` accept source strings, AST nodes, paths, or live objects.
 
-For `__init__.py` files, names re-exported via `from x import y` are also
-counted, since this is the standard Python pattern for building a package's
-public surface.
+## Configuration
+
+iceberg walks up from the analyzed path looking for `.iceberg.toml` or a
+`[tool.iceberg]` table in `pyproject.toml`. Unknown keys are rejected.
+
+```toml
+[tool.iceberg]
+# Regex matched against each file's POSIX path; matches are skipped.
+test_module_pattern = '(^|/)tests?(/|$)|(^|/)test_[^/]*\.py$|_test\.py$'
+# Worker processes used to parse modules (default: 1, in-process). Only very
+# large trees benefit; values above 1 require scripts calling get_public_api
+# to be guarded by `if __name__ == "__main__":`.
+max_workers = 1
+```
+
+To bypass file discovery, pass a `Config` directly:
 
 ```python
-# foo/__init__.py
-from foo.snap import Widget   # Widget is inferred as public
-from foo._bar import _helper  # _helper is excluded (underscore)
+import re
+from pathlib import Path
+
+from sheridan.iceberg import Config, get_public_api
+
+api = get_public_api(Path("src/mypkg"), config=Config(test_module_pattern=re.compile(r"_test\.py$")))
 ```
-
-**Submodules are not automatically included.** The existence of `foo/snap.py`
-on disk does not add `snap` to `foo.__all__` — the `__init__.py` is the
-explicit gatekeeper. To expose a submodule, import it explicitly:
-
-```python
-# foo/__init__.py
-from foo import snap  # now snap is part of the inferred public API
-```
-
-Test files (`test_*.py`, `*_test.py`, `conftest.py`) are always skipped.
 
 ## Development
+
+```bash
+task install   # set up the environment
+task ci        # lint, format check, type check, tests
+```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
