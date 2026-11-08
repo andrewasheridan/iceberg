@@ -1,5 +1,6 @@
 """Tests for sheridan.iceberg._cli."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -44,7 +45,6 @@ def test_main_success_tree_stdout(capsys: pytest.CaptureFixture[str]) -> None:
 
 def test_main_success_tree_uses_path_argument(capsys: pytest.CaptureFixture[str]) -> None:
     """main passes the path argument as a Path object to get_public_api."""
-    from pathlib import Path
 
     fake_package = MagicMock()
 
@@ -259,3 +259,19 @@ def test_main_argv_none_reads_sys_argv(capsys: pytest.CaptureFixture[str]) -> No
 
     assert exit_code == 0
     mock_api.assert_called_once()
+
+
+def test_main_non_py_file_returns_1_with_message(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A file target that is not a .py file exits 1 with a clear message."""
+    target = tmp_path / "README.md"
+    target.write_text("# Title\n")
+
+    exit_code = main([str(target)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "error: not a .py file" in captured.err
+    assert captured.out == ""

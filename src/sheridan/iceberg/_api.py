@@ -23,11 +23,14 @@ def get_public_api(path: Path, *, config: Config | None = None) -> Package | Mod
         A ``Package`` describing the public API surface rooted at ``path``.
 
     Raises:
-        InvalidPathError: If ``path`` does not exist.
+        InvalidPathError: If ``path`` does not exist, or is a file that
+            does not end in ``.py``.
     """
     path = Path(path).resolve()
     if not path.exists():
         raise InvalidPathError(f"path does not exist: {path}")
+    if path.is_file() and path.suffix != ".py":
+        raise InvalidPathError(f"not a .py file: {path} (expected a .py file or a Python package directory)")
 
     effective_config = config or load_config(path)
     return build_package(path, effective_config)
