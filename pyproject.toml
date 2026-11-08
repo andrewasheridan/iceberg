@@ -118,6 +118,11 @@ version_files = [
     "pyproject.toml:^version",
 ]
 tag_format = "v$version"
+# uv.lock records the project version, so refresh it and add it to the bump commit.
+pre_bump_hooks = [
+    "uv lock",
+    "git add uv.lock",
+]
 update_changelog_on_bump = true
 
 [dependency-groups]

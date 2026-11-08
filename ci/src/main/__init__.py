@@ -21,7 +21,7 @@ from dagger import DefaultPath, dag, function, object_type
 _PYTHON_IMAGE = "python:3.14-slim"
 
 
-def _base(source: dagger.Directory) -> dagger.Container:
+def _uv(source: dagger.Directory) -> dagger.Container:
     return (
         dag.container()
         .from_(_PYTHON_IMAGE)
@@ -29,13 +29,24 @@ def _base(source: dagger.Directory) -> dagger.Container:
         .with_mounted_cache("/root/.cache/uv", dag.cache_volume("uv-cache"))
         .with_directory("/src", source)
         .with_workdir("/src")
-        .with_exec(["uv", "sync", "--all-extras", "--dev"])
     )
+
+
+def _base(source: dagger.Directory) -> dagger.Container:
+    return _uv(source).with_exec(["uv", "sync", "--locked", "--all-extras", "--dev"])
 
 
 @object_type
 class SheridanIcebergCi:
     """CI pipeline for sheridan-iceberg."""
+
+    @function
+    async def lock(
+        self,
+        source: Annotated[dagger.Directory, DefaultPath(".")],
+    ) -> str:
+        """Fail if uv.lock is out of date with pyproject.toml."""
+        return await _uv(source).with_exec(["uv", "lock", "--check"]).stdout()
 
     @function
     async def lint(
@@ -104,6 +115,7 @@ class SheridanIcebergCi:
         """
         base = _base(source)
         gates: list[tuple[str, dagger.Container]] = [
+            ("lock", _uv(source).with_exec(["uv", "lock", "--check"])),
             ("lint", base.with_exec(["uv", "run", "ruff", "check", "."])),
             ("format-check", base.with_exec(["uv", "run", "ruff", "format", "--check", "."])),
             ("typecheck", base.with_exec(["uv", "run", "mypy", "--strict", "src/"])),

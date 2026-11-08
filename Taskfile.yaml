@@ -34,6 +34,11 @@ tasks:
     cmds:
       - uv run ruff check --fix .
 
+  lock:check:
+    desc: Fail if uv.lock is out of date with pyproject.toml
+    cmds:
+      - uv lock --check
+
   lint:check:
     desc: Run ruff linter (check only, no fixes)
     cmds:
@@ -65,8 +70,9 @@ tasks:
       - uv run iceberg src/ {{.CLI_ARGS}}
 
   check:
-    desc: Run all gates (lint:check, format:check, typecheck, test)
+    desc: Run all gates (lock:check, lint:check, format:check, typecheck, test)
     cmds:
+      - task: lock:check
       - task: lint:check
       - task: format:check
       - task: typecheck

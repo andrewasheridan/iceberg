@@ -41,7 +41,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.guard.outputs.skip == 'false'
-        run: uv sync --all-extras --dev
+        run: uv sync --locked --all-extras --dev
 
       - name: Configure git identity
         if: steps.guard.outputs.skip == 'false'
