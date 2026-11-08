@@ -1,5 +1,6 @@
 """Tests for sheridan.iceberg._discovery (DiscoveredModule and discover)."""
 
+import re
 from pathlib import Path
 
 import pytest
@@ -168,6 +169,32 @@ def test_tests_subdirectory_is_skipped(tmp_path: Path) -> None:
     # Nothing from tests/ should appear
     assert all("test" not in name for name in by_name)
     assert set(by_name.keys()) == {"pkg", "pkg.core"}
+
+
+@pytest.mark.parametrize("ancestor", ["tests", "test"])
+def test_test_directory_above_root_does_not_exclude_modules(tmp_path: Path, ancestor: str) -> None:
+    """The pattern is matched relative to the root, so a tests/ ancestor is ignored."""
+    pkg = tmp_path / ancestor / "proj" / "pkg"
+    _write(pkg / "__init__.py")
+    _write(pkg / "mod.py", "def f(): pass\n")
+    _write(pkg / "tests" / "test_mod.py")
+
+    result = discover(pkg, _default_config())
+
+    assert set(_by_dotted(result)) == {"pkg", "pkg.mod"}
+
+
+def test_pattern_sees_root_name_in_relative_path(tmp_path: Path) -> None:
+    """The relative path passed to the pattern starts with the root's own name."""
+    pkg = tmp_path / "pkg"
+    _write(pkg / "__init__.py")
+    _write(pkg / "mod.py")
+    _write(pkg / "sub" / "__init__.py")
+    config = Config(test_module_pattern=re.compile(r"^pkg/sub/"))
+
+    result = discover(pkg, config)
+
+    assert set(_by_dotted(result)) == {"pkg", "pkg.mod"}
 
 
 # ---------------------------------------------------------------------------
