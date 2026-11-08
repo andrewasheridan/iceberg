@@ -24,8 +24,11 @@ module foo
   before appending it, so any name starting with `_` (that is not a dunder) is
   excluded from the rendered output
 - `__init__` is a dunder and is treated as public by `is_public`, so it is
-  retained
-- module-level privacy filtering works the same way: a top-level `_helper()`
-  function would be absent, but there is none here
+  retained; every other dunder member (`__call__`, `__eq__`, `__slots__`, ...)
+  is kept too, while name-mangled members such as `__secret` are filtered out
+- module-level privacy filtering works the same way for single-underscore
+  names: a top-level `_helper()` function would be absent, but there is none
+  here (module-level dunders such as `__version__` are public only when they
+  are listed in `__all__`)
 - `create_widget` returns `Widget`; annotations are rendered with
   `ast.unparse`, so they appear exactly as written in the source

@@ -579,6 +579,41 @@ class MyClass:
     assert "_private" not in method_names
 
 
+def test_class_dunder_methods_are_public_but_private_and_mangled_are_not() -> None:
+    """``__call__`` and ``__eq__`` are public; ``_x`` and mangled ``__x`` are private."""
+    source = """
+class MyClass:
+    def __call__(self) -> None:
+        pass
+
+    def __eq__(self, other: object) -> bool:
+        pass
+
+    def __x(self) -> None:
+        pass
+
+    def _x(self) -> None:
+        pass
+"""
+    module = _visit(source)
+    cls: Class = module.classes[0]
+    assert [m.name for m in cls.methods] == ["__call__", "__eq__"]
+
+
+def test_class_dunder_attributes_are_public_but_private_and_mangled_are_not() -> None:
+    """Class attributes of the form ``__x__`` are public; ``_x`` and ``__x`` are private."""
+    source = """
+class MyClass:
+    __slots__ = ("a",)
+    __match_args__: tuple[str, ...] = ("a",)
+    __x = 1
+    _x = 2
+"""
+    module = _visit(source)
+    cls: Class = module.classes[0]
+    assert [a.name for a in cls.assignments] == ["__slots__", "__match_args__"]
+
+
 def test_class_mixed_members_all_filtered_correctly() -> None:
     """All three member kinds are filtered in a single class definition."""
     source = """
