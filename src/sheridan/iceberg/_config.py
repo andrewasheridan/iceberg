@@ -36,8 +36,9 @@ class Config:
 
     Attributes:
         test_module_pattern: Compiled regular expression used to identify test
-            modules by their file path. Matched paths are excluded from the
-            public API surface.
+            modules. It is searched in each file's POSIX path relative to the
+            analyzed directory's parent (for example ``pkg/sub/mod.py``).
+            Matched paths are excluded from the public API surface.
         max_workers: Number of worker processes used to parse modules. The
             default of ``1`` parses in-process, which is fastest for typical
             packages. Values above ``1`` parse in a process pool, which only

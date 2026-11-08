@@ -115,7 +115,8 @@ iceberg walks up from the analyzed path looking for `.iceberg.toml` or a
 
 ```toml
 [tool.iceberg]
-# Regex matched against each file's POSIX path; matches are skipped.
+# Regex searched in each file's POSIX path relative to the analyzed directory's
+# parent (for example `pkg/sub/mod.py`); matching files are skipped.
 test_module_pattern = '(^|/)tests?(/|$)|(^|/)test_[^/]*\.py$|_test\.py$'
 # Worker processes used to parse modules (default: 1, in-process). Only very
 # large trees benefit; values above 1 require scripts calling get_public_api

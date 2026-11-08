@@ -126,6 +126,8 @@ def _discover_directory(root: Path, config: Config) -> tuple[DiscoveredModule, .
     Args:
         root: The package directory (or namespace container) to walk.
         config: Runtime configuration carrying the test-module filter pattern.
+            The pattern is searched in each file's POSIX path relative to
+            ``root.parent``, so the path starts with *root*'s own name.
 
     Returns:
         A tuple of :class:`DiscoveredModule` values, one per qualifying
@@ -147,7 +149,9 @@ def _discover_directory(root: Path, config: Config) -> tuple[DiscoveredModule, .
 
             py_file = dirpath / filename
 
-            if config.test_module_pattern.search(str(py_file.as_posix())):
+            # Match against the path relative to root.parent (root's own name
+            # included) so directories above root, such as ~/tests/, never match.
+            if config.test_module_pattern.search(py_file.relative_to(name_root).as_posix()):
                 continue
 
             results.append(_make_module(py_file, name_root))
