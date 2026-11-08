@@ -303,3 +303,34 @@ def test_default_config_safe_in_unguarded_script(tmp_path: Path) -> None:
 
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "pkg"
+
+
+# ---------------------------------------------------------------------------
+# Paths that are not Python identifiers
+# ---------------------------------------------------------------------------
+
+
+def test_hyphenated_directory_does_not_create_phantom_root(tmp_path: Path) -> None:
+    """A hyphenated subdirectory does not add a second root or an empty root name."""
+    pkg = tmp_path / "pkg"
+    _write(pkg / "__init__.py")
+    _write(pkg / "core.py", "def f() -> None: ...\n")
+    _write(pkg / "my-dir" / "thing.py", "def h() -> None: ...\n")
+    _write(pkg / "my-script.py", "def g() -> None: ...\n")
+
+    result = build_package(pkg, _default_config())
+
+    assert isinstance(result, Package)
+    assert result.name == "pkg"
+    assert _all_module_names(result) == {"pkg", "pkg.core"}
+
+
+def test_non_identifier_root_directory_has_non_empty_name(tmp_path: Path) -> None:
+    """A root directory that is not an identifier still gives the root package a name."""
+    root = tmp_path / "my-project"
+    _write(root / "core.py", "def f() -> None: ...\n")
+
+    result = build_package(root, _default_config())
+
+    assert isinstance(result, Package)
+    assert result.name == "my-project"

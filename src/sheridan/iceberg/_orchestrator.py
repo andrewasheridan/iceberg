@@ -206,7 +206,9 @@ def _build_trie(
             )
 
         return Package(
-            name=name,
+            # The root parts are empty when root's own name is not an
+            # identifier; fall back to the directory name so it is never "".
+            name=name or root.name,
             path=path,
             modules=direct_modules,
             subpackages=tuple(subpackages),
