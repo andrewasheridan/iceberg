@@ -16,6 +16,39 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+def _is_public_name(name: str) -> bool:
+    """Return whether a function, class, attribute, or parameter name is public.
+
+    Names without a leading underscore are public. Dunder names such as
+    ``__init__``, ``__call__`` or ``__slots__`` are public too, because they
+    define how users interact with a class. Names with one leading underscore
+    (``_x``) and name-mangled names (``__x``) are private.
+
+    Args:
+        name: The bare name to check.
+
+    Returns:
+        ``True`` when the name is public.
+    """
+    is_dunder = len(name) > 4 and name.startswith("__") and name.endswith("__")
+    return is_dunder or not name.startswith("_")
+
+
+def _is_public_module_stem(stem: str) -> bool:
+    """Return whether a module or package stem is public.
+
+    ``__init__`` is public; any other stem with a leading underscore
+    (including ``__main__``) is private.
+
+    Args:
+        stem: The last component of a dotted module or package name.
+
+    Returns:
+        ``True`` when the stem is public.
+    """
+    return stem == "__init__" or not stem.startswith("_")
+
+
 @dataclass(frozen=True, slots=True)
 class Parameter:
     """A single function parameter.
@@ -37,7 +70,7 @@ class Parameter:
 
     @property
     def is_public(self) -> bool:
-        return self.name == "__init__" or not self.name.startswith("_")
+        return _is_public_name(self.name)
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,7 +111,7 @@ class Function:
 
     @property
     def is_public(self) -> bool:
-        return self.name == "__init__" or not self.name.startswith("_")
+        return _is_public_name(self.name)
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,7 +132,7 @@ class Assignment:
 
     @property
     def is_public(self) -> bool:
-        return self.name == "__init__" or not self.name.startswith("_")
+        return _is_public_name(self.name)
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,7 +166,7 @@ class Reference:
 
     @property
     def is_public(self) -> bool:
-        return not self.name.startswith("_")
+        return _is_public_name(self.name)
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,7 +194,7 @@ class Class:
 
     @property
     def is_public(self) -> bool:
-        return self.name == "__init__" or not self.name.startswith("_")
+        return _is_public_name(self.name)
 
 
 @dataclass(frozen=True, slots=True)
@@ -195,7 +228,7 @@ class Module:
     @property
     def is_public(self) -> bool:
         *_, stem = self.name.split(".")
-        return stem == "__init__" or not stem.startswith("_")
+        return _is_public_module_stem(stem)
 
 
 @dataclass(frozen=True, slots=True)
@@ -255,7 +288,7 @@ class Package:
     @property
     def is_public(self) -> bool:
         *_, stem = self.name.split(".")
-        return stem == "__init__" or not stem.startswith("_")
+        return _is_public_module_stem(stem)
 
 
 @dataclass(frozen=True, slots=True)
@@ -285,7 +318,7 @@ class DiscoveredModule:
     @property
     def is_public(self) -> bool:
         *_, stem = self.dotted_name.split(".")
-        return stem == "__init__" or not stem.startswith("_")
+        return _is_public_module_stem(stem)
 
 
 @dataclass(frozen=True, slots=True)
