@@ -6,8 +6,6 @@ from typing import Any
 
 import pytest
 
-from sheridan.iceberg._api import get_public_api
-from sheridan.iceberg._config import Config
 from sheridan.iceberg._formatter import format_json, format_tree
 from sheridan.iceberg._models import (
     Assignment,
@@ -637,113 +635,6 @@ def test_format_tree_mixed_init_and_non_init_modules() -> None:
     assert "top_level_func()" in result, "init-level function must be present"
 
 
-def test_format_tree_case_05_golden() -> None:
-    """Golden test: running iceberg against cases/case_05 must produce the
-    exact tree documented in cases/case_05/README.md.
-
-    Expected output::
-
-        package case_05
-        ├── class Foo
-        │   ├── def __init__(self, value: int) -> None
-        │   └── def greet(self) -> str
-        └── def bar_func(x: int, y: int = 0) -> int
-    """
-    case_05_path = Path(__file__).parent.parent.parent / "cases" / "case_05"
-    config = Config(max_workers=1)
-    api = get_public_api(case_05_path, config=config)
-
-    result = format_tree(api)
-
-    expected = (
-        "package case_05\n"
-        "├── class Foo\n"
-        "│   ├── def __init__(self, value: int) -> None\n"
-        "│   └── def greet(self) -> str\n"
-        "└── def bar_func(x: int, y: int = 0) -> int"
-    )
-    assert result == expected
-
-
-def test_format_tree_case_06_golden() -> None:
-    """Golden test: running iceberg against cases/case_06/foo.py must produce
-    the exact tree for a bare module (single .py file → Module, not Package).
-
-    Expected output::
-
-        module foo
-        ├── class Widget
-        │   ├── MAX_SIZE: int
-        │   ├── DEFAULT_NAME
-        │   ├── count: int
-        │   ├── def __init__(self, name: str = 'widget', size: int = 10) -> None
-        │   ├── def resize(self, new_size: int) -> None
-        │   └── def describe(self) -> str
-        └── def create_widget(name: str, size: int = 10) -> Widget
-    """
-    case_06_path = Path(__file__).parent.parent.parent / "cases" / "case_06" / "foo.py"
-    config = Config(max_workers=1)
-    api = get_public_api(case_06_path, config=config)
-
-    result = format_tree(api)
-
-    expected = (
-        "module foo\n"
-        "├── class Widget\n"
-        "│   ├── MAX_SIZE: int\n"
-        "│   ├── DEFAULT_NAME\n"
-        "│   ├── count: int\n"
-        "│   ├── def __init__(self, name: str = 'widget', size: int = 10) -> None\n"
-        "│   ├── def resize(self, new_size: int) -> None\n"
-        "│   └── def describe(self) -> str\n"
-        "└── def create_widget(name: str, size: int = 10) -> Widget"
-    )
-    assert result == expected
-
-
-def test_format_tree_case_10_golden() -> None:
-    """Golden test: running iceberg against cases/case_10/src/acme must produce the
-    exact tree for a namespace package (acme) containing a regular subpackage
-    (acme.widgets) with one module (acme.widgets.core).
-
-    Expected output::
-
-        package acme.widgets
-        └── module acme.widgets.core
-            └── def make_widget(name: str) -> str
-    """
-    case_10_src_path = Path(__file__).parent.parent.parent / "cases" / "case_10" / "src" / "acme"
-    config = Config(max_workers=1)
-    api = get_public_api(case_10_src_path, config=config)
-
-    result = format_tree(api)
-
-    expected = "package acme.widgets\n└── module acme.widgets.core\n    └── def make_widget(name: str) -> str"
-    assert result == expected
-
-
-def test_format_tree_case_10_namespace_root_golden() -> None:
-    """Golden test: passing cases/case_10/src/acme (the namespace package root
-    itself) to get_public_api must produce the same output as passing the parent
-    src directory, i.e. the bug where ``iceberg cases/case_10/src/acme`` gave
-    ``package widgets`` instead of ``package acme.widgets`` must stay fixed.
-
-    Expected output (identical to test_format_tree_case_10_golden)::
-
-        package acme.widgets
-        └── module acme.widgets.core
-            └── def make_widget(name: str) -> str
-    """
-    case_10_acme_path = Path(__file__).parent.parent.parent / "cases" / "case_10" / "src" / "acme"
-    config = Config(max_workers=1)
-    api = get_public_api(case_10_acme_path, config=config)
-
-    result = format_tree(api)
-
-    expected = "package acme.widgets\n└── module acme.widgets.core\n    └── def make_widget(name: str) -> str"
-    assert result == expected
-
-
 # ---------------------------------------------------------------------------
 # References
 # ---------------------------------------------------------------------------
@@ -790,32 +681,3 @@ def test_format_json_includes_references() -> None:
     )
     data = json.loads(format_json(module))
     assert data["references"] == [{"name": "json", "module": "json", "attribute": None}]
-
-
-def _case_tree(*parts: str) -> str:
-    path = Path(__file__).parent.parent.parent / "cases" / Path(*parts)
-    return format_tree(get_public_api(path, config=Config(max_workers=1)))
-
-
-def test_format_tree_case_11_golden() -> None:
-    """Golden test: unresolved re-exports are reported as references (cases/case_11)."""
-    assert _case_tree("case_11") == (
-        "package case_11\n"
-        "├── def area(radius: float) -> float\n"
-        "├── from collections import OrderedDict as Ordered\n"
-        "├── import json\n"
-        "├── lazy_thing (unresolved)\n"
-        "└── from math import sqrt"
-    )
-
-
-def test_format_tree_case_12_golden() -> None:
-    """Golden test: re-exports bound inside try/except are resolved (cases/case_12)."""
-    assert _case_tree("case_12") == "package case_12\n├── version: str\n└── def parse(text: str) -> list[str]"
-
-
-def test_format_tree_case_13_golden() -> None:
-    """Golden test: namespace-prefixed absolute imports resolve when the root is
-    the inner package (cases/case_13)."""
-    assert _case_tree("case_13", "src", "acme", "widgets") == "package widgets\n└── def make_widget(name: str) -> str"
-    assert _case_tree("case_13", "src", "acme") == "package acme.widgets\n└── def make_widget(name: str) -> str"

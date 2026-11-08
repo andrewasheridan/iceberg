@@ -4,19 +4,9 @@ Case 06: Passing a single module directly to iceberg:
 - the module contains a class with class-level assignments (class variables)
 - the class has both public and private (`_`-prefixed) members
 
-```shell
-$ cd cases/case_06
-$ iceberg foo.py
-```
-
-or
-
-```shell
-$ iceberg /Users/andrew/Projects/iceberg/cases/case_06/foo.py
-```
-
 ## CLI Output
-```text
+```console
+$ iceberg cases/case_06/foo.py
 module foo
 ├── class Widget
 │   ├── MAX_SIZE: int
@@ -25,7 +15,7 @@ module foo
 │   ├── def __init__(self, name: str = 'widget', size: int = 10) -> None
 │   ├── def resize(self, new_size: int) -> None
 │   └── def describe(self) -> str
-└── def create_widget(name: str, size: int = 10) -> 'Widget'
+└── def create_widget(name: str, size: int = 10) -> Widget
 ```
 - class-level assignments appear before methods in the rendered class body
   (formatter order: nested classes → assignments → methods)
@@ -37,5 +27,5 @@ module foo
   retained
 - module-level privacy filtering works the same way: a top-level `_helper()`
   function would be absent, but there is none here
-- `create_widget` has a forward-reference return annotation (`'Widget'`);
-  `ast.unparse` renders string annotations with single quotes
+- `create_widget` returns `Widget`; annotations are rendered with
+  `ast.unparse`, so they appear exactly as written in the source
