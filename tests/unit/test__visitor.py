@@ -168,6 +168,42 @@ def greet(name: str = "world", count: int = 3) -> str:
     assert defaults["count"] == "3"
 
 
+@pytest.mark.parametrize(
+    ("default_source", "expected"),
+    [
+        ("-1", "-1"),
+        ("foo()", "foo()"),
+        ("[1, 2]", "[1, 2]"),
+        ("{'a': 1}", "{'a': 1}"),
+        ("lambda v: v", "lambda v: v"),
+        ("f'{x}!'", "f'{x}!'"),
+    ],
+    ids=["unary-minus", "call", "list", "dict", "lambda", "f-string"],
+)
+def test_function_complex_default_values_captured(default_source: str, expected: str) -> None:
+    source = f"""
+def fn(a={default_source}, *, b={default_source}):
+    pass
+"""
+    module = _visit(source)
+    fn = module.functions[0]
+    (positional,) = fn.positional_parameters
+    (keyword,) = fn.keyword_parameters
+    assert positional.default == expected
+    assert keyword.default == expected
+
+
+def test_function_long_default_is_shortened_but_present() -> None:
+    long_list = "[" + ", ".join(str(i) for i in range(100)) + "]"
+    source = f"""
+def fn(a={long_list}):
+    pass
+"""
+    module = _visit(source)
+    (param,) = module.functions[0].positional_parameters
+    assert param.default == "..."
+
+
 def test_function_no_params() -> None:
     source = """
 def nothing() -> None:
