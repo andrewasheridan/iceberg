@@ -1,0 +1,34 @@
+# Turn on auto-merge (squash) for pull requests opened by Dependabot.
+#
+# GitHub merges the PR only after the checks required by main-ruleset
+# ("All gates" and "Lint PR title") pass, so this adds no bypass.
+#
+# Dependabot-triggered runs get a read-only GITHUB_TOKEN unless the workflow
+# asks for more, so the job requests write access explicitly.
+#
+# Note: a merge made with GITHUB_TOKEN does not trigger push workflows on main
+# (bump, CI, docs). That is fine for build(deps) commits, which do not bump the
+# version.
+
+name: Dependabot auto-merge
+
+on:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  enable-auto-merge:
+    name: Enable auto-merge
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Enable auto-merge (squash)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR_URL"
