@@ -405,16 +405,62 @@ LIMIT = 100
 
 
 # ---------------------------------------------------------------------------
-# Scenario 9: Non-simple assignment target is dropped
+# Scenario 9: Chained and unpacked assignments bind one entry per name
 # ---------------------------------------------------------------------------
 
 
-def test_tuple_unpacking_dropped() -> None:
+def test_chained_assignment_captures_every_name() -> None:
+    module = _visit("a = b = 1\n")
+    assert [a.name for a in module.assignments] == ["a", "b"]
+    assert all(a.annotation is None for a in module.assignments)
+
+
+def test_tuple_unpacking_captures_every_name() -> None:
+    module = _visit("a, b = 1, 2\n")
+    assert [a.name for a in module.assignments] == ["a", "b"]
+
+
+def test_starred_unpacking_captures_every_name() -> None:
+    module = _visit("c, *rest = [1, 2, 3]\n")
+    assert [a.name for a in module.assignments] == ["c", "rest"]
+
+
+def test_nested_list_unpacking_captures_every_name() -> None:
+    module = _visit("[x, (y, z)] = 1, (2, 3)\n")
+    assert [a.name for a in module.assignments] == ["x", "y", "z"]
+
+
+def test_unpacking_skips_private_names_without_all() -> None:
+    module = _visit("a, _b = 1, 2\n")
+    assert [a.name for a in module.assignments] == ["a"]
+
+
+def test_unpacking_skips_attribute_and_subscript_targets() -> None:
+    module = _visit("a, obj.attr, d[0] = 1, 2, 3\n")
+    assert [a.name for a in module.assignments] == ["a"]
+
+
+def test_unpacked_name_in_all_is_definition_not_reference() -> None:
     source = """
-a, b = 1, 2
+__all__ = ["a", "b", "c", "rest"]
+a = b = 1
+c, *rest = 1, 2, 3
 """
     module = _visit(source)
-    assert len(module.assignments) == 0
+    assert {a.name for a in module.assignments} == {"a", "b", "c", "rest"}
+    assert module.references == ()
+
+
+def test_class_body_chained_and_unpacked_assignments() -> None:
+    source = """
+class MyClass:
+    a = b = 1
+    c, *rest = 1, 2, 3
+    d, _e = 4, 5
+"""
+    module = _visit(source)
+    names = [a.name for a in module.classes[0].assignments]
+    assert names == ["a", "b", "c", "rest", "d"]
 
 
 def test_attribute_assignment_dropped() -> None:
@@ -423,16 +469,6 @@ obj.attr = 42
 """
     module = _visit(source)
     assert len(module.assignments) == 0
-
-
-def test_mixed_assignments_drops_non_simple() -> None:
-    source = """
-GOOD: int = 1
-a, b = 2, 3
-"""
-    module = _visit(source)
-    names = {a.name for a in module.assignments}
-    assert names == {"GOOD"}
 
 
 # ---------------------------------------------------------------------------

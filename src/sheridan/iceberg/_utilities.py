@@ -5,7 +5,7 @@ They operate on the stdlib ``ast`` module and carry no external dependencies
 beyond the standard library.
 """
 
-__all__ = ["collect_imports", "extract_all", "infer_all", "resolve_relative"]
+__all__ = ["bound_names", "collect_imports", "extract_all", "infer_all", "resolve_relative"]
 
 import ast
 from collections.abc import Iterator
@@ -76,6 +76,30 @@ def extract_all(tree: ast.Module) -> frozenset[str] | None:
     return None
 
 
+def bound_names(target: ast.expr) -> Iterator[str]:
+    """Yield every plain name bound by an assignment target, in source order.
+
+    Recurses into tuple and list unpacking and starred targets. Attribute and
+    subscript targets bind no module-level name and are skipped.
+
+    Args:
+        target: One target of an ``Assign`` or ``AnnAssign`` node.
+
+    Yields:
+        Each name bound by *target*, left to right.
+    """
+    match target:
+        case ast.Name(id=name):
+            yield name
+        case ast.Tuple(elts=elts) | ast.List(elts=elts):
+            for elt in elts:
+                yield from bound_names(elt)
+        case ast.Starred(value=value):
+            yield from bound_names(value)
+        case _:
+            pass
+
+
 def infer_all(tree: ast.Module) -> frozenset[str]:
     """Collect public top-level names defined in a module AST.
 
@@ -89,7 +113,9 @@ def infer_all(tree: ast.Module) -> frozenset[str]:
     - Variable assignments (``Assign`` and ``AnnAssign``)
     - Type aliases (``TypeAlias``)
 
-    Only simple name targets (``ast.Name``) are considered for assignments.
+    Assignments contribute every name they bind, including each target of
+    a chained assignment (``a = b = 1``) and each name in tuple, list, or
+    starred unpacking (``c, *rest = ...``).
 
     Args:
         tree: The ``ast.Module`` node representing the parsed Python module.
@@ -102,8 +128,7 @@ def infer_all(tree: ast.Module) -> frozenset[str]:
         - This function does not evaluate ``__all__`` and instead infers
           public names purely by naming convention.
         - Nested definitions (e.g., inside functions or classes) are ignored.
-        - Complex assignment targets (e.g., attributes, subscripts, tuple
-          unpacking) are not included.
+        - Attribute and subscript assignment targets are not included.
     """
     names: set[str] = set()
     for node in tree.body:
@@ -118,11 +143,7 @@ def infer_all(tree: ast.Module) -> frozenset[str]:
 
             case ast.Assign(targets=targets):
                 for target in targets:
-                    match target:
-                        case ast.Name(id=name) if not name.startswith("_"):
-                            names.add(name)
-                        case _:
-                            pass
+                    names.update(name for name in bound_names(target) if not name.startswith("_"))
 
             case ast.AnnAssign(target=ast.Name(id=name)):
                 if not name.startswith("_"):

@@ -1,10 +1,10 @@
-"""Tests for sheridan.iceberg._utilities (collect_imports and resolve_relative)."""
+"""Tests for sheridan.iceberg._utilities."""
 
 import ast
 
 import pytest
 
-from sheridan.iceberg._utilities import collect_imports, resolve_relative
+from sheridan.iceberg._utilities import bound_names, collect_imports, infer_all, resolve_relative
 
 
 def _imports(source: str, package: str = "pkg") -> dict[str, tuple[str, str | None]]:
@@ -113,3 +113,31 @@ class C:
     import json
 """
     assert _imports(source) == {}
+
+
+# ---------------------------------------------------------------------------
+# bound_names / infer_all
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("a = 1", ["a"]),
+        ("a, b = 1, 2", ["a", "b"]),
+        ("[a, b] = 1, 2", ["a", "b"]),
+        ("c, *rest = 1, 2, 3", ["c", "rest"]),
+        ("(a, (b, *c)) = 1, (2, 3)", ["a", "b", "c"]),
+        ("a, obj.attr, d[0] = 1, 2, 3", ["a"]),
+        ("obj.attr = 1", []),
+    ],
+)
+def test_bound_names(source: str, expected: list[str]) -> None:
+    node = ast.parse(source).body[0]
+    assert isinstance(node, ast.Assign)
+    assert list(bound_names(node.targets[0])) == expected
+
+
+def test_infer_all_includes_chained_and_unpacked_names() -> None:
+    tree = ast.parse("a = b = 1\nc, *rest = 1, 2\nd, _e = 1, 2\n")
+    assert infer_all(tree) == frozenset({"a", "b", "c", "rest", "d"})

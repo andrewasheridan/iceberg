@@ -10,6 +10,10 @@ Names listed in ``__all__`` that are not defined in the module itself (for
 example re-exports of imported names) are captured as ``Reference`` entries so
 they are never silently dropped.
 
+Assignments contribute one ``Assignment`` per bound name: ``a = b = 1``
+yields ``a`` and ``b``, and ``c, *rest = ...`` yields ``c`` and ``rest``.
+Attribute and subscript targets are not captured.
+
 PEP 695 ``type X = int`` statements are captured as ``Assignment`` with
 ``annotation="TypeAlias"``. This maps the new syntax onto the same model
 used for ``X: TypeAlias = int`` style aliases so downstream tools see a
@@ -24,7 +28,7 @@ import ast
 
 from sheridan.iceberg._exceptions import ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Parameter, Reference
-from sheridan.iceberg._utilities import collect_imports, extract_all, infer_all
+from sheridan.iceberg._utilities import bound_names, collect_imports, extract_all, infer_all
 
 
 def visit_module(source: str, dotted_name: str) -> Module:
@@ -63,9 +67,7 @@ def visit_module(source: str, dotted_name: str) -> Module:
                     classes.append(_build_class(cls_node))
 
             case ast.Assign() as assign_node:
-                result = _build_assignment(assign_node)
-                if result is not None and result.name in public:
-                    assignments.append(result)
+                assignments.extend(a for a in _build_assignments(assign_node) if a.name in public)
 
             case ast.AnnAssign() as ann_node:
                 result = _build_assignment(ann_node)
@@ -270,9 +272,7 @@ def _build_class(node: ast.ClassDef) -> Class:
                     nested_classes.append(nested)
 
             case ast.Assign() as assign_child:
-                result = _build_assignment(assign_child)
-                if result is not None and result.is_public:
-                    assignments.append(result)
+                assignments.extend(a for a in _build_assignments(assign_child) if a.is_public)
 
             case ast.AnnAssign() as ann_child:
                 result = _build_assignment(ann_child)
@@ -293,6 +293,25 @@ def _build_class(node: ast.ClassDef) -> Class:
         methods=tuple(methods),
         nested_classes=tuple(nested_classes),
     )
+
+
+def _build_assignments(node: ast.Assign) -> list[Assignment]:
+    """Build one ``Assignment`` for every name an ``Assign`` statement binds.
+
+    Covers chained assignment (``a = b = 1``) and tuple, list, and starred
+    unpacking (``c, *rest = ...``). Attribute and subscript targets are
+    skipped. A name bound twice in the same statement is reported once.
+
+    Args:
+        node: An ``Assign`` AST node.
+
+    Returns:
+        The assignments in source order, each with ``annotation=None``.
+    """
+    names: dict[str, None] = {}
+    for target in node.targets:
+        names.update(dict.fromkeys(bound_names(target)))
+    return [Assignment(name=name, annotation=None) for name in names]
 
 
 def _build_assignment(node: ast.Assign | ast.AnnAssign) -> Assignment | None:
