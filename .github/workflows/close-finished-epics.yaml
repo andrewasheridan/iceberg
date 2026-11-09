@@ -1,0 +1,78 @@
+# Close a parent issue (an epic) once every one of its sub-issues is closed.
+#
+# GitHub tracks sub-issue progress but never closes the parent itself, so
+# finished epics stayed open. On each closed issue this walks up the parent
+# chain and closes every ancestor whose sub-issues are now all closed.
+#
+# Run it by hand (workflow_dispatch) to sweep every open issue and close any
+# finished parents that were missed.
+#
+# A close made with GITHUB_TOKEN does not trigger this workflow again, which is
+# why the job walks the whole chain itself.
+
+name: Close finished epics
+
+on:
+  issues:
+    types: [closed]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: close-finished-epics
+  cancel-in-progress: false
+
+jobs:
+  close-finished-parents:
+    name: Close finished parents
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - name: Close parents whose sub-issues are all closed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          CLOSED_ISSUE: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+
+          # Prints the number of the issue's parent, or nothing if it has none.
+          parent_of() {
+            gh api "repos/$REPO/issues/$1" --jq '.parent_issue_url // "" | split("/") | last // ""'
+          }
+
+          # Succeeds if the issue is open and every one of its sub-issues is closed.
+          is_finished() {
+            gh api "repos/$REPO/issues/$1" --jq '
+              .state == "open"
+              and .sub_issues_summary.total > 0
+              and .sub_issues_summary.completed == .sub_issues_summary.total
+            ' | grep -qx true
+          }
+
+          close_issue() {
+            gh issue close "$1" --repo "$REPO" --reason completed \
+              --comment "Closing: all sub-issues are closed."
+            echo "Closed #$1"
+          }
+
+          if [ -z "$CLOSED_ISSUE" ]; then
+            candidates=$(gh api --paginate "repos/$REPO/issues?state=open&per_page=100" \
+              --jq '.[] | select(.pull_request == null and .sub_issues_summary.total > 0) | .number')
+
+            for number in $candidates; do
+              if is_finished "$number"; then
+                close_issue "$number"
+              fi
+            done
+            exit 0
+          fi
+
+          number=$(parent_of "$CLOSED_ISSUE")
+          while [ -n "$number" ] && is_finished "$number"; do
+            close_issue "$number"
+            number=$(parent_of "$number")
+          done
