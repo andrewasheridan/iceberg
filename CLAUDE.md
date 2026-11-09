@@ -2,6 +2,10 @@
 
 ## Code style
 
+- Write all prose (docs, READMEs, docstrings, comments, CLI messages, issue, commit and
+  PR bodies) in ASD-STE100 Simplified Technical English. Load the `ste100` skill before
+  you write or edit prose. See the Writing style section of CONTRIBUTING.md.
+
 - No banner or section-divider comments: no lines made only of `#` and a run of `-` or
   `=`, and no title comments wrapped in them. To group code, use a test class, a
   separate module or a docstring. `tests/unit/test_comment_style.py` and the
