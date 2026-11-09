@@ -228,6 +228,12 @@ def _extract(
         ("__all__ = ['a']\n__all__ += ('b', 'c')", {"a", "b", "c"}),
         ("__all__ = ['a']\n__all__.extend(['b'])", {"a", "b"}),
         ("__all__ = ['a']\n__all__.append('b')", {"a", "b"}),
+        ("__all__ = ['b', 'a']\n__all__.sort()", {"a", "b"}),
+        ("__all__ = ['b', 'a']\n__all__.sort(key=str.lower, reverse=True)", {"a", "b"}),
+        ("__all__ = ['b', 'a']\n__all__.reverse()", {"a", "b"}),
+        ("__all__ = ['a', 'b']\n__all__.remove('a')", {"b"}),
+        ("__all__ = ['a']\n__all__.insert(0, 'b')", {"a", "b"}),
+        ("__all__ = ['a']\n__all__.insert(-1, 'b')", {"a", "b"}),
         ("__all__ = ['a'] + ['b'] + ('c',)", {"a", "b", "c"}),
         ("__all__ = ['a']\n__all__ = __all__ + ['b']", {"a", "b"}),
         ("__all__ = ['a']\n__all__ = ['b']", {"b"}),
@@ -258,7 +264,11 @@ def test_extract_all_resolves_other_module_all(source: str) -> None:
         "__all__ = ['a']\n__all__ += make()",
         "__all__ += ['a']",
         "__all__ = ['a']\n__all__.append(name)",
-        "__all__ = ['a']\n__all__.remove('a')",
+        "__all__ = ['a']\n__all__.remove('b')",
+        "__all__ = ['a']\n__all__.remove(name)",
+        "__all__ = ['a']\n__all__.insert(i, 'b')",
+        "__all__ = ['a']\n__all__.sort(cmp=f)",
+        "__all__ = ['a']\n__all__.pop()",
         "from . import sub\n__all__ = ['a']\n__all__ += sub.__all__",
         "import os\n__all__ = ['a'] + os.__all__",
     ],
@@ -266,6 +276,11 @@ def test_extract_all_resolves_other_module_all(source: str) -> None:
 def test_extract_all_warns_when_not_static(source: str) -> None:
     with pytest.warns(UserWarning, match=r"cannot evaluate __all__"):
         assert extract_all(ast.parse(source), "pkg") is None
+
+
+def test_extract_all_keeps_membership_after_sort() -> None:
+    source = "__all__ = ['b', 'a']\n__all__.sort()\n\ndef a(): pass\ndef b(): pass\ndef c(): pass\n"
+    assert _extract(source) == {"a", "b"}
 
 
 def test_extract_all_warning_names_path_and_line() -> None:
