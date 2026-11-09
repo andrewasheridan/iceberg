@@ -7,36 +7,42 @@
 
 > The public API is the tip of the iceberg. `iceberg` marks the waterline.
 
-`iceberg` inspects and snapshots the public API surface of a Python package.
-It reads source with Python's `ast` module and never imports or executes your
+`iceberg` inspects the public API of a Python package and makes a snapshot of it.
+It reads the source with the Python `ast` module. It never imports or runs your
 code, and it has no runtime dependencies.
 
 ## Features
 
-- Reports every public module, class, function, and assignment, with full
-  signatures (parameter names, annotations, defaults), class bases and
-  keyword arguments (`class Error(Base, metaclass=Meta)`), and class members.
-  Definitions inside `if` / `try` blocks at module level or in a class body
-  (`if TYPE_CHECKING:`, version checks, `except ImportError:` fallbacks)
-  count; when a name is defined more than once, the first definition is kept.
-- Uses `__all__` as the source of truth when present and falls back to
-  underscore-prefix inference when it is absent. `__all__` is evaluated
-  statically: literal lists and tuples, `+` concatenation, `+=`, `.extend()`,
-  `.append()`, `.insert()`, `.remove()`, `.sort()`, `.reverse()`, and `sub.__all__` or
-  `from .sub import __all__` for modules inside the analyzed tree.
-  Changes inside module-level `if` / `try` blocks are applied, and `__all__`
-  keeps every name that any branch adds. When it
-  cannot be evaluated, iceberg emits a warning naming the file and line, then
-  falls back to inference. Dunder class members such as
-  `__call__` and `__eq__` are public; `_x` and name-mangled `__x` are private.
-- Resolves re-exports through `__init__.py`, including relative imports,
-  absolute imports, namespace packages, and imports inside `try` / `if` blocks.
-  A star import (`from ._core import *`) from a module in the analyzed tree
-  binds that module's `__all__`, or its public names when it has none.
-- Never drops a public name silently: anything it cannot resolve to a
-  definition (e.g. `from math import sqrt` listed in `__all__`) is reported as
-  a reference.
-- Human-readable tree output and deterministic JSON output.
+- It shows each public module, class, function and assignment. It shows full
+  signatures (parameter names, annotations and default values), the bases and
+  keyword arguments of a class (`class Error(Base, metaclass=Meta)`), and the
+  members of a class.
+- It includes definitions in `if` and `try` blocks at module level or in a class
+  body. Examples are `if TYPE_CHECKING:`, version checks and `except ImportError:`
+  fallbacks. If a name has more than one definition, iceberg keeps the first one.
+- If a module has `__all__`, iceberg uses it as the list of public names. If the
+  module has no `__all__`, a name is public when it does not start with an
+  underscore.
+- iceberg reads `__all__`, but it does not run the code. It understands these forms:
+  literal lists and tuples, `+` concatenation, `+=`, `.extend()`, `.append()`,
+  `.insert()`, `.remove()`, `.sort()` and `.reverse()`. It also understands
+  `sub.__all__` and `from .sub import __all__` for modules in the analyzed tree.
+- iceberg applies the changes to `__all__` in module-level `if` and `try` blocks.
+  `__all__` keeps each name that a branch adds.
+- If iceberg cannot read `__all__`, it shows a warning with the file and the line.
+  Then it uses the underscore rule.
+- Dunder class members such as `__call__` and `__eq__` are public. Members with
+  the names `_x` and `__x` (name-mangled) are private.
+- iceberg follows re-exports through `__init__.py`. It understands relative
+  imports, absolute imports, namespace packages, and imports in `try` and `if`
+  blocks.
+- A star import (`from ._core import *`) from a module in the analyzed tree
+  gives the `__all__` of that module. If that module has no `__all__`, it gives
+  the public names of the module.
+- iceberg never removes a public name silently. Sometimes iceberg cannot find
+  the definition of a public name, for example `from math import sqrt` in
+  `__all__`. Then iceberg shows the name as a reference.
+- iceberg gives a tree output for people and a deterministic JSON output.
 
 ## Installation
 
@@ -57,45 +63,62 @@ iceberg --version            # print the installed version
 python -m sheridan.iceberg src/mypkg
 ```
 
-The path may be a package directory, a directory containing packages (such as
-`src/` or a namespace package), or a single `.py` file. iceberg names packages
-after the path it is given: `iceberg src/sheridan` reports `sheridan.iceberg`,
-while `iceberg src/sheridan/iceberg` reports `iceberg`.
+The path can be a package directory, a directory that contains packages (such as
+`src/` or a namespace package), or one `.py` file. iceberg gives names to packages
+from the path that you give it. For example, `iceberg src/sheridan` shows
+`sheridan.iceberg`, and `iceberg src/sheridan/iceberg` shows `iceberg`.
 
-Exit codes: `0` on success, `1` for iceberg errors (missing path, invalid
-config, unreadable or unparseable source, unwritable `--output` file), `2` for unexpected errors.
-An unexpected error is a bug in iceberg: run again with `--traceback` (or set
-`ICEBERG_DEBUG=1`) to print the full traceback, and include it when you
-[report the bug](https://github.com/andrewasheridan/iceberg/issues). Source files
-are decoded the way Python decodes them: UTF-8 unless a PEP 263 encoding
-declaration such as `# -*- coding: latin-1 -*-` says otherwise.
+The exit codes are:
 
-`-o/--output PATH` writes the report to PATH as UTF-8 with a final newline,
-whatever the console encoding. iceberg writes to a temporary file and moves it
-into place only when the report is complete, so an error never leaves a partial
-file or overwrites the previous one. If PATH is a symlink, the report goes to the
-file it points to and the link stays. An existing file keeps its permission bits,
-but is owned by the user who runs iceberg afterwards. A path that is not a regular
-file, such as `/dev/stdout` or a named pipe, is written directly, without the
-temporary file.
+- `0`: The command was successful.
+- `1`: An iceberg error occurred. Examples are a path that does not exist, an incorrect
+  configuration, a source file that iceberg cannot read or parse, and an
+  `--output` file that iceberg cannot write.
+- `2`: An unexpected error occurred.
 
-### Keep going past bad files
+An unexpected error is a bug in iceberg. To report it, do these steps:
 
-By default, one file that cannot be read or parsed (for example a vendored
-Python 2 module) stops the run. With `--keep-going`, iceberg skips that module,
-prints the API of everything else, and writes one diagnostic per line to
-stderr: an `error` for each skipped module, then a `warning` for each exported
-name that no import binds (the names the tree marks `(unresolved)`):
+1. Run the command again with `--traceback` (or set `ICEBERG_DEBUG=1`).
+2. Copy the full traceback.
+3. Put the traceback in your [bug report](https://github.com/andrewasheridan/iceberg/issues).
+
+iceberg decodes source files in the same way as Python. The encoding is UTF-8,
+unless a PEP 263 encoding declaration such as `# -*- coding: latin-1 -*-` gives
+a different encoding.
+
+`-o/--output PATH` writes the report to PATH as UTF-8 with a final newline. The
+encoding of the console has no effect. iceberg writes to a temporary file first.
+When the report is complete, iceberg moves the file into PATH. Thus, an error
+never leaves a partial file and never overwrites the old file.
+
+- If PATH is a symlink, iceberg writes the report to the target file of the link.
+  The link does not change.
+- If the file exists, it keeps its permission bits. After iceberg writes the file, the
+  user who ran iceberg owns it.
+- If PATH is not a regular file (for example `/dev/stdout` or a named pipe),
+  iceberg writes to it directly, without a temporary file.
+
+### Continue after bad files
+
+By default, if iceberg cannot read or parse a file, the run stops. An example is
+a vendored Python 2 module. With `--keep-going`, iceberg does these steps:
+
+1. It skips the bad module.
+2. It prints the API of all the other modules.
+3. It writes one diagnostic on each line to stderr. First, it writes an `error`
+   for each module that it skipped. Then it writes a `warning` for each exported
+   name that no import binds. The tree marks these names `(unresolved)`.
 
 ```text
 /src/mypkg/vendored.py:2: error: Missing parentheses in call to 'print'. Did you mean print(...)?
 /src/mypkg/__init__.py: warning: 'lazy_thing' is exported but never bound
 ```
 
-The exit code is `1` when a module was skipped and `0` when there are only
-warnings. With `--json`, the diagnostics are also in a top-level `diagnostics`
-list, with paths relative to the analyzed directory. A single `.py` file that
-cannot be parsed is still an error, since there is nothing else to report.
+If iceberg skipped a module, the exit code is `1`. If there are only warnings, the
+exit code is `0`. With `--json`, the output also has a top-level `diagnostics`
+list. The paths in this list are relative to the analyzed directory. If you give
+one `.py` file and iceberg cannot parse it, iceberg shows an error. There is
+nothing else to show.
 
 ### Example output
 
@@ -109,14 +132,14 @@ package case_11
 └── from math import sqrt
 ```
 
-Definitions come first. Public names that iceberg could not resolve to a
-definition follow, shown as the import that binds them. A name with no binding
-import at all (here, one served by a module-level `__getattr__`) is marked
-`(unresolved)`.
+The definitions come first. Then come the public names that iceberg cannot
+connect to a definition. iceberg shows the import that binds each of these names.
+If no import binds a name, iceberg marks it `(unresolved)`. In this example, a
+module-level `__getattr__` supplies the name.
 
-When a package's `__init__.py` defines `__all__`, its exports are hoisted to
-the package level and private submodules are hidden. Without `__all__`, every
-public module is listed:
+If the `__init__.py` of a package defines `__all__`, iceberg moves the exported
+names up to the package level. It does not show the private submodules. If there
+is no `__all__`, iceberg shows each public module:
 
 ```console
 $ iceberg cases/case_09
@@ -137,18 +160,20 @@ package case_09
 ### JSON output
 
 `--json` prints one object for the analyzed package or module. Its first key is
-`schema_version`, an integer that changes when the JSON format changes in a way
-that can break consumers. Every package, module, class, function, assignment
-and reference object has a `node_type` field (`package`, `module`, `class`,
-`function`, `assignment` or `reference`). Function objects also have a `kind`
-field (`function`, `method`, `classmethod`, `staticmethod` or `property`).
+`schema_version`. This integer changes when a change to the JSON format can
+break the programs that read it.
+
+Each package, module, class, function, assignment and reference object has a
+`node_type` field. Its value is `package`, `module`, `class`, `function`,
+`assignment` or `reference`. Function objects also have a `kind` field. Its value
+is `function`, `method`, `classmethod`, `staticmethod` or `property`.
 
 [`docs/schema/iceberg.schema.json`](docs/schema/iceberg.schema.json) is a JSON
-Schema (draft 2020-12) for this output. The tests validate the output of every
-case against it.
+Schema (draft 2020-12) for this output. The tests validate the output of each
+case against this schema.
 
-The [`cases/`](cases) directory documents each supported layout and edge case
-alongside its expected output.
+The [`cases/`](cases) directory shows each supported layout and edge case, with
+its expected output.
 
 ## Programmatic use
 
@@ -162,35 +187,50 @@ for function in api.functions:
     print(function.name)
 ```
 
-`get_public_api` returns a `Package` (or a `Module` when given a single file).
-A `Package` is a trie of `modules` and `subpackages`; its `assignments`,
-`classes`, `functions`, and `references` properties expose the package-level
-(`__init__.py`) surface. All models are frozen dataclasses: `Package`,
-`Module`, `Class`, `Function`, `Parameter`, `Assignment`, and `Reference`.
-`Function.kind` tells a module-level `"function"` apart from a class's
-`"method"`, `"classmethod"`, `"staticmethod"` and `"property"`, and
-`Function.decorators` lists its decorators as source strings. `Class.bases`
-and `Class.keywords` list a class's bases and keyword arguments such as
-`metaclass=ABCMeta` as source strings. The tree shows a
-property as the attribute callers read (`property p: int`) and prefixes
-classmethods and staticmethods with their kind. Property setters and deleters
-are not listed separately. A function with `typing.overload` signatures is one
-`Function` whose `overloads` tuple holds those signatures. The tree shows one
-line per overload and hides the implementation signature unless you pass
+`get_public_api` returns a `Package`. If you give it one file, it returns a
+`Module`. A `Package` is a trie of `modules` and `subpackages`. Its
+`assignments`, `classes`, `functions` and `references` properties give the
+package-level (`__init__.py`) API.
+
+All models are frozen dataclasses: `Package`, `Module`, `Class`, `Function`,
+`Parameter`, `Assignment` and `Reference`.
+
+- `Function.kind` tells the difference between a module-level `"function"` and
+  a `"method"`, `"classmethod"`, `"staticmethod"` or `"property"` of a class.
+- `Function.decorators` lists the decorators of a function as source strings.
+- `Class.bases` and `Class.keywords` list the bases and the keyword arguments of
+  a class as source strings. An example of a keyword argument is
+  `metaclass=ABCMeta`.
+
+The tree shows a property as the attribute that callers read
+(`property p: int`). It puts the kind before the names of classmethods and
+staticmethods. It does not show property setters and deleters as separate items.
+
+A function with `typing.overload` signatures is one `Function`. Its `overloads`
+tuple holds those signatures. The tree shows one line for each overload. It does
+not show the signature of the implementation, unless you give
 `--show-overload-implementations`.
 
-`get_public_api_report(path, keep_going=True)` is the programmatic form of
-`--keep-going`. It returns a `Report` whose `api` is the `Package` or `Module`
-and whose `diagnostics` is a tuple of `Diagnostic` objects (`severity`,
-`module`, `path`, `message` and `lineno`). `Report.has_errors` is `True` when a
-module was skipped. Without `keep_going`, it raises on the first bad file like
-`get_public_api`, but still lists the unresolved-name warnings.
+`get_public_api_report(path, keep_going=True)` does the same work as
+`--keep-going` in Python code. It returns a `Report` with these attributes:
+
+- `api`: the `Package` or the `Module`.
+- `diagnostics`: a tuple of `Diagnostic` objects. Each object has a `severity`,
+  a `module`, a `path`, a `message` and a `lineno`.
+- `has_errors`: `True` if iceberg skipped a module.
+
+Without `keep_going`, the function raises an exception at the first bad file,
+the same as `get_public_api`. But it still lists the warnings for unresolved
+names.
 
 `load_json` reads the output of `iceberg --json` back into a `Package` or
-`Module`. The JSON stores package paths relative to the analyzed directory, so
-the loaded paths are relative too unless you pass `root=`. It raises
-`SnapshotError` (an `IcebergError`) for invalid JSON, a missing or unsupported
-`schema_version`, and malformed nodes:
+`Module`. The JSON keeps package paths relative to the analyzed directory. Thus,
+the paths that `load_json` gives are also relative, unless you give `root=`.
+`load_json` raises `SnapshotError` (an `IcebergError`) for these problems:
+
+- The JSON is not valid.
+- There is no `schema_version`, or iceberg does not support it.
+- A node has an incorrect structure.
 
 ```python
 from pathlib import Path
@@ -200,24 +240,28 @@ from sheridan.iceberg import load_json
 old = load_json(Path("api.json").read_text(encoding="utf-8"))
 ```
 
-`sheridan.iceberg.utilities` provides helpers for building the same models from
-smaller inputs: `get_function`, `get_class`, `get_assignment`, `get_module`, and
-`get_package` accept source strings, AST nodes, paths, or live objects.
-With a path, `get_function` and `get_class` look up `name` among module-level
-definitions first. Use a dotted name such as `"MyClass.method"` to select a
-nested definition.
+`sheridan.iceberg.utilities` has functions that make the same models from
+smaller inputs: `get_function`, `get_class`, `get_assignment`, `get_module` and
+`get_package`. These functions accept source strings, AST nodes, paths or live
+objects. If you give a path, `get_function` and `get_class` look for `name` in
+the module-level definitions first. To select a nested definition, use a dotted
+name such as `"MyClass.method"`.
 
-When it walks a directory, iceberg skips hidden directories, `__pycache__`,
-common non-source directories (`build`, `dist`, `venv`, `env`, `node_modules`,
-`site-packages` and `*.egg-info`), and any directory or `.py` file whose name
-cannot be imported because it is not a Python identifier or is a keyword (for
-example `my-dir/` or `my-script.py`). The directory you pass is always
-analyzed, even if its own name is not an identifier.
+When iceberg walks through a directory, it skips these directories and files:
 
-To skip more paths, pass `--exclude` one or more times, or set `exclude` in the
-configuration (see below). Each value is a glob matched against the path of a
-directory or file relative to the directory you pass. `**` matches any number
-of directories:
+- Hidden directories and `__pycache__`.
+- Usual directories that do not contain source: `build`, `dist`, `venv`, `env`,
+  `node_modules`, `site-packages` and `*.egg-info`.
+- A directory or `.py` file that you cannot import, because its name is not a
+  Python identifier or is a keyword. Examples are `my-dir/` and `my-script.py`.
+
+iceberg always analyzes the directory that you give it, even if its name is not
+an identifier.
+
+To skip more paths, give `--exclude` one or more times, or set `exclude` in the
+configuration (see below). Each value is a glob. iceberg compares it with the
+path of each directory and file, relative to the directory that you give.
+`**` matches zero or more directories:
 
 ```bash
 iceberg src/mypkg --exclude legacy --exclude '**/*_pb2.py'
@@ -227,28 +271,30 @@ iceberg src/mypkg --exclude legacy --exclude '**/*_pb2.py'
 
 ## Configuration
 
-iceberg walks up from the analyzed path and checks each directory, nearest
-first:
+iceberg starts at the analyzed path and goes up through the parent directories.
+It examines each directory, the nearest one first:
 
-- If the directory has an `.iceberg.toml`, iceberg uses it. In one directory,
-  `.iceberg.toml` has priority over `pyproject.toml`.
-- Otherwise, if the directory has a `pyproject.toml`, it is the project root and
-  the search stops there. iceberg uses its `[tool.iceberg]` table, or the
-  defaults if it has none. Configuration above the project root (for example a
-  `~/.iceberg.toml` or a parent project's `pyproject.toml`) never applies.
-- If no file is found, iceberg uses the defaults.
+- If the directory has an `.iceberg.toml` file, iceberg uses it. In one
+  directory, `.iceberg.toml` has priority over `pyproject.toml`.
+- If the directory has no `.iceberg.toml` but has a `pyproject.toml`, this
+  directory is the project root. The search stops there. iceberg uses the
+  `[tool.iceberg]` table of the file. If there is no table, iceberg uses the
+  default values.
+- iceberg never uses configuration above the project root. Examples are a
+  `~/.iceberg.toml` file or the `pyproject.toml` of a parent project.
+- If iceberg finds no file, it uses the default values.
 
-Unknown keys are rejected.
+iceberg does not accept unknown keys.
 
-Command-line options change this for one run:
+These command-line options change the configuration for one run:
 
-- `--config PATH` reads only `PATH` and skips the search. A file named
-  `pyproject.toml` is read from its `[tool.iceberg]` table; any other file is
-  read like an `.iceberg.toml`.
-- `--no-config` ignores all configuration files and uses the defaults. It
-  cannot be combined with `--config`.
-- `--max-workers N` overrides `max_workers`, and `--exclude` adds to `exclude`.
-  Command-line values always take precedence over the file.
+- `--config PATH` reads only `PATH` and does not search. If the name of the file
+  is `pyproject.toml`, iceberg reads its `[tool.iceberg]` table. iceberg reads
+  all other files in the same way as an `.iceberg.toml` file.
+- `--no-config` ignores all configuration files and uses the default values. You
+  cannot use it together with `--config`.
+- `--max-workers N` replaces `max_workers`, and `--exclude` adds to `exclude`.
+  Values from the command line always have priority over the file.
 
 ```bash
 iceberg src/mypkg --config ci/iceberg.toml --max-workers 4
@@ -270,7 +316,7 @@ max_workers = 1
 exclude = ["legacy", "**/*_pb2.py"]
 ```
 
-To bypass file discovery, pass a `Config` directly:
+To use a configuration without a file, give a `Config` directly:
 
 ```python
 import re
@@ -289,4 +335,4 @@ uv run prek install     # install the Git hooks
 task ci                 # lint, format check, type check, tests
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+For more information, see [CONTRIBUTING.md](CONTRIBUTING.md).

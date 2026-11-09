@@ -1,7 +1,8 @@
-# Case 00
+# Case 04
 
-Case 00: Passing a single module directly to iceberg:
-- the module has content
+Case 04: You give one module directly to iceberg.
+
+- The module has content.
 
 ## CLI Output
 ```console
@@ -23,7 +24,7 @@ module foo
 ├── def qux(snap, crackle: int, pop = 'popped', **kwargs) -> None
 └── def quux(*, crackle: int, pop: str = 'popped', snap: float, **kwargs: Any) -> None
 ```
-- no `package` level because iceberg was passed a single module
-- include each of the pertinent lines
-- properties, classmethods and staticmethods are labeled with their kind; the `baz` setter adds no extra line
--
+- There is no `package` level, because you gave iceberg one module.
+- The output includes each applicable line.
+- iceberg puts the kind before properties, classmethods and staticmethods. The
+  setter of `baz` does not add a line.
