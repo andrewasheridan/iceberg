@@ -60,14 +60,23 @@ def _function_str(function: Function) -> str:
     """Render a function signature string (including the ``def`` keyword).
 
     Keyword-only parameters are sorted alphabetically for a stable output.
+    A property is rendered as the attribute callers read, ``property name: type``,
+    and classmethods and staticmethods are prefixed with their kind.
 
     Args:
         function: The function whose signature should be rendered.
 
     Returns:
         A string such as ``def name(param: type = default) -> return_type``.
-        The ``async `` prefix is prepended for async functions.
+        The ``async `` prefix is prepended for async functions, and
+        ``classmethod `` or ``staticmethod `` for those kinds. A property
+        gives ``property name`` or ``property name: return_type``.
     """
+    if function.kind == "property":
+        if function.returns is None:
+            return f"property {function.name}"
+        return f"property {function.name}: {function.returns}"
+
     params: list[str] = []
 
     for p in function.positional_parameters:
@@ -85,7 +94,8 @@ def _function_str(function: Function) -> str:
     if function.var_keyword is not None:
         params.append(f"**{_param_str(function.var_keyword)}")
 
-    signature = f"{'async def ' if function.is_async else 'def '}{function.name}({', '.join(params)})"
+    prefix = f"{function.kind} " if function.kind in {"classmethod", "staticmethod"} else ""
+    signature = f"{prefix}{'async def ' if function.is_async else 'def '}{function.name}({', '.join(params)})"
     if function.returns is not None:
         signature += f" -> {function.returns}"
     return signature

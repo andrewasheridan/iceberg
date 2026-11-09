@@ -115,6 +115,12 @@ A `Package` is a trie of `modules` and `subpackages`; its `assignments`,
 `classes`, `functions`, and `references` properties expose the package-level
 (`__init__.py`) surface. All models are frozen dataclasses: `Package`,
 `Module`, `Class`, `Function`, `Parameter`, `Assignment`, and `Reference`.
+`Function.kind` tells a module-level `"function"` apart from a class's
+`"method"`, `"classmethod"`, `"staticmethod"` and `"property"`, and
+`Function.decorators` lists its decorators as source strings. The tree shows a
+property as the attribute callers read (`property p: int`) and prefixes
+classmethods and staticmethods with their kind. Property setters and deleters
+are not listed separately.
 
 `sheridan.iceberg.utilities` provides helpers for building the same models from
 smaller inputs: `get_function`, `get_class`, `get_assignment`, `get_module`, and

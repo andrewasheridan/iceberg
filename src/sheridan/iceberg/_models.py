@@ -5,6 +5,7 @@ __all__ = [
     "Class",
     "DiscoveredModule",
     "Function",
+    "FunctionKind",
     "Module",
     "Package",
     "Parameter",
@@ -14,6 +15,17 @@ __all__ = [
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
+
+type FunctionKind = Literal["function", "method", "classmethod", "staticmethod", "property"]
+"""How a function is called: a plain function, or one of the kinds of class member.
+
+``"function"`` is a module-level function. Inside a class body, ``"method"`` is
+an instance method, ``"classmethod"`` and ``"staticmethod"`` come from those
+decorators, and ``"property"`` is a ``@property`` or
+``@functools.cached_property`` getter, which callers read as an attribute
+(``obj.p``) rather than call.
+"""
 
 
 def _is_public_name(name: str) -> bool:
@@ -86,6 +98,9 @@ class Function:
         var_keyword: The ``**kwargs`` parameter, or ``None`` when absent.
         returns: Unparsed return-annotation string, or ``None`` when absent.
         is_async: ``True`` for ``async def`` functions.
+        kind: How the function is called; see ``FunctionKind``.
+        decorators: Unparsed decorator expressions in source order, for
+            example ``("property", "abc.abstractmethod")``.
     """
 
     name: str
@@ -108,6 +123,12 @@ class Function:
 
     is_async: bool
     """``True`` for ``async def`` functions, ``False`` otherwise."""
+
+    kind: FunctionKind = "function"
+    """How the function is called: function, method, classmethod, staticmethod or property."""
+
+    decorators: tuple[str, ...] = ()
+    """Unparsed decorator expressions in source order, without the leading ``@``."""
 
     @property
     def is_public(self) -> bool:

@@ -1,5 +1,6 @@
 """Tests for the AST visitor module sheridan.iceberg._visitor."""
 
+import dataclasses
 from pathlib import Path
 
 import pytest
@@ -317,32 +318,123 @@ class MyClass:
 
 
 # ---------------------------------------------------------------------------
-# Scenario 7: Decorator on a function is ignored
+# Scenario 7: Decorators decide the kind of a method
 # ---------------------------------------------------------------------------
 
 
-def test_decorated_function_same_as_undecorated() -> None:
-    source_decorated = """
+def test_staticmethod_has_staticmethod_kind() -> None:
+    source = """
 class MyClass:
     @staticmethod
     def helper(x: int) -> str:
         pass
 """
-    source_plain = """
+    fn: Function = _visit(source).classes[0].methods[0]
+
+    assert fn.kind == "staticmethod"
+    assert fn.decorators == ("staticmethod",)
+    assert [p.name for p in fn.positional_parameters] == ["x"]
+
+
+def test_plain_method_has_method_kind() -> None:
+    source = """
 class MyClass:
-    def helper(x: int) -> str:
+    def helper(self, x: int) -> str:
         pass
 """
-    mod_decorated = _visit(source_decorated)
-    mod_plain = _visit(source_plain)
+    fn: Function = _visit(source).classes[0].methods[0]
 
-    fn_decorated: Function = mod_decorated.classes[0].methods[0]
-    fn_plain: Function = mod_plain.classes[0].methods[0]
-
-    assert fn_decorated == fn_plain
+    assert fn.kind == "method"
+    assert fn.decorators == ()
 
 
-def test_module_level_decorated_function_same_as_undecorated() -> None:
+def test_classmethod_has_classmethod_kind() -> None:
+    source = """
+class MyClass:
+    @classmethod
+    def build(cls) -> "MyClass":
+        pass
+"""
+    assert _visit(source).classes[0].methods[0].kind == "classmethod"
+
+
+def test_property_has_property_kind() -> None:
+    source = """
+import functools
+
+class MyClass:
+    @property
+    def p(self) -> int:
+        pass
+
+    @functools.cached_property
+    def q(self) -> str:
+        pass
+"""
+    methods = _visit(source).classes[0].methods
+
+    assert [(m.name, m.kind) for m in methods] == [("p", "property"), ("q", "property")]
+    assert methods[1].decorators == ("functools.cached_property",)
+
+
+def test_property_setter_and_deleter_are_not_duplicated() -> None:
+    source = """
+class MyClass:
+    @property
+    def p(self) -> int:
+        pass
+
+    @p.setter
+    def p(self, value: int) -> None:
+        pass
+
+    @p.deleter
+    def p(self) -> None:
+        pass
+"""
+    methods = _visit(source).classes[0].methods
+
+    assert [(m.name, m.kind) for m in methods] == [("p", "property")]
+
+
+def test_abstractmethod_is_kept_in_decorators() -> None:
+    source = """
+import abc
+
+class Base(abc.ABC):
+    @property
+    @abc.abstractmethod
+    def p(self) -> int:
+        pass
+
+    @abc.abstractmethod
+    def run(self) -> None:
+        pass
+"""
+    methods = _visit(source).classes[0].methods
+
+    assert [(m.kind, m.decorators) for m in methods] == [
+        ("property", ("property", "abc.abstractmethod")),
+        ("method", ("abc.abstractmethod",)),
+    ]
+
+
+def test_called_decorator_does_not_change_method_kind() -> None:
+    source = """
+import functools
+
+class MyClass:
+    @functools.lru_cache(maxsize=None)
+    def compute(self, n: int) -> int:
+        pass
+"""
+    fn: Function = _visit(source).classes[0].methods[0]
+
+    assert fn.kind == "method"
+    assert fn.decorators == ("functools.lru_cache(maxsize=None)",)
+
+
+def test_module_level_decorated_function_has_function_kind() -> None:
     source_decorated = """
 import functools
 
@@ -354,10 +446,12 @@ def compute(n: int) -> int:
 def compute(n: int) -> int:
     pass
 """
-    mod_decorated = _visit(source_decorated)
-    mod_plain = _visit(source_plain)
+    decorated = _visit(source_decorated).functions[0]
+    plain = _visit(source_plain).functions[0]
 
-    assert mod_decorated.functions[0] == mod_plain.functions[0]
+    assert decorated.kind == "function"
+    assert decorated.decorators == ("functools.lru_cache",)
+    assert dataclasses.replace(decorated, decorators=()) == plain
 
 
 # ---------------------------------------------------------------------------
