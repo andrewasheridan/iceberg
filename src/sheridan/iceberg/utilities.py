@@ -6,7 +6,7 @@ import ast
 import inspect
 import textwrap
 import types
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any, overload
 
@@ -39,6 +39,54 @@ def _get_source(obj: object) -> str:
         raise InvalidPathError(f"Cannot locate source for {obj!r}: {exc}") from exc
 
 
+_DefNode = ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
+
+
+def _scope_definitions(body: list[ast.stmt]) -> Iterator[_DefNode]:
+    """Yield the definitions that belong to the scope whose statements are *body*.
+
+    Definitions inside compound statements that do not open a new scope
+    (``if``, ``try``, ``with``, ``for``, ``while``, ``match``) are included, in
+    source order. Bodies of functions and classes are not entered.
+    """
+    for stmt in body:
+        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            yield stmt
+            continue
+        for field in ("body", "orelse", "finalbody"):
+            yield from _scope_definitions(getattr(stmt, field, []))
+        for handler in getattr(stmt, "handlers", []):
+            yield from _scope_definitions(handler.body)
+        for case in getattr(stmt, "cases", []):
+            yield from _scope_definitions(case.body)
+
+
+def _find_definition(tree: ast.Module, name: str, kind: type[_DefNode] | tuple[type[_DefNode], ...]) -> _DefNode | None:
+    """Find the definition of *kind* called *name* in *tree*.
+
+    A dotted *name* (``Outer.Inner.method``) is resolved one part at a time,
+    each part in the scope of the definition before it. A plain *name* is
+    looked up among the module-level definitions first; when none matches, the
+    first nested definition with that name is returned.
+    """
+    *parents, leaf = name.split(".")
+    body: list[ast.stmt] = tree.body
+    for part in parents:
+        parent = next((node for node in _scope_definitions(body) if node.name == part), None)
+        if parent is None:
+            return None
+        body = parent.body
+    for node in _scope_definitions(body):
+        if isinstance(node, kind) and node.name == leaf:
+            return node
+    if parents:
+        return None
+    for walked in ast.walk(tree):
+        if isinstance(walked, kind) and walked.name == leaf:
+            return walked
+    return None
+
+
 @overload
 def get_function(source: str, /) -> Function: ...
 @overload
@@ -65,6 +113,8 @@ def get_function(
       that has already been parsed by the caller.
     - **Path + name**: A ``pathlib.Path`` pointing to a ``.py`` file together
       with the keyword argument ``name`` identifying which function to extract.
+      Module-level functions are searched first; a dotted name such as
+      ``"MyClass.method"`` selects a function nested in a class or function.
     - **Callable**: Any callable object whose source can be retrieved via
       ``inspect.getsource``; the source is forwarded to the string dispatch
       branch.
@@ -74,7 +124,7 @@ def get_function(
             an ``ast.FunctionDef`` / ``ast.AsyncFunctionDef`` node, a
             ``pathlib.Path`` to a source file, or any callable.
         name: Required when passing a ``Path``; identifies the function to
-            extract by name. Ignored for all other input forms.
+            extract by name or by dotted qualified name. Ignored for all other input forms.
 
     Returns:
         A ``Function`` dataclass capturing the name, parameters, return
@@ -113,9 +163,9 @@ def get_function(
                 tree = ast.parse(src, filename=str(source_or_node_or_path_or_func))
             except SyntaxError as exc:
                 raise ParseError.from_syntax_error(exc) from exc
-            for node in ast.walk(tree):
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
-                    return _build_function(node)
+            func_node = _find_definition(tree, name, (ast.FunctionDef, ast.AsyncFunctionDef))
+            if isinstance(func_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                return _build_function(func_node)
             raise InvalidPathError(f"No function {name!r} found in {source_or_node_or_path_or_func}")
 
         case _:
@@ -148,6 +198,8 @@ def get_class(
       the caller.
     - **Path + name**: A ``pathlib.Path`` pointing to a ``.py`` file together
       with the keyword argument ``name`` identifying which class to extract.
+      Module-level classes are searched first; a dotted name such as
+      ``"Outer.Inner"`` selects a nested class.
     - **type**: Any class object whose source can be retrieved via
       ``inspect.getsource``; the source is forwarded to the string dispatch
       branch.
@@ -157,7 +209,7 @@ def get_class(
             an ``ast.ClassDef`` node, a ``pathlib.Path`` to a source file,
             or any class object.
         name: Required when passing a ``Path``; identifies the class to
-            extract by name. Ignored for all other input forms.
+            extract by name or by dotted qualified name. Ignored for all other input forms.
 
     Returns:
         A ``Class`` dataclass capturing the name, bases, and members of the
@@ -196,9 +248,9 @@ def get_class(
                 tree = ast.parse(src, filename=str(source_or_node_or_path_or_cls))
             except SyntaxError as exc:
                 raise ParseError.from_syntax_error(exc) from exc
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ClassDef) and node.name == name:
-                    return _build_class(node)
+            class_node = _find_definition(tree, name, ast.ClassDef)
+            if isinstance(class_node, ast.ClassDef):
+                return _build_class(class_node)
             raise InvalidPathError(f"No class {name!r} found in {source_or_node_or_path_or_cls}")
 
         case _:
