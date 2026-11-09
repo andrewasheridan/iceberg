@@ -80,11 +80,6 @@ def _snapshot(**changes: Any) -> dict[str, Any]:
     return data
 
 
-# ---------------------------------------------------------------------------
-# Round trips
-# ---------------------------------------------------------------------------
-
-
 def test_module_round_trips() -> None:
     assert load_json(format_json(_MODULE)) == _MODULE
 
@@ -116,11 +111,6 @@ def test_unknown_fields_are_ignored() -> None:
     data["classes"][0]["extra"] = 1
 
     assert load_json(json.dumps(data)) == _MODULE
-
-
-# ---------------------------------------------------------------------------
-# Errors
-# ---------------------------------------------------------------------------
 
 
 def test_snapshot_error_is_iceberg_error() -> None:

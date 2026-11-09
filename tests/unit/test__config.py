@@ -1,4 +1,4 @@
-"""Tests for sheridan.iceberg._config (Config dataclass and load_config)."""
+"""Tests for sheridan.iceberg._config (Config dataclass, load_config and load_config_file)."""
 
 import dataclasses
 import re
@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from sheridan.iceberg._config import Config, load_config
+from sheridan.iceberg._config import Config, load_config, load_config_file
 from sheridan.iceberg._exceptions import ConfigError
 
 _DEFAULT_PATTERN_SRC = r"(^|/)tests?(/|$)|(^|/)test_[^/]*\.py$|_test\.py$"
@@ -243,3 +243,55 @@ def test_exclude_must_be_list_of_strings(tmp_path: Path, value: str) -> None:
 
     with pytest.raises(ConfigError, match="'exclude' must be a list of strings"):
         load_config(tmp_path)
+
+
+def test_load_config_file_reads_top_level_keys(tmp_path: Path) -> None:
+    """A file not named pyproject.toml is read with its keys at the top level."""
+    path = _write(tmp_path / "custom.toml", 'max_workers = 3\nexclude = ["a"]\n')
+
+    config = load_config_file(path)
+
+    assert config.max_workers == 3
+    assert config.exclude == ("a",)
+
+
+def test_load_config_file_does_not_search_upward(tmp_path: Path) -> None:
+    """load_config_file ignores configuration files next to or above the named file."""
+    _write(tmp_path / ".iceberg.toml", "max_workers = 9\n")
+    path = _write(tmp_path / "sub" / "custom.toml", "")
+
+    assert load_config_file(path) == Config()
+
+
+def test_load_config_file_reads_pyproject_table(tmp_path: Path) -> None:
+    """A file named pyproject.toml is read from its [tool.iceberg] table."""
+    path = _write(tmp_path / "pyproject.toml", "[project]\nname = 'x'\n\n[tool.iceberg]\nmax_workers = 2\n")
+
+    assert load_config_file(path).max_workers == 2
+
+
+def test_load_config_file_pyproject_without_table_returns_defaults(tmp_path: Path) -> None:
+    """A pyproject.toml without [tool.iceberg] gives the defaults."""
+    path = _write(tmp_path / "pyproject.toml", "[project]\nname = 'x'\n")
+
+    assert load_config_file(path) == Config()
+
+
+def test_load_config_file_missing_raises(tmp_path: Path) -> None:
+    """A path that is not a file raises ConfigError."""
+    with pytest.raises(ConfigError, match="Configuration file not found"):
+        load_config_file(tmp_path / "missing.toml")
+
+
+def test_load_config_file_directory_raises(tmp_path: Path) -> None:
+    """A directory is not accepted as a configuration file."""
+    with pytest.raises(ConfigError, match="Configuration file not found"):
+        load_config_file(tmp_path)
+
+
+def test_load_config_file_validates_keys(tmp_path: Path) -> None:
+    """Unknown keys in the named file are rejected."""
+    path = _write(tmp_path / "custom.toml", "bogus = 1\n")
+
+    with pytest.raises(ConfigError, match="Unknown configuration key"):
+        load_config_file(path)

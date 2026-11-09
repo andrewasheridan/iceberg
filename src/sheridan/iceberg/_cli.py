@@ -10,9 +10,59 @@ from importlib.metadata import version
 from pathlib import Path
 
 from sheridan.iceberg._api import get_public_api
-from sheridan.iceberg._config import load_config
+from sheridan.iceberg._config import Config, load_config, load_config_file
 from sheridan.iceberg._exceptions import IcebergError
 from sheridan.iceberg._formatter import format_json, format_tree
+
+
+def _positive_int(value: str) -> int:
+    """Parse a command-line value as an integer of at least 1.
+
+    Args:
+        value: The raw command-line value.
+
+    Returns:
+        The parsed integer.
+
+    Raises:
+        argparse.ArgumentTypeError: If *value* is not an integer of at least 1.
+    """
+    try:
+        number = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"expected a positive integer, got {value!r}") from None
+    if number < 1:
+        raise argparse.ArgumentTypeError(f"expected a positive integer, got {value!r}")
+    return number
+
+
+def _resolve_config(args: argparse.Namespace) -> Config:
+    """Build the configuration for one run from the parsed arguments.
+
+    The base configuration comes from ``--config``, from the defaults when
+    ``--no-config`` is given, or else from the file found by walking up from
+    the analyzed path. Command-line values then override it.
+
+    Args:
+        args: The parsed command-line arguments.
+
+    Returns:
+        The configuration to analyze with.
+
+    Raises:
+        ConfigError: If the configuration file cannot be loaded.
+    """
+    if args.no_config:
+        config = Config()
+    elif args.config is not None:
+        config = load_config_file(args.config)
+    else:
+        config = load_config(args.path)
+    if args.exclude:
+        config = dataclasses.replace(config, exclude=(*config.exclude, *args.exclude))
+    if args.max_workers is not None:
+        config = dataclasses.replace(config, max_workers=args.max_workers)
+    return config
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -68,12 +118,33 @@ def main(argv: Sequence[str] | None = None) -> int:
         ),
     )
 
+    config_source = parser.add_mutually_exclusive_group()
+    config_source.add_argument(
+        "--config",
+        type=Path,
+        metavar="PATH",
+        help=(
+            "Read configuration from PATH instead of searching upward from the analyzed path. "
+            "A file named pyproject.toml is read from its [tool.iceberg] table."
+        ),
+    )
+    config_source.add_argument(
+        "--no-config",
+        action="store_true",
+        default=False,
+        help="Ignore configuration files and use the defaults.",
+    )
+    parser.add_argument(
+        "--max-workers",
+        type=_positive_int,
+        metavar="N",
+        help="Number of worker processes used to parse modules. Overrides 'max_workers' from the configuration file.",
+    )
+
     args = parser.parse_args(argv)
 
     try:
-        config = load_config(args.path)
-        if args.exclude:
-            config = dataclasses.replace(config, exclude=(*config.exclude, *args.exclude))
+        config = _resolve_config(args)
         package = get_public_api(args.path, config=config)
     except IcebergError as exc:
         print(f"error: {exc}", file=sys.stderr)
