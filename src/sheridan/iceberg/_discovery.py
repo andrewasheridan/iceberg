@@ -9,11 +9,43 @@ visit. Test modules are filtered out according to
 __all__ = ["DiscoveredModule", "discover"]
 
 import keyword
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from sheridan.iceberg._config import Config
 from sheridan.iceberg._exceptions import InvalidPathError
-from sheridan.iceberg._models import DiscoveredModule
+from sheridan.iceberg._models import _is_public_module_stem
+
+
+@dataclass(frozen=True, slots=True)
+class DiscoveredModule:
+    """A single Python source file identified during discovery.
+
+    Attributes:
+        dotted_name: The fully-qualified dotted module name, e.g. ``pkg.sub.mod``.
+        source_path: Absolute path to the ``.py`` file on disk.
+        is_init: ``True`` when the file is an ``__init__.py``.
+        package_parts: Tuple of ancestor directory names that form the dotted
+            prefix, excluding the module's own stem. Empty for top-level modules.
+    """
+
+    dotted_name: str
+    """Fully-qualified dotted module name, e.g. ``"pkg.sub.mod"``."""
+
+    source_path: Path
+    """Absolute path to the ``.py`` source file on disk."""
+
+    is_init: bool
+    """``True`` when the file is an ``__init__.py``, ``False`` otherwise."""
+
+    package_parts: tuple[str, ...]
+    """Ancestor directory names forming the dotted prefix, excluding the module stem."""
+
+    @property
+    def is_public(self) -> bool:
+        *_, stem = self.dotted_name.split(".")
+        return _is_public_module_stem(stem)
+
 
 _PRUNED_DIRS = frozenset(
     {"__pycache__", ".venv", ".git", "build", "dist", "venv", "env", "node_modules", "site-packages"}

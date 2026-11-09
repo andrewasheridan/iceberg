@@ -3,14 +3,12 @@
 __all__ = [
     "Assignment",
     "Class",
-    "DiscoveredModule",
     "Function",
     "FunctionKind",
     "Module",
     "Package",
     "Parameter",
     "Reference",
-    "ResolveReport",
 ]
 
 from dataclasses import dataclass
@@ -316,47 +314,3 @@ class Package:
     def is_public(self) -> bool:
         *_, stem = self.name.split(".")
         return _is_public_module_stem(stem)
-
-
-@dataclass(frozen=True, slots=True)
-class DiscoveredModule:
-    """A single Python source file identified during discovery.
-
-    Attributes:
-        dotted_name: The fully-qualified dotted module name, e.g. ``pkg.sub.mod``.
-        source_path: Absolute path to the ``.py`` file on disk.
-        is_init: ``True`` when the file is an ``__init__.py``.
-        package_parts: Tuple of ancestor directory names that form the dotted
-            prefix, excluding the module's own stem. Empty for top-level modules.
-    """
-
-    dotted_name: str
-    """Fully-qualified dotted module name, e.g. ``"pkg.sub.mod"``."""
-
-    source_path: Path
-    """Absolute path to the ``.py`` source file on disk."""
-
-    is_init: bool
-    """``True`` when the file is an ``__init__.py``, ``False`` otherwise."""
-
-    package_parts: tuple[str, ...]
-    """Ancestor directory names forming the dotted prefix, excluding the module stem."""
-
-    @property
-    def is_public(self) -> bool:
-        *_, stem = self.dotted_name.split(".")
-        return _is_public_module_stem(stem)
-
-
-@dataclass(frozen=True, slots=True)
-class ResolveReport:
-    """Outcome of init re-export resolution.
-
-    Attributes:
-        unresolved: Names that appeared in the init's public surface but could
-            not be resolved to a concrete object in any sibling module or
-            locally within the init file itself.
-    """
-
-    unresolved: tuple[str, ...]
-    """Names from the public surface that could not be resolved to any concrete symbol."""
