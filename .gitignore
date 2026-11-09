@@ -42,5 +42,8 @@ docs/index.md
 ci/sdk/
 ci/.venv/
 
-# scripts/issue-loop.sh logs
+# Local issue loop (not tracked) and its logs
+scripts/issue-loop.sh
+scripts/limit_reset.py
+tests/unit/test_limit_reset.py
 .issue-loop/

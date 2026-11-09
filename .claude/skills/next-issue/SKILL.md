@@ -6,8 +6,8 @@ argument-hint: "[issue number]"
 
 # /next-issue — one issue, one PR
 
-Do exactly one issue and open exactly one PR. This skill also runs headless from
-`scripts/issue-loop.sh`, so never stop to ask a question: if you cannot continue,
+Do exactly one issue and open exactly one PR. This skill may also run headless from a
+local loop, so never stop to ask a question: if you cannot continue,
 end with a `BLOCKED:` line (see "Final line").
 
 ## 1. Choose the issue
@@ -98,4 +98,4 @@ PR: <pr url>
 BLOCKED: <one-line reason>
 ```
 
-`scripts/issue-loop.sh` reads this line to decide what to do next.
+A headless loop reads this line to decide what to do next.
