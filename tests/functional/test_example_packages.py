@@ -251,3 +251,28 @@ def test_mixed_pkg_public_module_has_members(mixed_pkg: Package) -> None:
     """public_module must show its public members."""
     public_mod = next(m for m in mixed_pkg.modules if m.name == "mixed_pkg.public_module")
     assert "public_fn" in _function_names(public_mod)
+
+
+@pytest.fixture(scope="module")
+def alias_pkg() -> Package:
+    """A package that re-exports ``Beta`` from ``_beta`` as ``Delta``. ``__all__ = ['Delta']``."""
+    path = _FIXTURES_DIR / "alias_pkg"
+    return _snapshot_package(path)
+
+
+def test_alias_pkg_has_exactly_one_module(alias_pkg: Package) -> None:
+    assert len(alias_pkg.modules) == 1
+
+
+def test_alias_pkg_private_module_excluded(alias_pkg: Package) -> None:
+    names = _module_names(alias_pkg)
+
+    assert "_beta" not in names
+    assert "alias_pkg._beta" not in names
+
+
+def test_alias_pkg_class_hoisted_under_alias(alias_pkg: Package) -> None:
+    """iceberg must show the re-exported class with its alias ``Delta``, not with its source name ``Beta``."""
+    init_mod = alias_pkg.modules[0]
+
+    assert _class_names(init_mod) == {"Delta"}
