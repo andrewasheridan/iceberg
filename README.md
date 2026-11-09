@@ -73,7 +73,11 @@ declaration such as `# -*- coding: latin-1 -*-` says otherwise.
 `-o/--output PATH` writes the report to PATH as UTF-8 with a final newline,
 whatever the console encoding. iceberg writes to a temporary file and moves it
 into place only when the report is complete, so an error never leaves a partial
-file or overwrites the previous one.
+file or overwrites the previous one. If PATH is a symlink, the report goes to the
+file it points to and the link stays. An existing file keeps its permission bits,
+but is owned by the user who runs iceberg afterwards. A path that is not a regular
+file, such as `/dev/stdout` or a named pipe, is written directly, without the
+temporary file.
 
 ### Keep going past bad files
 
