@@ -770,6 +770,54 @@ class TestOutput:
 
         assert stat.S_IMODE(target.stat().st_mode) == 0o644
 
+    def test_existing_file_keeps_its_permissions(self, package: Path, tmp_path: Path) -> None:
+        target = tmp_path / "api.txt"
+        target.write_text("previous\n", encoding="utf-8")
+        target.chmod(0o640)
+
+        assert main([str(package), "--no-config", "-o", str(target)]) == 0
+        assert stat.S_IMODE(target.stat().st_mode) == 0o640
+        assert "def greet() -> str" in target.read_text(encoding="utf-8")
+
+    def test_symlink_writes_through_to_target(self, package: Path, tmp_path: Path) -> None:
+        shared = tmp_path / "shared"
+        shared.mkdir()
+        real = shared / "api.txt"
+        real.write_text("previous\n", encoding="utf-8")
+        link = tmp_path / "api.txt"
+        link.symlink_to(real)
+
+        assert main([str(package), "--no-config", "-o", str(link)]) == 0
+        assert link.is_symlink()
+        assert "def greet() -> str" in real.read_text(encoding="utf-8")
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["api.txt", "pkg", "shared"]
+        assert list(shared.iterdir()) == [real]
+
+    def test_dangling_symlink_creates_its_target(self, package: Path, tmp_path: Path) -> None:
+        real = tmp_path / "real.txt"
+        link = tmp_path / "api.txt"
+        link.symlink_to(real)
+
+        assert main([str(package), "--no-config", "-o", str(link)]) == 0
+        assert link.is_symlink()
+        assert "def greet() -> str" in real.read_text(encoding="utf-8")
+
+    @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs named pipes")
+    def test_non_regular_file_is_written_directly(self, package: Path, tmp_path: Path) -> None:
+        fifo = tmp_path / "api.fifo"
+        os.mkfifo(fifo)
+        read_fd = os.open(fifo, os.O_RDONLY | os.O_NONBLOCK)
+
+        try:
+            assert main([str(package), "--no-config", "-o", str(fifo)]) == 0
+            received = os.read(read_fd, 65536).decode()
+        finally:
+            os.close(read_fd)
+
+        assert "def greet() -> str" in received
+        assert stat.S_ISFIFO(fifo.stat().st_mode)
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["api.fifo", "pkg"]
+
     def test_keep_going_still_writes_file(
         self, package: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:

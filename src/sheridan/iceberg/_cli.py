@@ -5,6 +5,7 @@ __all__ = ["main"]
 import argparse
 import dataclasses
 import os
+import stat
 import sys
 import tempfile
 import traceback
@@ -86,8 +87,12 @@ def _new_file_mode() -> int:
 def _write_output(path: Path, text: str) -> None:
     """Write *text* to *path* as UTF-8 with a final newline, replacing it atomically.
 
-    The text goes to a temporary file in the same directory first, so a failed
-    write never leaves a partial file at *path* or destroys an existing one.
+    Symlinks are followed, so the link stays and its target gets the report.
+    For a regular file or a new path, the text goes to a temporary file in the
+    target's directory first, so a failed write never leaves a partial file or
+    destroys an existing one; an existing file keeps its permission bits. A
+    path that exists but is not a regular file, such as ``/dev/stdout`` or a
+    named pipe, is written directly, since it cannot be replaced.
 
     Args:
         path: The file to write.
@@ -96,14 +101,30 @@ def _write_output(path: Path, text: str) -> None:
     Raises:
         OSError: If the file cannot be written.
     """
-    fd, temp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    data = f"{text}\n".encode()
+    target = path.resolve()
+
+    try:
+        existing = target.stat()
+    except FileNotFoundError:
+        mode = _new_file_mode()
+    else:
+        if not stat.S_ISREG(existing.st_mode):
+            with target.open("wb") as file:
+                file.write(data)
+
+            return
+
+        mode = stat.S_IMODE(existing.st_mode)
+
+    fd, temp_name = tempfile.mkstemp(dir=target.parent, prefix=f".{target.name}.", suffix=".tmp")
 
     try:
         with os.fdopen(fd, "wb") as file:
-            file.write(f"{text}\n".encode())
+            file.write(data)
 
-        os.chmod(temp_name, _new_file_mode())
-        os.replace(temp_name, path)
+        os.chmod(temp_name, mode)
+        os.replace(temp_name, target)
     except BaseException:
         Path(temp_name).unlink(missing_ok=True)
         raise
@@ -174,7 +195,9 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help=(
             "Write the report to PATH as UTF-8 instead of stdout. The file is replaced "
-            "only when the report is complete, so an error never leaves a partial file."
+            "only when the report is complete, so an error never leaves a partial file. "
+            "Symlinks are followed, an existing file keeps its permissions, and a "
+            "non-regular file such as /dev/stdout is written directly."
         ),
     )
     parser.add_argument(
