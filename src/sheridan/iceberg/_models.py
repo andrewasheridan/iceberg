@@ -101,6 +101,9 @@ class Function:
         kind: How the function is called; see ``FunctionKind``.
         decorators: Unparsed decorator expressions in source order, for
             example ``("property", "abc.abstractmethod")``.
+        overloads: The ``typing.overload`` signatures of this function in
+            source order, or ``()`` when it has none. Each overload is a
+            ``Function`` with no overloads of its own.
     """
 
     name: str
@@ -129,6 +132,9 @@ class Function:
 
     decorators: tuple[str, ...] = ()
     """Unparsed decorator expressions in source order, without the leading ``@``."""
+
+    overloads: tuple[Function, ...] = ()
+    """The ``typing.overload`` signatures of this function in source order, or ``()``."""
 
     @property
     def is_public(self) -> bool:

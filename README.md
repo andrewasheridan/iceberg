@@ -45,6 +45,7 @@ pip install sheridan-iceberg
 ```bash
 iceberg src/mypkg            # tree output
 iceberg src/mypkg --json     # machine-readable output
+iceberg src/mypkg --show-overload-implementations  # also show @overload implementations
 python -m sheridan.iceberg src/mypkg
 ```
 
@@ -120,7 +121,10 @@ A `Package` is a trie of `modules` and `subpackages`; its `assignments`,
 `Function.decorators` lists its decorators as source strings. The tree shows a
 property as the attribute callers read (`property p: int`) and prefixes
 classmethods and staticmethods with their kind. Property setters and deleters
-are not listed separately.
+are not listed separately. A function with `typing.overload` signatures is one
+`Function` whose `overloads` tuple holds those signatures. The tree shows one
+line per overload and hides the implementation signature unless you pass
+`--show-overload-implementations`.
 
 `sheridan.iceberg.utilities` provides helpers for building the same models from
 smaller inputs: `get_function`, `get_class`, `get_assignment`, `get_module`, and

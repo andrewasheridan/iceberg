@@ -31,6 +31,12 @@ make a ``"property"``, ``@classmethod`` and ``@staticmethod`` make those
 kinds, and any other method is a ``"method"``. Property setters, getters and
 deleters (``@p.setter``) are not reported, because they add no new name.
 
+``typing.overload`` signatures are grouped into one ``Function``: the
+implementation that follows them carries the overload signatures in
+``Function.overloads``, so each name is reported once. When there is no
+implementation (for example under ``if TYPE_CHECKING:``), the last overload
+stands for the group.
+
 Explicitly excluded from capture: docstrings, class decorators, class bases.
 """
 
@@ -98,6 +104,8 @@ def visit_module(
     # The first definition of a name wins, as in ``collect_imports``: in
     # ``if``/``else`` or ``try``/``except`` branches, the first branch is reported.
     seen: set[str] = set()
+    statements = list(module_level_statements(tree.body))
+    overloads, grouped = _group_overloads(statements)
 
     def keep(name: str) -> bool:
         if name not in public or name in seen:
@@ -105,11 +113,11 @@ def visit_module(
         seen.add(name)
         return True
 
-    for node in module_level_statements(tree.body):
+    for node in statements:
         match node:
             case (ast.FunctionDef() | ast.AsyncFunctionDef()) as fn_node:
-                if keep(fn_node.name):
-                    functions.append(_build_function(fn_node))
+                if fn_node not in grouped and keep(fn_node.name):
+                    functions.append(_build_function(fn_node, overloads=overloads.get(fn_node, ())))
 
             case ast.ClassDef() as cls_node:
                 if keep(cls_node.name):
@@ -217,6 +225,7 @@ def _build_function(
     node: ast.FunctionDef | ast.AsyncFunctionDef,
     *,
     in_class: bool = False,
+    overloads: tuple[ast.FunctionDef | ast.AsyncFunctionDef, ...] = (),
 ) -> Function:
     """Build a ``Function`` model from a function definition node.
 
@@ -225,6 +234,8 @@ def _build_function(
         in_class: ``True`` when *node* is in a class body, so that its
             decorators decide whether it is a method, classmethod,
             staticmethod or property.
+        overloads: The ``@overload`` signatures that *node* implements, in
+            source order; see ``_group_overloads``.
 
     Returns:
         A ``Function`` capturing the name, parameters, return annotation,
@@ -241,7 +252,63 @@ def _build_function(
         is_async=isinstance(node, ast.AsyncFunctionDef),
         kind=_method_kind(node.decorator_list) if in_class else "function",
         decorators=tuple(ast.unparse(decorator) for decorator in node.decorator_list),
+        overloads=tuple(_build_function(overload, in_class=in_class) for overload in overloads),
     )
+
+
+type _FunctionNode = ast.FunctionDef | ast.AsyncFunctionDef
+
+
+def _is_overload(node: _FunctionNode) -> bool:
+    """Check whether *node* is decorated with ``typing.overload``.
+
+    Args:
+        node: A function definition.
+
+    Returns:
+        ``True`` for ``@overload``, ``@typing.overload`` or
+        ``@typing_extensions.overload``.
+    """
+    return any(_decorator_name(decorator) == "overload" for decorator in node.decorator_list)
+
+
+def _group_overloads(
+    statements: list[ast.stmt],
+) -> tuple[dict[_FunctionNode, tuple[_FunctionNode, ...]], set[_FunctionNode]]:
+    """Group ``@overload`` signatures with the definition that implements them.
+
+    The overloads of a name are the ``@overload`` definitions before the next
+    definition of that name without ``@overload``, which is the implementation.
+    When no implementation follows, the last overload stands for the group.
+
+    Args:
+        statements: The statements of one scope (a module or a class body), in
+            source order.
+
+    Returns:
+        A mapping from each implementation (or standing-in last overload) to
+        its overloads in source order, and the set of overload definitions that
+        are not reported on their own.
+    """
+    overloads: dict[_FunctionNode, tuple[_FunctionNode, ...]] = {}
+    grouped: set[_FunctionNode] = set()
+    pending: dict[str, list[_FunctionNode]] = {}
+
+    for node in statements:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if _is_overload(node):
+            pending.setdefault(node.name, []).append(node)
+        elif node.name in pending:
+            group = pending.pop(node.name)
+            overloads[node] = tuple(group)
+            grouped.update(group)
+
+    for *rest, last in pending.values():
+        overloads[last] = (*rest, last)
+        grouped.update(rest)
+
+    return overloads, grouped
 
 
 _PROPERTY_DECORATORS = frozenset({"property", "cached_property", "abstractproperty"})
@@ -392,7 +459,8 @@ def _build_class(node: ast.ClassDef) -> Class:
     """Build a ``Class`` model from a class definition node.
 
     Recurses into nested class definitions. Extracts methods and class-level
-    assignments, skipping property setters, getters and deleters. Does **not**
+    assignments, skipping property setters, getters and deleters, and groups
+    ``@overload`` signatures with their implementation. Does **not**
     read ``node.bases``, ``node.decorator_list``, or any docstring.
 
     Args:
@@ -405,13 +473,14 @@ def _build_class(node: ast.ClassDef) -> Class:
     assignments: list[Assignment] = []
     methods: list[Function] = []
     nested_classes: list[Class] = []
+    overloads, grouped = _group_overloads(node.body)
 
     for child in node.body:
         match child:
             case (ast.FunctionDef() | ast.AsyncFunctionDef()) as fn_child:
-                if _is_property_accessor(fn_child):
+                if fn_child in grouped or _is_property_accessor(fn_child):
                     continue
-                fn = _build_function(fn_child, in_class=True)
+                fn = _build_function(fn_child, in_class=True, overloads=overloads.get(fn_child, ()))
                 if fn.is_public:
                     methods.append(fn)
 

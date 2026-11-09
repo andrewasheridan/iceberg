@@ -1,5 +1,6 @@
 """Tests for sheridan.iceberg._formatter (format_tree and format_json)."""
 
+import dataclasses
 import json
 from pathlib import Path
 from typing import Any
@@ -735,3 +736,88 @@ def test_format_json_path_outside_root_is_not_absolute() -> None:
     pkg = _make_package(name="mylib", path=Path("/some/path"), subpackages=(sub,))
     parsed = json.loads(format_json(pkg))
     assert parsed["subpackages"][0]["path"] == "sub"
+
+
+# ---------------------------------------------------------------------------
+# Overloads
+# ---------------------------------------------------------------------------
+
+
+def _overloaded() -> Function:
+    overloads = tuple(
+        Function(
+            name="f",
+            positional_parameters=(_make_parameter(name="x", annotation=t),),
+            keyword_parameters=frozenset(),
+            var_positional=None,
+            var_keyword=None,
+            returns=t,
+            is_async=False,
+            decorators=("typing.overload",),
+        )
+        for t in ("int", "str")
+    )
+    return Function(
+        name="f",
+        positional_parameters=(_make_parameter(name="x", annotation=None),),
+        keyword_parameters=frozenset(),
+        var_positional=None,
+        var_keyword=None,
+        returns=None,
+        is_async=False,
+        overloads=overloads,
+    )
+
+
+def test_format_tree_shows_overloads_and_hides_implementation() -> None:
+    result = format_tree(_make_module(name="m", functions=(_overloaded(),)))
+
+    assert result.splitlines() == [
+        "module m",
+        "├── def f(x: int) -> int",
+        "└── def f(x: str) -> str",
+    ]
+
+
+def test_format_tree_can_show_overload_implementation() -> None:
+    result = format_tree(_make_module(name="m", functions=(_overloaded(),)), show_overload_implementation=True)
+
+    assert result.splitlines() == [
+        "module m",
+        "├── def f(x: int) -> int",
+        "├── def f(x: str) -> str",
+        "└── def f(x)",
+    ]
+
+
+def test_format_tree_does_not_repeat_overload_standing_in_for_implementation() -> None:
+    *_, last = _overloaded().overloads
+    fn = dataclasses.replace(last, overloads=_overloaded().overloads)
+
+    result = format_tree(_make_module(name="m", functions=(fn,)), show_overload_implementation=True)
+
+    assert result.splitlines() == [
+        "module m",
+        "├── def f(x: int) -> int",
+        "└── def f(x: str) -> str",
+    ]
+
+
+def test_format_tree_shows_method_overloads() -> None:
+    cls = _make_class(name="C", methods=(dataclasses.replace(_overloaded(), kind="method"),))
+
+    result = format_tree(_make_module(name="m", classes=(cls,)))
+
+    assert result.splitlines() == [
+        "module m",
+        "└── class C",
+        "    ├── def f(x: int) -> int",
+        "    └── def f(x: str) -> str",
+    ]
+
+
+def test_format_json_includes_overloads() -> None:
+    data = json.loads(format_json(_make_module(name="m", functions=(_overloaded(),))))
+
+    (fn,) = data["functions"]
+    assert [o["returns"] for o in fn["overloads"]] == ["int", "str"]

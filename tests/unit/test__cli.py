@@ -39,7 +39,7 @@ def test_main_success_tree_stdout(capsys: pytest.CaptureFixture[str]) -> None:
     assert captured.err == ""
 
     mock_api.assert_called_once()
-    mock_tree.assert_called_once_with(fake_package)
+    mock_tree.assert_called_once_with(fake_package, show_overload_implementation=False)
     mock_json.assert_not_called()
 
 
@@ -381,3 +381,17 @@ def test_main_config_error_returns_1(tmp_path: Path, capsys: pytest.CaptureFixtu
 
     assert exit_code == 1
     assert "'exclude' must be a list of strings" in capsys.readouterr().err
+
+
+def test_main_show_overload_implementations_flag_reaches_format_tree() -> None:
+    """--show-overload-implementations asks format_tree for implementation signatures."""
+    fake_package = MagicMock()
+
+    with (
+        patch("sheridan.iceberg._cli.get_public_api", return_value=fake_package),
+        patch("sheridan.iceberg._cli.format_tree", return_value=_TREE_OUTPUT) as mock_tree,
+    ):
+        exit_code = main(["some/path", "--show-overload-implementations"])
+
+    assert exit_code == 0
+    mock_tree.assert_called_once_with(fake_package, show_overload_implementation=True)
