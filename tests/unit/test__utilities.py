@@ -260,6 +260,47 @@ def test_extract_all_warns_when_not_static(source: str) -> None:
         assert extract_all(ast.parse(source), "pkg") is None
 
 
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("__all__ = ['a']\ntry:\n    __all__.append('b')\nexcept ImportError:\n    pass", {"a", "b"}),
+        ("__all__ = ['a']\ntry:\n    pass\nexcept ImportError:\n    __all__ += ['b']", {"a", "b"}),
+        ("__all__ = ['a']\ntry:\n    pass\nexcept* ImportError:\n    __all__ += ['b']", {"a", "b"}),
+        (
+            "__all__ = ['a']\ntry:\n    pass\nexcept ImportError:\n    pass\nelse:\n    __all__.extend(['b'])",
+            {"a", "b"},
+        ),
+        ("__all__ = ['a']\ntry:\n    pass\nfinally:\n    __all__.insert(0, 'b')", {"a", "b"}),
+        ("if True:\n    __all__ = ['a']", {"a"}),
+        ("if X:\n    __all__ = ['a']\nelse:\n    __all__ = ['b']", {"a", "b"}),
+        ("__all__ = ['a', 'b']\nif X:\n    __all__.remove('b')", {"a", "b"}),
+        ("__all__ = ['a']\nif X:\n    pass\nelif Y:\n    if Z:\n        __all__.append('b')", {"a", "b"}),
+        ("try:\n    __all__ = ['a']\nexcept ImportError:\n    __all__ = ['b']\n__all__.append('c')", {"a", "b", "c"}),
+        ("__all__ = names = ['a']", {"a"}),
+        ("names = __all__ = ['a']", {"a"}),
+        ("def f():\n    __all__ = ['a']", None),
+    ],
+)
+def test_extract_all_applies_changes_in_if_and_try_blocks(source: str, expected: set[str] | None) -> None:
+    assert _extract(source) == (None if expected is None else frozenset(expected))
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "__all__, x = ['a'], 1",
+        "[__all__] = [['a']]",
+        "*__all__, = 'a', 'b'",
+        "x = (__all__, y) = ['a'], 1",
+        "if X:\n    __all__, x = ['a'], 1",
+        "__all__ = ['a']\ntry:\n    __all__.append(name)\nexcept ImportError:\n    pass",
+    ],
+)
+def test_extract_all_warns_on_unsupported_forms_in_blocks(source: str) -> None:
+    with pytest.warns(UserWarning, match=r"cannot evaluate __all__"):
+        assert extract_all(ast.parse(source), "pkg") is None
+
+
 def test_extract_all_keeps_membership_after_sort() -> None:
     source = "__all__ = ['b', 'a']\n__all__.sort()\n\ndef a(): pass\ndef b(): pass\ndef c(): pass\n"
     assert _extract(source) == {"a", "b"}

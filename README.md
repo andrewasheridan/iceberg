@@ -22,7 +22,9 @@ code, and it has no runtime dependencies.
 - Uses `__all__` as the source of truth when present and falls back to
   underscore-prefix inference when it is absent. `__all__` is evaluated
   statically: literal lists and tuples, `+` concatenation, `+=`, `.extend()`,
-  `.append()`, `.insert()`, `.remove()`, `.sort()`, `.reverse()`, and `sub.__all__` for modules inside the analyzed tree. When it
+  `.append()`, `.insert()`, `.remove()`, `.sort()`, `.reverse()`, and `sub.__all__` for modules inside the analyzed tree.
+  Changes inside module-level `if` / `try` blocks are applied, and `__all__`
+  keeps every name that any branch adds. When it
   cannot be evaluated, iceberg emits a warning naming the file and line, then
   falls back to inference. Dunder class members such as
   `__call__` and `__eq__` are public; `_x` and name-mangled `__x` are private.
