@@ -281,3 +281,29 @@ def test_load_config_max_workers_non_positive_raises(tmp_path: Path, value: int)
     _write(tmp_path / ".iceberg.toml", f"max_workers = {value}\n")
     with pytest.raises(ConfigError, match="positive integer"):
         load_config(tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# exclude
+# ---------------------------------------------------------------------------
+
+
+def test_exclude_defaults_to_empty() -> None:
+    """Config.exclude is empty by default."""
+    assert Config().exclude == ()
+
+
+def test_exclude_loaded_from_pyproject(tmp_path: Path) -> None:
+    """The exclude list in [tool.iceberg] is loaded as a tuple."""
+    _write(tmp_path / "pyproject.toml", '[tool.iceberg]\nexclude = ["legacy", "**/*_pb2.py"]\n')
+
+    assert load_config(tmp_path).exclude == ("legacy", "**/*_pb2.py")
+
+
+@pytest.mark.parametrize("value", ['"legacy"', "[1, 2]", '["ok", 3]'])
+def test_exclude_must_be_list_of_strings(tmp_path: Path, value: str) -> None:
+    """A non-list or a list with non-string items raises ConfigError."""
+    _write(tmp_path / ".iceberg.toml", f"exclude = {value}\n")
+
+    with pytest.raises(ConfigError, match="'exclude' must be a list of strings"):
+        load_config(tmp_path)

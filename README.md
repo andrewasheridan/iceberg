@@ -121,11 +121,23 @@ With a path, `get_function` and `get_class` look up `name` among module-level
 definitions first. Use a dotted name such as `"MyClass.method"` to select a
 nested definition.
 
-When it walks a directory, iceberg skips hidden directories, `__pycache__`, and
-any directory or `.py` file whose name cannot be imported because it is not a
-Python identifier or is a keyword (for example `my-dir/` or `my-script.py`).
-The directory you pass is always analyzed, even if its own name is not an
-identifier.
+When it walks a directory, iceberg skips hidden directories, `__pycache__`,
+common non-source directories (`build`, `dist`, `venv`, `env`, `node_modules`,
+`site-packages` and `*.egg-info`), and any directory or `.py` file whose name
+cannot be imported because it is not a Python identifier or is a keyword (for
+example `my-dir/` or `my-script.py`). The directory you pass is always
+analyzed, even if its own name is not an identifier.
+
+To skip more paths, pass `--exclude` one or more times, or set `exclude` in the
+configuration (see below). Each value is a glob matched against the path of a
+directory or file relative to the directory you pass. `**` matches any number
+of directories:
+
+```bash
+iceberg src/mypkg --exclude legacy --exclude '**/*_pb2.py'
+```
+
+`--exclude` adds to the `exclude` list from the configuration file.
 
 ## Configuration
 
@@ -151,6 +163,10 @@ test_module_pattern = '(^|/)tests?(/|$)|(^|/)test_[^/]*\.py$|_test\.py$'
 # large trees benefit; values above 1 require scripts calling get_public_api
 # to be guarded by `if __name__ == "__main__":`.
 max_workers = 1
+# Globs matched against each directory's and file's path relative to the
+# analyzed directory; matches are skipped. `**` matches any number of
+# directories. The --exclude CLI option adds to this list.
+exclude = ["legacy", "**/*_pb2.py"]
 ```
 
 To bypass file discovery, pass a `Config` directly:

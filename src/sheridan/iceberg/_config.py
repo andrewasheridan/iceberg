@@ -17,7 +17,7 @@ from sheridan.iceberg._exceptions import ConfigError
 _DEFAULT_TEST_MODULE_PATTERN = r"(^|/)tests?(/|$)|(^|/)test_[^/]*\.py$|_test\.py$"
 """Default regex pattern used to identify test module paths when none is configured."""
 
-_ALLOWED_KEYS = frozenset({"test_module_pattern", "max_workers"})
+_ALLOWED_KEYS = frozenset({"test_module_pattern", "max_workers", "exclude"})
 """Set of recognised keys in the ``[tool.iceberg]`` / ``.iceberg.toml`` configuration table."""
 
 
@@ -44,6 +44,11 @@ class Config:
             packages. Values above ``1`` parse in a process pool, which only
             pays off for very large trees and requires the calling script to
             be import-safe (guarded by ``if __name__ == "__main__":``).
+        exclude: Glob patterns matched against each directory's and file's
+            POSIX path relative to the analyzed directory (for example
+            ``sub/mod.py``), using :meth:`pathlib.PurePath.full_match`, so
+            ``**`` matches any number of directories. Matching directories are
+            not walked and matching files are skipped.
     """
 
     test_module_pattern: re.Pattern[str] = field(default_factory=_default_test_pattern)
@@ -51,6 +56,9 @@ class Config:
 
     max_workers: int = 1
     """Worker processes used to parse modules; ``1`` (the default) parses in-process."""
+
+    exclude: tuple[str, ...] = ()
+    """Glob patterns, relative to the analyzed directory, for paths to skip."""
 
 
 def _build_config(table: dict[str, object]) -> Config:
@@ -100,9 +108,19 @@ def _build_config(table: dict[str, object]) -> Config:
     else:
         max_workers = 1
 
+    exclude: tuple[str, ...] = ()
+    if "exclude" in table:
+        exclude_value = table["exclude"]
+
+        if not isinstance(exclude_value, list) or not all(isinstance(item, str) for item in exclude_value):
+            raise ConfigError(f"'exclude' must be a list of strings, got {exclude_value!r}.")
+
+        exclude = tuple(exclude_value)
+
     return Config(
         test_module_pattern=pattern,
         max_workers=max_workers,
+        exclude=exclude,
     )
 
 

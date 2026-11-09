@@ -335,3 +335,49 @@ def test_main_broken_symlink_returns_1(tmp_path: Path, capsys: pytest.CaptureFix
     captured = capsys.readouterr()
     assert str(pkg / "mod.py") in captured.err
     assert "unexpected error" not in captured.err
+
+
+# ---------------------------------------------------------------------------
+# --exclude
+# ---------------------------------------------------------------------------
+
+
+def test_main_exclude_extends_configured_list(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Repeated --exclude options are appended to the configured exclude list."""
+    (tmp_path / "pyproject.toml").write_text('[tool.iceberg]\nexclude = ["a"]\n', encoding="utf-8")
+
+    with (
+        patch("sheridan.iceberg._cli.get_public_api", return_value=MagicMock()) as mock_api,
+        patch("sheridan.iceberg._cli.format_tree", return_value=_TREE_OUTPUT),
+    ):
+        exit_code = main([str(tmp_path), "--exclude", "b", "--exclude", "**/c"])
+
+    assert exit_code == 0
+    assert mock_api.call_args.kwargs["config"].exclude == ("a", "b", "**/c")
+
+
+def test_main_exclude_skips_modules_end_to_end(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """--exclude removes matching modules from the real output."""
+    (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
+    root = tmp_path / "pkg"
+    root.mkdir()
+    (root / "__init__.py").write_text("", encoding="utf-8")
+    (root / "keep.py").write_text("def kept() -> None: ...\n", encoding="utf-8")
+    (root / "drop.py").write_text("def dropped() -> None: ...\n", encoding="utf-8")
+
+    exit_code = main([str(root), "--exclude", "drop.py"])
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "kept" in out
+    assert "dropped" not in out
+
+
+def test_main_config_error_returns_1(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """An invalid configuration file is reported as an error with exit code 1."""
+    (tmp_path / ".iceberg.toml").write_text('exclude = "nope"\n', encoding="utf-8")
+
+    exit_code = main([str(tmp_path)])
+
+    assert exit_code == 1
+    assert "'exclude' must be a list of strings" in capsys.readouterr().err
