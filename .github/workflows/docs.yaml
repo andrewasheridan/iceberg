@@ -1,9 +1,20 @@
 name: Documentation
+# PRs build the docs in the Dagger `check` gate (ci.yaml), so this workflow only deploys.
+# It deploys on pushes to main that can change the site. pyproject.toml covers version
+# bumps, so each release redeploys. Release tags are left out on purpose: the
+# github-pages environment only accepts deployments from main.
 on:
   push:
     branches:
-      - master
       - main
+    paths:
+      - "docs/**"
+      - "src/**"
+      - "README.md"
+      - "zensical.toml"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/docs.yaml"
 concurrency:
   group: "pages"
   cancel-in-progress: false
