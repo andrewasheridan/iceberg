@@ -39,6 +39,7 @@ def resolve_init(
     *,
     namespace_parents: tuple[str, ...] = (),
     path: Path | None = None,
+    known_all: Mapping[str, frozenset[str] | None] | None = None,
 ) -> tuple[Module, ResolveReport]:
     """Resolve an ``__init__.py`` source into a ``Module`` with re-exports attached.
 
@@ -71,6 +72,11 @@ def resolve_init(
             are treated as intra-package imports.
         path: The file *init_source* was read from. It is reported in the
             ``ParseError`` when *init_source* has a syntax error.
+        known_all: The evaluated ``__all__`` of each module in the analyzed
+            tree, by dotted name. When it holds *dotted_package*, that value
+            is used as is; otherwise ``__all__`` is evaluated from
+            *init_source*, and this mapping resolves
+            ``__all__ += sub.__all__``.
 
     Returns:
         A two-tuple of ``(module, report)`` where *module* is the resolved
@@ -85,11 +91,20 @@ def resolve_init(
     except SyntaxError as exc:
         raise ParseError.from_syntax_error(exc) from exc
 
-    # Use visit_module for locally-defined names; it also handles __all__
-    # extraction and the public-name filter internally.
-    local_module = visit_module(init_source, dotted_package, path)
+    if known_all is not None and dotted_package in known_all:
+        explicit_all = known_all[dotted_package]
+    else:
+        explicit_all = extract_all(
+            tree,
+            dotted_package,
+            None if known_all is None else known_all.get,
+            path=None if path is None else str(path),
+        )
 
-    explicit_all = extract_all(tree)
+    # Use visit_module for locally-defined names and the public-name filter.
+    # Pass the evaluated __all__ so it is not evaluated (and reported) twice.
+    local_module = visit_module(init_source, dotted_package, path, {**(known_all or {}), dotted_package: explicit_all})
+
     all_imports = collect_imports(tree, dotted_package)
     import_map = _build_import_map(all_imports, dotted_package, namespace_parents)
     public_names = _compute_public_names(tree, explicit_all, import_map)

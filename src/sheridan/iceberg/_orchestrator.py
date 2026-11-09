@@ -10,7 +10,9 @@ folds everything into a ``Package`` trie.
 __all__ = ["build_package"]
 
 import ast
+from collections.abc import Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 from pathlib import Path
 
 from sheridan.iceberg._config import Config
@@ -21,7 +23,10 @@ from sheridan.iceberg._utilities import extract_all
 from sheridan.iceberg._visitor import visit_module
 
 
-def _visit_worker(discovered: DiscoveredModule) -> Module:
+def _visit_worker(
+    discovered: DiscoveredModule,
+    known_all: Mapping[str, frozenset[str] | None] | None = None,
+) -> Module:
     """Read source from disk and return a parsed ``Module``.
 
     Runs in a worker process. Any IO must happen here — not in the
@@ -31,12 +36,60 @@ def _visit_worker(discovered: DiscoveredModule) -> Module:
     Args:
         discovered: Metadata about the module to visit, including its path
             and dotted name.
+        known_all: The evaluated ``__all__`` of each module, by dotted name.
 
     Returns:
         A ``Module`` capturing the public API surface of the source file.
     """
     source = discovered.source_path.read_text(encoding="utf-8")
-    return visit_module(source, discovered.dotted_name, discovered.source_path)
+    return visit_module(source, discovered.dotted_name, discovered.source_path, known_all)
+
+
+def _evaluate_all(discovered: Sequence[DiscoveredModule]) -> dict[str, frozenset[str] | None]:
+    """Evaluate the ``__all__`` of every discovered module.
+
+    A module may extend its ``__all__`` with another module's
+    (``__all__ += sub.__all__``), so each module is evaluated on demand and
+    the result is cached. Files that do not mention ``__all__`` are not
+    parsed. Files with syntax errors are left out; visiting them raises
+    ``ParseError`` later.
+
+    Args:
+        discovered: Every module found under the analyzed root.
+
+    Returns:
+        A mapping from dotted module name to its ``__all__``, or ``None`` when
+        it is absent or cannot be evaluated statically.
+    """
+    by_name = {dm.dotted_name: dm for dm in discovered}
+    result: dict[str, frozenset[str] | None] = {}
+    in_progress: set[str] = set()
+
+    def evaluate(name: str) -> frozenset[str] | None:
+        if name in result:
+            return result[name]
+        dm = by_name.get(name)
+        if dm is None or name in in_progress:
+            return None
+        source = dm.source_path.read_text(encoding="utf-8")
+        if "__all__" not in source:
+            result[name] = None
+            return None
+        try:
+            tree = ast.parse(source, feature_version=(3, 14))
+        except SyntaxError:
+            return None
+        package = name if dm.is_init else name.rpartition(".")[0]
+        in_progress.add(name)
+        try:
+            result[name] = extract_all(tree, package, evaluate, path=str(dm.source_path))
+        finally:
+            in_progress.discard(name)
+        return result[name]
+
+    for name in by_name:
+        evaluate(name)
+    return result
 
 
 def _namespace_parents(root: Path) -> tuple[str, ...]:
@@ -252,7 +305,9 @@ def build_package(root: Path, config: Config) -> Package | Module:
     # 1. Discover all Python source files under root.
     all_discovered = discover(root, config)
 
-    # 2. Partition into regular modules and __init__.py files.
+    # 2. Evaluate every __all__ once, so `__all__ += sub.__all__` can see
+    #    other modules, then partition into regular modules and __init__.py files.
+    known_all = _evaluate_all(all_discovered)
     non_init_modules = [dm for dm in all_discovered if not dm.is_init]
     init_modules = [dm for dm in all_discovered if dm.is_init]
 
@@ -262,9 +317,9 @@ def build_package(root: Path, config: Config) -> Package | Module:
     visited_modules: list[Module]
     if config.max_workers > 1:
         with ProcessPoolExecutor(max_workers=config.max_workers) as executor:
-            visited_modules = list(executor.map(_visit_worker, non_init_modules))
+            visited_modules = list(executor.map(partial(_visit_worker, known_all=known_all), non_init_modules))
     else:
-        visited_modules = [_visit_worker(dm) for dm in non_init_modules]
+        visited_modules = [_visit_worker(dm, known_all) for dm in non_init_modules]
 
     module_map: dict[str, Module] = {
         dm.dotted_name: module for dm, module in zip(non_init_modules, visited_modules, strict=True)
@@ -284,13 +339,7 @@ def build_package(root: Path, config: Config) -> Package | Module:
         source = init_module.source_path.read_text(encoding="utf-8")
         child_names = _child_names_at_level(init_module.dotted_name, all_discovered)
 
-        # Extract __all__ from the init source to record for the trie step.
-        try:
-            init_tree = ast.parse(source, feature_version=(3, 14))
-        except SyntaxError:
-            init_tree = None
-
-        package_all_map[init_module.dotted_name] = extract_all(init_tree) if init_tree is not None else None
+        package_all_map[init_module.dotted_name] = known_all.get(init_module.dotted_name)
 
         module, _report = resolve_init(
             source,
@@ -299,6 +348,7 @@ def build_package(root: Path, config: Config) -> Package | Module:
             child_names,
             namespace_parents=namespace_parents,
             path=init_module.source_path,
+            known_all=known_all,
         )
         module_map[init_module.dotted_name] = module
 

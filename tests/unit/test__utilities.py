@@ -1,10 +1,11 @@
 """Tests for sheridan.iceberg._utilities."""
 
 import ast
+import warnings
 
 import pytest
 
-from sheridan.iceberg._utilities import bound_names, collect_imports, infer_all, resolve_relative
+from sheridan.iceberg._utilities import bound_names, collect_imports, extract_all, infer_all, resolve_relative
 
 
 def _imports(source: str, package: str = "pkg") -> dict[str, tuple[str, str | None]]:
@@ -161,3 +162,74 @@ finally:
     _h = 1
 """
     assert infer_all(ast.parse(source)) == frozenset({"A", "b", "C", "d", "e", "f", "g"})
+
+
+# ---------------------------------------------------------------------------
+# extract_all
+# ---------------------------------------------------------------------------
+
+
+def _extract(
+    source: str,
+    package: str = "pkg",
+    known: dict[str, frozenset[str] | None] | None = None,
+) -> frozenset[str] | None:
+    lookup = None if known is None else known.get
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        return extract_all(ast.parse(source), package, lookup)
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("__all__ = ['a', 'b']", {"a", "b"}),
+        ("__all__: list[str] = ('a',)", {"a"}),
+        ("__all__ = ['a']\n__all__ += ['b']", {"a", "b"}),
+        ("__all__ = ['a']\n__all__ += ('b', 'c')", {"a", "b", "c"}),
+        ("__all__ = ['a']\n__all__.extend(['b'])", {"a", "b"}),
+        ("__all__ = ['a']\n__all__.append('b')", {"a", "b"}),
+        ("__all__ = ['a'] + ['b'] + ('c',)", {"a", "b", "c"}),
+        ("__all__ = ['a']\n__all__ = __all__ + ['b']", {"a", "b"}),
+        ("__all__ = ['a']\n__all__ = ['b']", {"b"}),
+        ("x = 1", None),
+    ],
+)
+def test_extract_all_applies_literal_statements_in_order(source: str, expected: set[str] | None) -> None:
+    result = _extract(source)
+    assert result == (None if expected is None else frozenset(expected))
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from . import sub\n__all__ = ['a']\n__all__ += sub.__all__",
+        "from .sub import __all__ as _sub_all\n__all__ = ['a'] + _sub_all",
+        "import pkg.sub as sub\n__all__ = ['a']\n__all__.extend(sub.__all__)",
+    ],
+)
+def test_extract_all_resolves_other_module_all(source: str) -> None:
+    assert _extract(source, known={"pkg.sub": frozenset({"x", "y"})}) == {"a", "x", "y"}
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "__all__ = make()",
+        "__all__ = ['a']\n__all__ += make()",
+        "__all__ += ['a']",
+        "__all__ = ['a']\n__all__.append(name)",
+        "__all__ = ['a']\n__all__.remove('a')",
+        "from . import sub\n__all__ = ['a']\n__all__ += sub.__all__",
+        "import os\n__all__ = ['a'] + os.__all__",
+    ],
+)
+def test_extract_all_warns_when_not_static(source: str) -> None:
+    with pytest.warns(UserWarning, match=r"cannot evaluate __all__"):
+        assert extract_all(ast.parse(source), "pkg") is None
+
+
+def test_extract_all_warning_names_path_and_line() -> None:
+    tree = ast.parse("__all__ = ['a']\n__all__ += make()")
+    with pytest.warns(UserWarning, match=r"^pkg/mod\.py:2: cannot evaluate __all__"):
+        extract_all(tree, "pkg", path="pkg/mod.py")
