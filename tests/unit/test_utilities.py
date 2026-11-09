@@ -603,6 +603,23 @@ def test_get_module_path_custom_name(tmp_path: Path) -> None:
     assert result.name == "custom"
 
 
+def test_get_module_path_syntax_error_reports_file_path(tmp_path: Path) -> None:
+    file: Path = tmp_path / "bad.py"
+    file.write_text("def f(:\n", encoding="utf-8")
+    with pytest.raises(ParseError) as info:
+        get_module(file)
+    assert info.value.path == str(file)
+    assert str(file) in str(info.value)
+
+
+def test_get_module_path_all_warning_names_file(tmp_path: Path) -> None:
+    file: Path = tmp_path / "dyn.py"
+    file.write_text("x = 1\n__all__ = compute()\n", encoding="utf-8")
+    with pytest.warns(UserWarning, match="cannot evaluate __all__") as record:
+        get_module(file)
+    assert any(str(file) in str(w.message) for w in record)
+
+
 # ---------------------------------------------------------------------------
 # get_module — ModuleType overload
 # ---------------------------------------------------------------------------

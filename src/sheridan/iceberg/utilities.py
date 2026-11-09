@@ -438,7 +438,7 @@ def get_module(
         case Path():
             text = read_source(source_or_path_or_mod)
             dotted = name or source_or_path_or_mod.stem
-            return visit_module(text, dotted)
+            return visit_module(text, dotted, path=source_or_path_or_mod)
 
         case _:
             try:
