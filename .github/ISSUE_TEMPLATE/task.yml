@@ -1,0 +1,26 @@
+name: Task
+description: Maintenance work - docs, refactor, tests, build, CI, or tooling.
+labels: ["needs triage"]
+body:
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      options: [docs, refactor, test, build, ci, chore, perf]
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Tell what to do and why.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] ...
+    validations:
+      required: true
