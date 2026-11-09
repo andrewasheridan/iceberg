@@ -11,7 +11,7 @@ import pytest
 
 from sheridan.iceberg._api import get_public_api
 from sheridan.iceberg._config import Config
-from sheridan.iceberg._models import Function, Module, Package
+from sheridan.iceberg._models import Function, Module, Package, Reference
 from sheridan.iceberg._orchestrator import build_package
 
 # ---------------------------------------------------------------------------
@@ -418,3 +418,72 @@ def test_reexport_cycle_through_regular_modules_left_unresolved(tmp_path: Path) 
     (init,) = result.modules
     assert init.classes == ()
     assert [ref.name for ref in init.references] == ["X"]
+
+
+# ---------------------------------------------------------------------------
+# Star imports
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "c_source",
+    [
+        '__all__ = ["X", "f"]\nclass X: ...\ndef f(): ...\ndef g(): ...\n',
+        "class X: ...\ndef f(): ...\ndef _g(): ...\n",
+    ],
+    ids=["with-all", "without-all"],
+)
+def test_init_star_import_from_tree_resolved(tmp_path: Path, c_source: str) -> None:
+    """`from ._c import *` binds the __all__ of _c, or its public names."""
+    pkg = tmp_path / "pkg"
+    _write(pkg / "__init__.py", 'from ._c import *\n__all__ = ["X", "f"]\n')
+    _write(pkg / "_c.py", c_source)
+
+    result = build_package(pkg, _default_config())
+
+    assert isinstance(result, Package)
+    init = _init_module(result, "pkg")
+    assert [cls.name for cls in init.classes] == ["X"]
+    assert [fn.name for fn in init.functions] == ["f"]
+    assert init.references == ()
+
+
+def test_init_star_import_without_all_exports_star_names(tmp_path: Path) -> None:
+    """An init without __all__ re-exports the public names a star import binds."""
+    pkg = tmp_path / "pkg"
+    _write(pkg / "__init__.py", "from ._c import *\n")
+    _write(pkg / "_c.py", '__all__ = ["f"]\ndef f(): ...\ndef g(): ...\n')
+
+    result = build_package(pkg, _default_config())
+
+    assert isinstance(result, Package)
+    assert [fn.name for fn in _init_module(result, "pkg").functions] == ["f"]
+
+
+def test_regular_module_star_import_from_tree_resolved(tmp_path: Path) -> None:
+    """A star import in a regular module resolves, so an init importing from it finds X."""
+    pkg = tmp_path / "pkg"
+    _write(pkg / "__init__.py", 'from ._a import X\n__all__ = ["X"]\n')
+    _write(pkg / "_a.py", 'from ._b import *\n__all__ = ["X"]\n')
+    _write(pkg / "_b.py", "class X: ...\n")
+
+    result = build_package(pkg, _default_config())
+
+    assert isinstance(result, Package)
+    init = _init_module(result, "pkg")
+    assert [cls.name for cls in init.classes] == ["X"]
+    assert init.references == ()
+
+
+def test_init_star_import_from_outside_tree_is_candidate(tmp_path: Path) -> None:
+    """A star import from outside the tree stays unresolved, naming the module."""
+    pkg = tmp_path / "pkg"
+    _write(pkg / "__init__.py", 'from os.path import *\nfrom ._c import *\n__all__ = ["join", "f"]\n')
+    _write(pkg / "_c.py", "def f(): ...\n")
+
+    result = build_package(pkg, _default_config())
+
+    assert isinstance(result, Package)
+    init = _init_module(result, "pkg")
+    assert [fn.name for fn in init.functions] == ["f"]
+    assert init.references == (Reference(name="join", module="os.path", attribute="join"),)

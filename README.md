@@ -27,6 +27,8 @@ code, and it has no runtime dependencies.
   `__call__` and `__eq__` are public; `_x` and name-mangled `__x` are private.
 - Resolves re-exports through `__init__.py`, including relative imports,
   absolute imports, namespace packages, and imports inside `try` / `if` blocks.
+  A star import (`from ._core import *`) from a module in the analyzed tree
+  binds that module's `__all__`, or its public names when it has none.
 - Never drops a public name silently: anything it cannot resolve to a
   definition (e.g. `from math import sqrt` listed in `__all__`) is reported as
   a reference.

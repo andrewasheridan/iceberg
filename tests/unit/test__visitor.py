@@ -831,3 +831,23 @@ def test_syntax_error_without_path_has_no_path() -> None:
         visit_module("def f(:\n", "pkg.mod")
     assert info.value.path is None
     assert info.value.lineno == 1
+
+
+# ---------------------------------------------------------------------------
+# Star imports
+# ---------------------------------------------------------------------------
+
+
+def test_star_import_from_module_with_known_all_binds_its_names() -> None:
+    source = 'from ._c import *\nfrom os import *\n__all__ = ["X", "ghost"]\n'
+    known_all: dict[str, frozenset[str] | None] = {"pkg._c": frozenset({"X"})}
+    module = visit_module(source, "pkg.mod", known_all=known_all)
+    assert module.references == (
+        Reference(name="X", module="pkg._c", attribute="X"),
+        Reference(name="ghost", module="os", attribute="ghost"),
+    )
+
+
+def test_star_import_from_unknown_module_is_candidate() -> None:
+    module = visit_module('from os.path import *\n__all__ = ["join"]\n', "pkg.mod")
+    assert module.references == (Reference(name="join", module="os.path", attribute="join"),)
