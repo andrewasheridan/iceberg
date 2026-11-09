@@ -81,6 +81,10 @@ quote-style = "double"
 indent-style = "space"
 
 [tool.pyrefly]
+project-includes = ["src", "tests"]
+# Fixture packages are inputs that iceberg parses, not code that runs or is imported;
+# their relative imports only resolve when the fixture directory is the search root.
+project-excludes = ["tests/fixtures"]
 search-path = ["src"]
 python-version = "3.14.0"
 preset = "strict"

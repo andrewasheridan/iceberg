@@ -18,6 +18,13 @@ from sheridan.iceberg._models import Class, Function, Module, Package
 _CFG = Config(max_workers=1)
 
 
+def _snapshot_package(path: Path) -> Package:
+    """Snapshot a package directory, narrowing the ``Package | Module`` result."""
+    result = get_public_api(path, config=_CFG)
+    assert isinstance(result, Package)
+    return result
+
+
 def _function_names(module: Module) -> set[str]:
     return {f.name for f in module.functions}
 
@@ -110,7 +117,7 @@ def _internal() -> None:
         encoding="utf-8",
     )
 
-    pkg = get_public_api(pkg_dir, config=_CFG)
+    pkg = _snapshot_package(pkg_dir)
 
     assert pkg.name == "mypkg"
     assert pkg.subpackages == ()
@@ -156,7 +163,7 @@ def area(width: float, height: float) -> float:
         encoding="utf-8",
     )
 
-    pkg = get_public_api(pkg_dir, config=_CFG)
+    pkg = _snapshot_package(pkg_dir)
 
     assert pkg.name == "shapes"
     all_classes = _all_class_names(pkg)
@@ -192,7 +199,7 @@ class HttpClient:
         encoding="utf-8",
     )
 
-    pkg = get_public_api(pkg_dir, config=_CFG)
+    pkg = _snapshot_package(pkg_dir)
 
     # When __all__ is defined, private sub-modules are filtered; only the
     # resolved init module is exposed at the package level.
@@ -235,7 +242,7 @@ class Store:
         encoding="utf-8",
     )
 
-    pkg = get_public_api(root_dir, config=_CFG)
+    pkg = _snapshot_package(root_dir)
 
     assert pkg.name == "mylib"
 
@@ -271,7 +278,7 @@ def add(a: int, b: int) -> int:
         encoding="utf-8",
     )
 
-    pkg = get_public_api(pkg_dir, config=_CFG)
+    pkg = _snapshot_package(pkg_dir)
 
     init_mod = _find_module(pkg, "utils")
     assert init_mod is not None
@@ -297,7 +304,7 @@ class _InternalHelper:
         encoding="utf-8",
     )
 
-    pkg = get_public_api(pkg_dir, config=_CFG)
+    pkg = _snapshot_package(pkg_dir)
 
     impl_mod = _find_module(pkg, "internals.impl")
     assert impl_mod is not None
@@ -311,7 +318,7 @@ def test_package_path_matches_directory(tmp_path: Path) -> None:
     pkg_dir.mkdir()
     (pkg_dir / "__init__.py").write_text("", encoding="utf-8")
 
-    pkg = get_public_api(pkg_dir, config=_CFG)
+    pkg = _snapshot_package(pkg_dir)
 
     assert pkg.path == pkg_dir
 
@@ -378,7 +385,7 @@ class AuthService:
         encoding="utf-8",
     )
 
-    pkg = get_public_api(pkg_dir, config=_CFG)
+    pkg = _snapshot_package(pkg_dir)
 
     init_mod = _find_module(pkg, "services")
     assert init_mod is not None

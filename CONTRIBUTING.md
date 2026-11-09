@@ -12,7 +12,7 @@ uv run prek install
 `uv run prek install` sets up the Git hooks from `.pre-commit-config.yaml`:
 
 - **pre-commit**: file hygiene checks, `detect-private-key`, a block on committing to
-  `main`, ruff (check and format), pyrefly on `src/` and `no-banner-comments`.
+  `main`, ruff (check and format), pyrefly on `src/` and `tests/`, and `no-banner-comments`.
 - **commit-msg**: `cz check`, so commit messages follow Conventional Commits.
 - **pre-push**: the test suite (`pytest`).
 
@@ -111,7 +111,7 @@ task lint:check   # ruff check (read-only)
 task lint         # ruff check --fix (autofix)
 task format:check # ruff format --check (read-only)
 task format       # ruff format (write)
-task typecheck    # pyrefly check
+task typecheck    # pyrefly check (src/ and tests/)
 task test         # pytest --cov
 task iceberg      # iceberg src/ (dogfood — show public API)
 task check        # all gates (read-only: lint:check, format:check, …)

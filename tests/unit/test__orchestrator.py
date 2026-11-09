@@ -27,6 +27,13 @@ def _default_config() -> Config:
     return Config(max_workers=1)
 
 
+def _build_dir(path: Path, config: Config) -> Package:
+    """Build a package directory, narrowing the ``Package | Module`` result."""
+    result = build_package(path, config)
+    assert isinstance(result, Package)
+    return result
+
+
 def _all_module_names(pkg: Package) -> set[str]:
     """Recursively collect all Module.name values from a Package trie."""
     names: set[str] = {m.name for m in pkg.modules}
@@ -86,7 +93,7 @@ def test_flat_package_subpackages_empty(tmp_path: Path) -> None:
     _write(pkg / "mod_b.py", "Y = 2\n")
     config = _default_config()
 
-    result = build_package(pkg, config)
+    result = _build_dir(pkg, config)
 
     assert result.subpackages == ()
 
@@ -99,7 +106,7 @@ def test_nested_package_three_levels_deep(tmp_path: Path) -> None:
     _write(pkg / "sub" / "leaf.py", "LEAF = True\n")
     config = _default_config()
 
-    result = build_package(pkg, config)
+    result = _build_dir(pkg, config)
 
     # Root Package
     assert result.name == "root"
@@ -120,7 +127,7 @@ def test_nested_trie_root_subpackage_name(tmp_path: Path) -> None:
     _write(pkg / "inner" / "core.py", "def run() -> None: ...\n")
     config = _default_config()
 
-    result = build_package(pkg, config)
+    result = _build_dir(pkg, config)
 
     sub = result.subpackages[0]
     assert sub.name == "mypkg.inner"
@@ -140,7 +147,7 @@ def test_init_reexport_function_appears_in_init_module(tmp_path: Path) -> None:
     )
     config = _default_config()
 
-    result = build_package(pkg, config)
+    result = _build_dir(pkg, config)
 
     # Locate the init Module (named "mypkg")
     init_module: Module | None = None
@@ -167,7 +174,7 @@ def test_init_reexport_function_is_correct_type(tmp_path: Path) -> None:
     )
     config = _default_config()
 
-    result = build_package(pkg, config)
+    result = _build_dir(pkg, config)
 
     init_module = next((m for m in result.modules if m.name == "mypkg"), None)
     assert init_module is not None
@@ -225,7 +232,7 @@ def test_many_modules_all_appear_in_result(tmp_path: Path, module_count: int) ->
         expected_names.add(f"bigpkg.{name}")
 
     config = Config(max_workers=1)
-    result = build_package(pkg, config)
+    result = _build_dir(pkg, config)
 
     all_names = _all_module_names(result)
     missing = expected_names - all_names
@@ -244,7 +251,7 @@ def test_eight_modules_parallel_path(tmp_path: Path) -> None:
         expected.add(f"parallel_pkg.{mod_name}")
 
     config = Config(max_workers=2)
-    result = build_package(pkg, config)
+    result = _build_dir(pkg, config)
 
     all_names = _all_module_names(result)
     assert expected.issubset(all_names), f"Missing modules: {sorted(expected - all_names)}"

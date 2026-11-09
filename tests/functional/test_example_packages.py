@@ -28,6 +28,13 @@ _CFG = Config(max_workers=1, test_module_pattern=re.compile(r"(^|/)test_[^/]*\.p
 _FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
 
+def _snapshot_package(path: Path) -> Package:
+    """Snapshot a fixture package, narrowing the ``Package | Module`` result."""
+    result = get_public_api(path, config=_CFG)
+    assert isinstance(result, Package)
+    return result
+
+
 def _module_names(pkg: Package) -> set[str]:
     """Collect the set of short module names (last dotted component) at the top level."""
     return {m.name for m in pkg.modules}
@@ -50,7 +57,7 @@ def _function_names(module: Module) -> set[str]:
 def simple_pkg() -> Package:
     """Flat package with ``__all__ = ['MyClass', 'my_func']`` and private modules ``_models`` and ``_utils``."""
     path = _FIXTURES_DIR / "simple_pkg"
-    return get_public_api(path, config=_CFG)
+    return _snapshot_package(path)
 
 
 def test_simple_pkg_name(simple_pkg: Package) -> None:
@@ -100,7 +107,7 @@ def nested_pkg() -> Package:
     ``__all__ = ['PublicSub', 'top_level_func']``.
     """
     path = _FIXTURES_DIR / "nested_pkg"
-    return get_public_api(path, config=_CFG)
+    return _snapshot_package(path)
 
 
 def test_nested_pkg_name(nested_pkg: Package) -> None:
@@ -154,7 +161,7 @@ def test_nested_pkg_no_subpackages(nested_pkg: Package) -> None:
 def reexport_pkg() -> Package:
     """Package that re-exports ``Alpha``, ``Beta`` and ``gamma`` from private submodules."""
     path = _FIXTURES_DIR / "reexport_pkg"
-    return get_public_api(path, config=_CFG)
+    return _snapshot_package(path)
 
 
 def test_reexport_pkg_name(reexport_pkg: Package) -> None:
@@ -201,7 +208,7 @@ def mixed_pkg() -> Package:
     ``__all__ = ['PublicThing', 'public_module']``.
     """
     path = _FIXTURES_DIR / "mixed_pkg"
-    return get_public_api(path, config=_CFG)
+    return _snapshot_package(path)
 
 
 def test_mixed_pkg_name(mixed_pkg: Package) -> None:
