@@ -492,6 +492,77 @@ def test_get_assignment_path_name_not_found_raises_invalid_path_error(tmp_path: 
 
 
 # ---------------------------------------------------------------------------
+# get_assignment — chained, unpacked, and if/try-block targets (#145)
+# ---------------------------------------------------------------------------
+
+_BOUND_NAMES_SRC = """\
+a = b = 1
+c, d = 1, 2
+[f, g] = 3, 4
+h, *rest = 5, 6, 7
+if True:
+    e = 3
+try:
+    t: int = 1
+except ImportError:
+    u = 2
+"""
+
+
+@pytest.mark.parametrize("name", ["a", "b", "c", "d", "f", "g", "h", "rest", "e", "t", "u"])
+def test_get_assignment_str_finds_every_bound_name(name: str) -> None:
+    result: Assignment = get_assignment(_BOUND_NAMES_SRC, name=name)
+    assert result.name == name
+
+
+@pytest.mark.parametrize("name", ["a", "b", "c", "d", "f", "g", "h", "rest", "e", "t", "u"])
+def test_get_assignment_path_finds_every_bound_name(tmp_path: Path, name: str) -> None:
+    file: Path = tmp_path / "u.py"
+    file.write_text(_BOUND_NAMES_SRC, encoding="utf-8")
+    result: Assignment = get_assignment(file, name=name)
+    assert result.name == name
+
+
+def test_get_assignment_path_matches_get_module(tmp_path: Path) -> None:
+    file: Path = tmp_path / "u.py"
+    file.write_text(_BOUND_NAMES_SRC, encoding="utf-8")
+    for expected in get_module(file).assignments:
+        assert get_assignment(file, name=expected.name) == expected
+
+
+def test_get_assignment_str_annotated_in_try_block_keeps_annotation() -> None:
+    result: Assignment = get_assignment(_BOUND_NAMES_SRC, name="t")
+    assert result.annotation == "int"
+
+
+_FIRST_DEFINITION_SRC = """\
+try:
+    x: int = 1
+except ImportError:
+    x: str = "1"
+"""
+
+
+def test_get_assignment_str_keeps_first_definition() -> None:
+    assert get_assignment(_FIRST_DEFINITION_SRC, name="x").annotation == "int"
+
+
+def test_get_assignment_path_keeps_first_definition(tmp_path: Path) -> None:
+    file: Path = tmp_path / "u.py"
+    file.write_text(_FIRST_DEFINITION_SRC, encoding="utf-8")
+    assert get_assignment(file, name="x").annotation == "int"
+
+
+def test_get_assignment_str_without_name_returns_first_unpacked_name() -> None:
+    assert get_assignment("c, d = 1, 2").name == "c"
+
+
+def test_get_assignment_str_attribute_target_not_found() -> None:
+    with pytest.raises(ParseError):
+        get_assignment("obj.attr = 1", name="attr")
+
+
+# ---------------------------------------------------------------------------
 # get_module — str overload
 # ---------------------------------------------------------------------------
 
