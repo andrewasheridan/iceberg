@@ -20,7 +20,7 @@ _PRUNED_DIRS = frozenset({"__pycache__", ".venv", ".git"})
 
 
 def _is_importable_name(name: str) -> bool:
-    """Return ``True`` if *name* can be a component of an import statement.
+    """Check if *name* can be a component of an import statement.
 
     Args:
         name: A bare directory name or file stem.
@@ -32,7 +32,7 @@ def _is_importable_name(name: str) -> bool:
 
 
 def _should_prune(name: str) -> bool:
-    """Return ``True`` if a directory name should be excluded from the walk.
+    """Check if a directory name should be excluded from the walk.
 
     Args:
         name: The bare directory name (not a full path).
@@ -112,7 +112,7 @@ def _make_module(py_file: Path, root: Path) -> DiscoveredModule:
 
 
 def _discover_single_file(root: Path) -> tuple[DiscoveredModule, ...]:
-    """Return a one-tuple for a single ``.py`` file input.
+    """Build a one-tuple for a single ``.py`` file input.
 
     Args:
         root: Path to a single ``.py`` source file.

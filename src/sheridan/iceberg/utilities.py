@@ -31,7 +31,7 @@ def get_function(
     *,
     name: str | None = None,
 ) -> Function:
-    """Return a ``Function`` model from one of four accepted input forms.
+    """Build a ``Function`` model from one of four accepted input forms.
 
     Accepted forms:
 
@@ -113,7 +113,7 @@ def get_class(
     *,
     name: str | None = None,
 ) -> Class:
-    """Return a ``Class`` model from one of four accepted input forms.
+    """Build a ``Class`` model from one of four accepted input forms.
 
     Accepted forms:
 
@@ -193,7 +193,7 @@ def get_assignment(
     *,
     name: str | None = None,
 ) -> Assignment:
-    """Return an ``Assignment`` model from one of three accepted input forms.
+    """Build an ``Assignment`` model from one of three accepted input forms.
 
     Accepted forms:
 
@@ -312,7 +312,7 @@ def get_module(
     *,
     name: str | None = None,
 ) -> Module:
-    """Return a ``Module`` model from one of three accepted input forms.
+    """Build a ``Module`` model from one of three accepted input forms.
 
     Accepted forms:
 
@@ -371,7 +371,7 @@ def get_package(mod: types.ModuleType, /) -> Package: ...
 def get_package(
     path_or_mod: Path | str | types.ModuleType,
 ) -> Package:
-    """Return a ``Package`` model from one of three accepted input forms.
+    """Build a ``Package`` model from one of three accepted input forms.
 
     Accepted forms:
 
@@ -413,7 +413,7 @@ def get_package(
 
 
 def _package_dir(mod: types.ModuleType) -> Path:
-    """Return the directory of the package *mod*, read from its ``__path__``.
+    """Find the directory of the package *mod*, read from its ``__path__``.
 
     Raises:
         InvalidPathError: When *mod* is not a package (it has no

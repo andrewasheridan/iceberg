@@ -45,7 +45,7 @@ def _collect_string_elements(node: ast.expr) -> frozenset[str] | None:
 
 
 def extract_all(tree: ast.Module) -> frozenset[str] | None:
-    """Return the literal string members of ``__all__``, or ``None``.
+    """Extract the literal string members of ``__all__``, or ``None``.
 
     Scans the module body for the first simple assignment to ``__all__``
     whose RHS is a list or tuple of string constants.  Both plain

@@ -22,7 +22,7 @@ _ALLOWED_KEYS = frozenset({"test_module_pattern", "max_workers"})
 
 
 def _default_test_pattern() -> re.Pattern[str]:
-    """Return the compiled default test module pattern.
+    """Compile the default test module pattern.
 
     Returns:
         A compiled ``re.Pattern`` matching common test module path conventions.
@@ -144,7 +144,7 @@ def _read_text(path: Path) -> str:
 
 
 def _ancestors(start: Path) -> list[Path]:
-    """Return ``start`` and all of its parent directories, from deepest to root.
+    """List ``start`` and all of its parent directories, from deepest to root.
 
     Args:
         start: The directory from which to begin the upward walk.

@@ -367,7 +367,7 @@ def _build_assignment(node: ast.Assign | ast.AnnAssign) -> Assignment | None:
 
 
 def _annotation_source(node: ast.expr | None) -> str | None:
-    """Return the source representation of an annotation node.
+    """Unparse an annotation node to source.
 
     Args:
         node: An AST expression node, or ``None``.
@@ -385,7 +385,7 @@ _MAX_DEFAULT_LENGTH = 80
 
 
 def _value_source(node: ast.expr | None) -> str | None:
-    """Return the source representation of a parameter default.
+    """Unparse a parameter default to source.
 
     Any expression is rendered with ``ast.unparse``. A rendering longer than
     ``_MAX_DEFAULT_LENGTH`` characters is replaced by ``...`` so that the
