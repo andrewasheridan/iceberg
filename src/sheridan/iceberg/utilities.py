@@ -11,17 +11,52 @@ from pathlib import Path
 from typing import Any, overload
 
 from sheridan.iceberg._api import get_public_api
+from sheridan.iceberg._builders import (
+    build_assignment,
+    build_assignments,
+    build_class,
+    build_function,
+    build_type_alias,
+)
 from sheridan.iceberg._exceptions import InvalidPathError, NotFoundError, ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Package
 from sheridan.iceberg._utilities import module_level_statements, parse_source, read_source
-from sheridan.iceberg._visitor import (
-    _build_assignment,
-    _build_assignments,
-    _build_class,
-    _build_function,
-    _build_type_alias,
-    visit_module,
-)
+from sheridan.iceberg._visitor import visit_module
+
+
+def _read(source: str | Path) -> str:
+    """Dedent a source string, or read the text of the file at a ``Path``.
+
+    Raises:
+        InvalidPathError: When a ``Path`` cannot be read.
+    """
+    if isinstance(source, Path):
+        return read_source(source)
+
+    return textwrap.dedent(source)
+
+
+def _parse(source: str | Path) -> ast.Module:
+    """Parse a source string or the file at a ``Path``, as read by ``_read``.
+
+    Raises:
+        ParseError: When the source is not valid Python.
+        InvalidPathError: When a ``Path`` cannot be read.
+    """
+    path = source if isinstance(source, Path) else None
+    return parse_source(_read(source), path)
+
+
+def _required_name(name: str | None) -> str:
+    """Check that *name* is given, as a ``Path`` input needs it to select a definition.
+
+    Raises:
+        TypeError: When *name* is ``None``.
+    """
+    if name is None:
+        raise TypeError("name is required when passing a Path")
+
+    return name
 
 
 def _get_source(obj: object) -> str:
@@ -123,14 +158,14 @@ def _find_assignment(tree: ast.Module, name: str | None) -> Assignment | None:
         candidates: list[Assignment]
         match node:
             case ast.Assign():
-                candidates = _build_assignments(node)
+                candidates = build_assignments(node)
 
             case ast.AnnAssign():
-                result = _build_assignment(node)
+                result = build_assignment(node)
                 candidates = [] if result is None else [result]
 
             case ast.TypeAlias():
-                candidates = [_build_type_alias(node)]
+                candidates = [build_type_alias(node)]
 
             case _:
                 continue
@@ -183,7 +218,8 @@ def get_function(
 
     Returns:
         A ``Function`` dataclass capturing the name, parameters, return
-        annotation, and async flag of the target function.
+        annotation, async flag, kind, decorators, and overloads of the
+        target function.
 
     Raises:
         ParseError: When a source string or file cannot be parsed as valid
@@ -198,28 +234,20 @@ def get_function(
     """
     match source_or_node_or_path_or_func:
         case ast.FunctionDef() | ast.AsyncFunctionDef():
-            return _build_function(source_or_node_or_path_or_func)
+            return build_function(source_or_node_or_path_or_func)
 
         case str():
-            src = textwrap.dedent(source_or_node_or_path_or_func)
-            tree = parse_source(src)
-
-            for node in ast.walk(tree):
+            for node in ast.walk(_parse(source_or_node_or_path_or_func)):
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    return _build_function(node)
+                    return build_function(node)
 
             raise ParseError("No function definition found in source")
 
         case Path():
-            if name is None:
-                raise TypeError("name is required when passing a Path")
-
-            src = read_source(source_or_node_or_path_or_func)
-            tree = parse_source(src, source_or_node_or_path_or_func)
-
-            func_node = _find_definition(tree, name, (ast.FunctionDef, ast.AsyncFunctionDef))
+            tree = _parse(source_or_node_or_path_or_func)
+            func_node = _find_definition(tree, _required_name(name), (ast.FunctionDef, ast.AsyncFunctionDef))
             if isinstance(func_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                return _build_function(func_node)
+                return build_function(func_node)
 
             raise NotFoundError(f"No function {name!r} found in {source_or_node_or_path_or_func}")
 
@@ -283,28 +311,20 @@ def get_class(
     """
     match source_or_node_or_path_or_cls:
         case ast.ClassDef():
-            return _build_class(source_or_node_or_path_or_cls)
+            return build_class(source_or_node_or_path_or_cls)
 
         case str():
-            src = textwrap.dedent(source_or_node_or_path_or_cls)
-            tree = parse_source(src)
-
-            for node in ast.walk(tree):
+            for node in ast.walk(_parse(source_or_node_or_path_or_cls)):
                 if isinstance(node, ast.ClassDef):
-                    return _build_class(node)
+                    return build_class(node)
 
             raise ParseError("No class definition found in source")
 
         case Path():
-            if name is None:
-                raise TypeError("name is required when passing a Path")
-
-            src = read_source(source_or_node_or_path_or_cls)
-            tree = parse_source(src, source_or_node_or_path_or_cls)
-
-            class_node = _find_definition(tree, name, ast.ClassDef)
+            tree = _parse(source_or_node_or_path_or_cls)
+            class_node = _find_definition(tree, _required_name(name), ast.ClassDef)
             if isinstance(class_node, ast.ClassDef):
-                return _build_class(class_node)
+                return build_class(class_node)
 
             raise NotFoundError(f"No class {name!r} found in {source_or_node_or_path_or_cls}")
 
@@ -353,8 +373,8 @@ def get_assignment(
             filters to the assignment with the given target name.
 
     Returns:
-        An ``Assignment`` dataclass capturing the target name, annotation, and
-        value of the assignment.
+        An ``Assignment`` dataclass capturing the target name and annotation
+        of the assignment.
 
     Raises:
         ParseError: When a source string or file cannot be parsed as valid
@@ -366,19 +386,17 @@ def get_assignment(
     """
     match source_or_node_or_path:
         case ast.TypeAlias():
-            return _build_type_alias(source_or_node_or_path)
+            return build_type_alias(source_or_node_or_path)
 
         case ast.Assign() | ast.AnnAssign():
-            result = _build_assignment(source_or_node_or_path)
+            result = build_assignment(source_or_node_or_path)
             if result is None:
                 raise ParseError("Assignment has a non-simple target")
 
             return result
 
         case str():
-            src = textwrap.dedent(source_or_node_or_path)
-            tree = parse_source(src)
-            found = _find_assignment(tree, name)
+            found = _find_assignment(_parse(source_or_node_or_path), name)
             if found is not None:
                 return found
 
@@ -388,13 +406,7 @@ def get_assignment(
             raise ParseError("No assignment found in source")
 
         case Path():
-            if name is None:
-                raise TypeError("name is required when passing a Path")
-
-            src = read_source(source_or_node_or_path)
-            tree = parse_source(src, source_or_node_or_path)
-
-            found = _find_assignment(tree, name)
+            found = _find_assignment(_parse(source_or_node_or_path), _required_name(name))
             if found is not None:
                 return found
 
@@ -446,14 +458,11 @@ def get_module(
     """
     match source_or_path_or_mod:
         case str():
-            src = textwrap.dedent(source_or_path_or_mod)
-            dotted = name or "<module>"
-            return visit_module(src, dotted)
+            return visit_module(_read(source_or_path_or_mod), name or "<module>")
 
         case Path():
-            text = read_source(source_or_path_or_mod)
-            dotted = name or source_or_path_or_mod.stem
-            return visit_module(text, dotted, path=source_or_path_or_mod)
+            text = _read(source_or_path_or_mod)
+            return visit_module(text, name or source_or_path_or_mod.stem, path=source_or_path_or_mod)
 
         case _:
             try:
