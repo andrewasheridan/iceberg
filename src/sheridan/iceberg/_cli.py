@@ -6,6 +6,7 @@ import argparse
 import dataclasses
 import sys
 from collections.abc import Sequence
+from importlib.metadata import version
 from pathlib import Path
 
 from sheridan.iceberg._api import get_public_api
@@ -30,6 +31,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="iceberg",
         description="Report the public API surface of a Python package or module.",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {version('sheridan-iceberg')}",
     )
     parser.add_argument(
         "path",
@@ -82,7 +88,3 @@ def main(argv: Sequence[str] | None = None) -> int:
         output = format_tree(package, show_overload_implementation=args.show_overload_implementations)
     print(output)
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

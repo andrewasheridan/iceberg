@@ -46,6 +46,7 @@ pip install sheridan-iceberg
 iceberg src/mypkg            # tree output
 iceberg src/mypkg --json     # machine-readable output
 iceberg src/mypkg --show-overload-implementations  # also show @overload implementations
+iceberg --version            # print the installed version
 python -m sheridan.iceberg src/mypkg
 ```
 

@@ -1,5 +1,6 @@
 """Tests for sheridan.iceberg._cli."""
 
+from importlib.metadata import version
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -356,3 +357,12 @@ def test_main_show_overload_implementations_flag_reaches_format_tree() -> None:
 
     assert exit_code == 0
     mock_tree.assert_called_once_with(fake_package, show_overload_implementation=True)
+
+
+def test_main_version_prints_installed_version(capsys: pytest.CaptureFixture[str]) -> None:
+    """--version prints 'iceberg <version>' from package metadata and exits 0."""
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--version"])
+
+    assert exc_info.value.code == 0
+    assert capsys.readouterr().out == f"iceberg {version('sheridan-iceberg')}\n"
