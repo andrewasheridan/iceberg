@@ -1,12 +1,13 @@
 # Case 00
 
-Case 00: Passing a single module directly to iceberg:
-- the module is effectively empty
+Case 00: You give one module directly to iceberg.
+
+- The module is empty, or almost empty.
 
 ## CLI Output
 ```console
 $ iceberg cases/case_00/foo.py
 module foo
 ```
-- no `package` level because iceberg was passed a single module
-- no content because foo.py is empty
+- There is no `package` level, because you gave iceberg one module.
+- There is no content, because `foo.py` is empty.

@@ -2,7 +2,7 @@ Closes #
 
 ## Summary
 
-<!-- 1-3 sentences: what the change does and why. -->
+<!-- One to three sentences: what the change does and why. -->
 
 ## Changes
 
@@ -14,7 +14,7 @@ Closes #
 
 ## Checklist
 
-- [ ] The PR title follows Conventional Commits.
+- [ ] The PR title obeys Conventional Commits.
 - [ ] The PR has a linked issue and the same `type:` label as the issue.
 - [ ] `task check` passes.
-- [ ] Docs, docstrings and comments follow the style in CONTRIBUTING.md.
+- [ ] Docs, docstrings and comments obey the style in CONTRIBUTING.md.

@@ -1,8 +1,9 @@
 # Case 06
 
-Case 06: Passing a single module directly to iceberg:
-- the module contains a class with class-level assignments (class variables)
-- the class has both public and private (`_`-prefixed) members
+Case 06: You give one module directly to iceberg.
+
+- The module has a class with class-level assignments (class variables).
+- The class has public members and private members (with a `_` prefix).
 
 ## CLI Output
 ```console
@@ -17,18 +18,18 @@ module foo
 │   └── def describe(self) -> str
 └── def create_widget(name: str, size: int = 10) -> Widget
 ```
-- class-level assignments appear before methods in the rendered class body
-  (formatter order: nested classes → assignments → methods)
-- `_registry` and `_validate` are underscore-prefixed and are **filtered out**
-  by the visitor — `_build_class` calls `.is_public` on every collected member
-  before appending it, so any name starting with `_` (that is not a dunder) is
-  excluded from the rendered output
-- `__init__` is a dunder and is treated as public by `is_public`, so it is
-  retained; every other dunder member (`__call__`, `__eq__`, `__slots__`, ...)
-  is kept too, while name-mangled members such as `__secret` are filtered out
-- module-level privacy filtering works the same way for single-underscore
-  names: a top-level `_helper()` function would be absent, but there is none
-  here (module-level dunders such as `__version__` are public only when they
-  are listed in `__all__`)
-- `create_widget` returns `Widget`; annotations are rendered with
-  `ast.unparse`, so they appear exactly as written in the source
+- The class body shows class-level assignments before methods. The formatter uses
+  this order: nested classes, then assignments, then methods.
+- The names `_registry` and `_validate` start with an underscore. The visitor
+  **removes** them. `_build_class` calls `.is_public` on each member before it
+  adds the member. Thus, the output does not show a name that starts with `_`,
+  unless the name is a dunder.
+- `__init__` is a dunder, and `is_public` makes it public. Thus, the output keeps
+  it. The output also keeps all other dunder members (`__call__`, `__eq__`,
+  `__slots__` and others). It removes name-mangled members such as `__secret`.
+- iceberg uses the same rule for single-underscore names at module level. For
+  example, the output does not show a top-level function `_helper()`. This case
+  has no such function.
+- A module-level dunder such as `__version__` is public only if `__all__` lists it.
+- `create_widget` returns `Widget`. The formatter uses `ast.unparse` for
+  annotations. Thus, the annotations are the same as in the source.

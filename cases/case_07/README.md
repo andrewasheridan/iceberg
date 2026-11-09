@@ -1,8 +1,9 @@
 # Case 07
 
-Case 07: Passing a single module directly to iceberg:
-- the module contains functions that exercise parameter forms not covered by case_04:
-  positional-only parameters (the `/` separator) and `*args` (var-positional)
+Case 07: You give one module directly to iceberg.
+
+- The module has functions with parameter forms that case_04 does not have:
+  positional-only parameters (the `/` separator) and `*args` (var-positional).
 
 ## CLI Output
 ```console
@@ -13,16 +14,18 @@ module foo
 ├── def format_record(id: int, *fields: str, prefix: str = '', sep: str = '|') -> str
 └── def full_spectrum(a: int, b: int, c: int, *args: float, key: str = 'x', **kwargs: bool) -> None
 ```
-- positional-only parameters (`/` separator) are stored in
-  `Function.positional_parameters` alongside regular positional params —
-  the `/` boundary is not represented in the model or rendered in the output;
-  `x`, `y` look identical to ordinary positional params
-- `*parts` renders as `*parts: str` (the `*` prefix is added by the formatter
-  when `var_positional` is not None)
-- keyword-only params after `*args` sort alphabetically within each function;
-  `separator` is the only keyword-only param in `join_strings`
-- `format_record` has `*fields` as var-positional; `prefix` and `sep` are
-  keyword-only and sort alphabetically (`prefix` before `sep`)
-- `full_spectrum`: `a`, `b`, `c` are all positional (positional-only boundary
-  invisible); `*args` triggers the var-positional branch; `key` is keyword-only;
-  `**kwargs` is var-keyword
+- iceberg keeps positional-only parameters (before the `/` separator) in
+  `Function.positional_parameters`, together with the usual positional parameters.
+- The model and the output do not show the `/` boundary. Thus, `x` and `y` look
+  the same as usual positional parameters.
+- `*parts` shows as `*parts: str`. If `var_positional` is not None, the formatter
+  adds the `*` prefix.
+- In each function, iceberg sorts the keyword-only parameters after `*args`
+  alphabetically. `separator` is the only keyword-only parameter in
+  `join_strings`.
+- In `format_record`, `*fields` is the var-positional parameter. `prefix` and
+  `sep` are keyword-only, and iceberg sorts them alphabetically (`prefix` before
+  `sep`).
+- In `full_spectrum`, `a`, `b` and `c` are all positional (the positional-only
+  boundary is not visible). `*args` is the var-positional parameter, `key` is
+  keyword-only and `**kwargs` is var-keyword.

@@ -1,4 +1,4 @@
-# Contributing to sheridan-iceberg
+# How to contribute to sheridan-iceberg
 
 ## Setup
 
@@ -9,25 +9,28 @@ task install
 uv run prek install
 ```
 
-`uv run prek install` sets up the Git hooks from `.pre-commit-config.yaml`:
+`uv run prek install` installs the Git hooks from `.pre-commit-config.yaml`:
 
-- **pre-commit**: file hygiene checks, `detect-private-key`, a block on committing to
-  `main`, ruff (check and format), pyrefly on `src/` and `tests/`, and `no-banner-comments`.
-- **commit-msg**: `cz check`, so commit messages follow Conventional Commits.
+- **pre-commit**: file hygiene checks, `detect-private-key`, a block on commits to
+  `main`, ruff (check and format), pyrefly on `src/` and `tests/`, and
+  `no-banner-comments`.
+- **commit-msg**: `cz check`. This hook makes sure that commit messages obey
+  Conventional Commits.
 - **pre-push**: the test suite (`pytest`).
 
-ruff, pyrefly, commitizen and pytest run through `uv run --frozen`, so the hooks use the
-versions pinned in `uv.lock`. Run every pre-commit hook by hand with
-`uv run prek run --all-files`.
+The hooks run ruff, pyrefly, commitizen and pytest through `uv run --frozen`. Thus,
+the hooks use the versions in `uv.lock`. To run all the pre-commit hooks manually,
+run `uv run prek run --all-files`.
 
 ### CI pipeline (Dagger)
 
-The CI pipeline runs inside containers via [Dagger](https://dagger.io). You need:
+The CI pipeline runs in containers through [Dagger](https://dagger.io). You must
+have these tools:
 
 - [Dagger CLI](https://docs.dagger.io/install)
 - [Podman](https://podman.io/get-started) (default) **or** Docker
 
-After cloning, initialize the Dagger module once:
+After you clone the repo, initialize the Dagger module one time:
 
 ```bash
 # macOS — start the Podman machine first
@@ -36,7 +39,7 @@ podman machine start
 task ci-init   # generates ci/sdk/ (gitignored)
 ```
 
-Then run the full pipeline locally at any time:
+Then you can run the full pipeline locally at any time:
 
 ```bash
 task ci
@@ -48,34 +51,39 @@ CONTAINER_RUNTIME=docker task ci
 ## Workflow
 
 1. Create a branch: `git checkout -b feat/your-feature`
-2. Write code that follows the [docstring](#docstrings) and [comment](#comments) rules
-3. Write tests (90% coverage minimum, set in `[tool.coverage.report]` in `pyproject.toml`)
-4. Run `task check` — all gates must pass
-5. Commit using conventional commits: `feat:`, `fix:`, `chore:`, etc.
-6. Open a PR
+2. Write code that obeys the [docstring](#docstrings) and [comment](#comments) rules.
+3. Write tests. The minimum coverage is 90%. `[tool.coverage.report]` in
+   `pyproject.toml` sets this value.
+4. Run `task check`. All the gates must pass.
+5. Commit with a Conventional Commit message: `feat:`, `fix:`, `chore:` and so on.
+6. Open a PR.
 
 ## Issue loop and triage
 
-`/sweep` reviews the code and files new issues, but changes no code. The maintainer
-works the backlog with a local issue loop that is not tracked in this repo.
+`/sweep` reviews the code and opens new issues. It does not change code. The
+maintainer works through the backlog with a local issue loop. This repo does not
+track the issue loop.
 
-Every issue a sweep files has the `needs triage` label and the line "Found by an
-automated sweep." The loop never works on an issue with `needs triage`. To let the
-loop take one:
+Each issue that a sweep opens has the `needs triage` label and the line "Found by an
+automated sweep." The loop never works on an issue that has `needs triage`. To let
+the loop work on an issue, do these steps:
 
-1. Read it, and close it as "not planned" if it is wrong or not worth doing.
-2. Check its `type:` and `priority:` labels.
+1. Read the issue. If it is wrong or not worth the work, close it as "not planned".
+2. Examine its `type:` and `priority:` labels.
 3. Remove `needs triage`.
 
-`scripts/sync-labels.sh` defines the labels (`type:`, `priority:`, `epic`,
-`needs triage`, `blocked`, `breaking change`, `automated`) and deletes the GitHub
-default labels they replace. Edit the script to change a label, then run it.
+`scripts/sync-labels.sh` defines the labels: `type:`, `priority:`, `epic`,
+`needs triage`, `blocked`, `breaking change` and `automated`. It also deletes the
+GitHub default labels that these labels replace. To change a label, do these steps:
+
+1. Edit the script.
+2. Run the script.
 
 ## Commit format
 
-This repo uses [Commitizen](https://commitizen-tools.github.io/commitizen/) to
-enforce conventional commits. Run `cz commit` instead of `git commit` for
-interactive prompting.
+This repo uses [Commitizen](https://commitizen-tools.github.io/commitizen/) to make
+sure that commits obey Conventional Commits. To get interactive prompts, run
+`cz commit` instead of `git commit`.
 
 ```
 feat: add JSON output format
@@ -108,10 +116,10 @@ yet will change in a separate PR.
 
 ## Docstrings
 
-Docstrings follow the Google convention, and the first line uses the imperative
-mood. A docstring never starts with "Return" or "Returns": every function that
-returns a value does that. Use a verb that says how the value is made, such as
-*build*, *compute*, *find*, *collect*, *list*, *check*, *parse*, *render*,
+Docstrings obey the Google convention. The first line uses the imperative mood. A
+docstring never starts with "Return" or "Returns", because each function that
+returns a value does that. Use a verb that tells how the function makes the value,
+such as *build*, *compute*, *find*, *collect*, *list*, *check*, *parse*, *render*,
 *resolve*, *convert*, *load* or *get*.
 
 ```python
@@ -119,24 +127,28 @@ def snapshot(path: Path) -> Package:
     """Snapshot the public API rooted at path."""  # not "Return a snapshot of ..."
 ```
 
-`tests/unit/test_docstring_style.py` enforces this in `src/` and `tests/`.
+`tests/unit/test_docstring_style.py` applies this rule to `src/` and `tests/`.
 
 ## Comments
 
-Write a comment only when it says something the code can't: a reason, a constraint or
-a non-obvious consequence. Don't use banner or section-divider comments (a line made
-only of `#` and ten or more `-` or `=`, usually around a section title). To group code,
-use a test class, a separate module or a docstring.
-`tests/unit/test_comment_style.py` enforces this across the repo, and the
-`no-banner-comments` prek hook catches it before you commit.
+Write a comment only when it tells a thing that the code cannot tell: a reason, a
+constraint or a consequence that is not clear. Do not use banner or section-divider
+comments. A banner comment is a line made only of `#` and ten or more `-` or `=`,
+usually around a section title. To group code, use a test class, a separate module or
+a docstring.
+
+`tests/unit/test_comment_style.py` applies this rule to the full repo. The
+`no-banner-comments` prek hook finds banner comments before you commit.
 
 ## Readability
 
-Code is read far more often than it is written. When two ways work, pick the one that
-is easier to read. Ruff decides the layout of each line, but not where a blank line
-helps or when a comprehension is too clever; that is up to you.
+People read code much more frequently than they write it. When two ways work, use
+the way that is easier to read. Ruff sets the layout of each line. But Ruff does not
+decide where a blank line helps, or when a comprehension is too clever. You decide
+these things.
 
-The Zen of Python (`python -c "import this"`) is the guide. These lines matter most:
+The Zen of Python (`python -c "import this"`) is the guide. These lines are the most
+important:
 
 - Readability counts.
 - Explicit is better than implicit.
@@ -145,10 +157,13 @@ The Zen of Python (`python -c "import this"`) is the guide. These lines matter m
 - Sparse is better than dense.
 - If the implementation is hard to explain, it's a bad idea.
 
-Whitespace is your friend. Use blank lines to split a function into its logical steps
-(setup, work, result) and to set off `if`, `for`, `with` and `try` blocks from the code
-around them. Flatten deep nesting with early returns or guard clauses, and replace a
-dense one-liner with a plain loop or a named intermediate value.
+Whitespace is your friend. Use blank lines for these purposes:
+
+- To divide a function into its logical steps (setup, work, result).
+- To put `if`, `for`, `with` and `try` blocks apart from the code around them.
+
+To make deep nesting flat, use early returns or guard clauses. Replace a dense
+one-liner with a plain loop or a named intermediate value.
 
 Before:
 
@@ -186,9 +201,9 @@ def load(path: Path) -> dict[str, str]:
     return pairs
 ```
 
-This is guidance, not a lint rule; reviewers apply it.
+This is guidance, not a lint rule. Reviewers apply it.
 
-## Running checks
+## Checks
 
 ```bash
 task lint:check   # ruff check (read-only)
@@ -206,21 +221,30 @@ task check        # all gates (read-only: lint:check, format:check, …)
 
 ## Public API snapshot
 
-`api.txt` is iceberg's own tree output for `src/sheridan/`. CI (the `iceberg` gate in
-`task ci`) and `task check` fail when the current public API differs from it, and print
-the diff. If the change is intended, run `task api:update` and commit `api.txt` with
-your change, so that every API change shows up in review.
+`api.txt` is the tree output of iceberg for `src/sheridan/`. CI (the `iceberg` gate in
+`task ci`) and `task check` fail if the current public API is different from
+`api.txt`. They also print the diff. If you changed the API intentionally, do these
+steps:
+
+1. Run `task api:update`.
+2. Commit `api.txt` together with your change.
+
+Thus, each change to the API is visible in the review.
 
 ## Source distribution
 
-The sdist ships only `src/`, `tests/`, `README.md`, `LICENSE`, `CHANGELOG.md` and
-`pyproject.toml` (the `include` list in `[tool.hatch.build.targets.sdist]`); Hatch adds
-`PKG-INFO` and `.gitignore`. CI (the `sdist` gate in `task ci`) and `task check` build
-the sdist and fail when it has any other top-level entry. If you add a file that users
-need in the sdist, add it to the `include` list and to both checks.
+The sdist contains only `src/`, `tests/`, `README.md`, `LICENSE`, `CHANGELOG.md` and
+`pyproject.toml`. The `include` list in `[tool.hatch.build.targets.sdist]` sets these
+files. Hatch adds `PKG-INFO` and `.gitignore`. CI (the `sdist` gate in `task ci`) and
+`task check` build the sdist. They fail if it has a different top-level item. If you
+add a file that users must have in the sdist, add it to the `include` list and to the
+two checks.
 
-## Adding dependencies
+## Dependencies
 
-**Propose the dependency first** in an issue, and wait for the maintainer to approve
-it. Do not open PRs that add unapproved dependencies. After you change dependencies,
-run `uv lock` and commit `uv.lock`.
+**Propose the dependency in an issue first**, and wait until the maintainer approves
+it. Do not open PRs that add dependencies that the maintainer did not approve. After
+you change dependencies, do these steps:
+
+1. Run `uv lock`.
+2. Commit `uv.lock`.

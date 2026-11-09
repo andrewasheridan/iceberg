@@ -1,9 +1,10 @@
 # Case 13
 
-Case 13: Pointing iceberg at a package inside a namespace package, where the
-package re-exports through absolute imports that spell the full namespace:
-- `acme/` is a namespace package (no `__init__.py`)
-- `acme/widgets/__init__.py` does `from acme.widgets._core import make_widget`
+Case 13: You give iceberg a package in a namespace package. The package
+re-exports names through absolute imports that include the full namespace.
+
+- `acme/` is a namespace package (it has no `__init__.py`).
+- `acme/widgets/__init__.py` contains `from acme.widgets._core import make_widget`.
 
 ## CLI Output
 ```console
@@ -11,12 +12,13 @@ $ iceberg cases/case_13/src/acme/widgets
 package widgets
 └── def make_widget(name: str) -> str
 ```
-- iceberg trusts the path it is given, so the root package is named `widgets`
-- the import says `acme.widgets._core`; because `acme` matches the directory
-  directly above the root, iceberg strips that prefix and resolves the import
-  against `widgets._core`
+- iceberg uses the path that you give it. Thus, the name of the root package is
+  `widgets`.
+- The import starts with `acme.widgets._core`. `acme` is the same as the name of
+  the directory directly above the root. Thus, iceberg removes this prefix and
+  resolves the import as `widgets._core`.
 
-Pointing iceberg at the namespace package instead produces the same symbols
+If you give iceberg the namespace package, the output shows the same symbols
 under `package acme.widgets`:
 
 ```console
