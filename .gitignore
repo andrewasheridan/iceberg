@@ -43,6 +43,8 @@ ci/sdk/
 ci/.venv/
 
 # Local issue loop (not tracked) and its logs
+.claude/skills/next-issue/
+scripts/next-issue.sh
 scripts/issue-loop.sh
 scripts/limit_reset.py
 tests/unit/test_limit_reset.py

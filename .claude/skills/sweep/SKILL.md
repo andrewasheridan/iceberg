@@ -90,8 +90,8 @@ gh issue create --title "<title>" --body-file "$body" \
   --label "priority: <high|medium|low>"
 ```
 
-Every issue **must** have `needs triage`. `scripts/next-issue.sh` skips issues with
-that label, so the loop does not fix its own findings until the maintainer has
+Every issue **must** have `needs triage`. The issue loop skips issues with that
+label, so it does not fix its own findings until the maintainer has
 reviewed them and removed the label. The `priority:` label is only a suggestion.
 
 ## Final line

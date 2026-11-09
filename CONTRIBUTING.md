@@ -45,9 +45,8 @@ CONTAINER_RUNTIME=docker task ci
 
 ## Issue loop and triage
 
-`/next-issue` turns one backlog issue into an auto-merging PR. `/sweep` reviews the
-code and files new issues, but changes no code. Both can also run headless from a
-local loop script; that script is not tracked in this repo.
+`/sweep` reviews the code and files new issues, but changes no code. The maintainer
+works the backlog with a local issue loop that is not tracked in this repo.
 
 Every issue a sweep files has the `needs triage` label and the line "Found by an
 automated sweep." The loop never works on an issue with `needs triage`. To let the
