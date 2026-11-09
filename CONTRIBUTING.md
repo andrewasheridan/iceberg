@@ -84,6 +84,28 @@ chore: bump ruff to 0.5
 docs: add pre-commit hook example
 ```
 
+## Writing style
+
+Write all prose in ASD-STE100 Simplified Technical English (STE). STE is a controlled
+language: it uses common words, short sentences and the active voice. Text in STE has
+only one possible meaning.
+
+The rule applies to:
+
+- `README.md`, `CONTRIBUTING.md`, the files in `docs/` (ADRs too) and the case READMEs
+- docstrings and code comments
+- CLI help text, error and log messages
+- issue, commit and PR bodies
+
+It does not apply to code identifiers, quoted output from other tools, the Conventional
+Commits header syntax or `CHANGELOG.md`.
+
+The `ste100` Claude Code skill (`.claude/skills/ste100/SKILL.md`) summarizes the rules.
+The full rules and the dictionary of approved words are in the ASD-STE100 specification
+at [asd-ste100.org](https://www.asd-ste100.org/). The maintainer chose STE in
+[#92](https://github.com/andrewasheridan/iceberg/issues/92). Old text that is not in STE
+yet will change in a separate PR.
+
 ## Docstrings
 
 Docstrings follow the Google convention, and the first line uses the imperative
