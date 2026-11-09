@@ -35,3 +35,24 @@ jobs:
       - name: Save Dagger engine image
         if: steps.cache-dagger.outputs.cache-hit != 'true'
         run: docker save registry.dagger.io/engine:v0.20.3 -o /tmp/dagger-engine.tar
+
+  tests:
+    # The "All gates" job runs only on Linux, in Dagger. This job runs the tests
+    # on each operating system, because path handling and console encoding differ.
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    if: |
+      !startsWith(github.event.head_commit.message, 'bump:') &&
+      !startsWith(github.head_ref, 'chore/version-bump-')
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7.6.0
+      - run: uv sync --locked
+      - run: uv run pytest

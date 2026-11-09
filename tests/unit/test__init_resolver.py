@@ -575,7 +575,7 @@ def test_syntax_error_reports_init_path() -> None:
     with pytest.raises(ParseError) as info:
         resolve_init("def broken(:", "pkg", {}, frozenset(), path=Path("src/pkg/__init__.py"))
 
-    assert info.value.path == "src/pkg/__init__.py"
+    assert info.value.path == str(Path("src/pkg/__init__.py"))
     assert info.value.lineno == 1
 
 

@@ -238,7 +238,7 @@ def test_nonexistent_root_error_message_contains_path(tmp_path: Path) -> None:
     missing = tmp_path / "no_such_dir"
     config = _default_config()
 
-    with pytest.raises(InvalidPathError, match=str(missing)):
+    with pytest.raises(InvalidPathError, match=re.escape(str(missing))):
         discover(missing, config)
 
 

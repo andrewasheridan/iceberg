@@ -1,8 +1,10 @@
 """Test sheridan.iceberg._cli."""
 
+import io
 import json
 import os
 import stat
+import sys
 from importlib.metadata import version
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -53,7 +55,7 @@ def test_main_success_tree_uses_path_argument(capsys: pytest.CaptureFixture[str]
 
     called_path = mock_api.call_args.args[0]
     assert isinstance(called_path, Path)
-    assert str(called_path) == "src/mypackage"
+    assert called_path == Path("src/mypackage")
 
 
 def test_main_success_stderr_is_empty(capsys: pytest.CaptureFixture[str]) -> None:
@@ -760,6 +762,7 @@ class TestOutput:
         assert capsys.readouterr().err.startswith(f"error: cannot write {target}: ")
         assert not target.parent.exists()
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="needs POSIX permission bits")
     def test_new_file_uses_umask_permissions(self, package: Path, tmp_path: Path) -> None:
         target = tmp_path / "api.txt"
         old_umask = os.umask(0o022)
@@ -770,6 +773,7 @@ class TestOutput:
 
         assert stat.S_IMODE(target.stat().st_mode) == 0o644
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="needs POSIX permission bits")
     def test_existing_file_keeps_its_permissions(self, package: Path, tmp_path: Path) -> None:
         target = tmp_path / "api.txt"
         target.write_text("previous\n", encoding="utf-8")
@@ -827,3 +831,20 @@ class TestOutput:
         assert main([str(package), "--no-config", "--keep-going", "-o", str(target)]) == 1
         assert "def greet() -> str" in target.read_text(encoding="utf-8")
         assert "error:" in capsys.readouterr().err
+
+
+class TestStdoutEncoding:
+    """The report goes to stdout as UTF-8, whatever the encoding of the console or pipe."""
+
+    def test_tree_writes_utf8_to_a_stdout_that_cannot_encode_it(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        stdout = io.TextIOWrapper(io.BytesIO(), encoding="cp1252", newline="\n")
+        monkeypatch.setattr(sys, "stdout", stdout)
+
+        with (
+            patch("sheridan.iceberg._cli.get_public_api_report", return_value=Report(api=MagicMock())),
+            patch("sheridan.iceberg._cli.format_tree", return_value="package café\n└── módulo"),
+        ):
+            assert main(["some/path"]) == 0
+
+        stdout.flush()
+        assert stdout.buffer.getvalue() == "package café\n└── módulo\n".encode()

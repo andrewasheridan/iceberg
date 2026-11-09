@@ -937,7 +937,7 @@ class TestDiagnostics:
             severity="error", module="pkg.bad", path=Path("/src/pkg/bad.py"), message="invalid syntax", lineno=3
         )
 
-        assert format_diagnostic(diagnostic) == "/src/pkg/bad.py:3: error: invalid syntax"
+        assert format_diagnostic(diagnostic) == f"{Path('/src/pkg/bad.py')}:3: error: invalid syntax"
 
     def test_format_diagnostic_without_line(self) -> None:
         diagnostic = Diagnostic(
@@ -947,7 +947,8 @@ class TestDiagnostics:
             message="'x' is exported but never bound",
         )
 
-        assert format_diagnostic(diagnostic) == "/src/pkg/__init__.py: warning: 'x' is exported but never bound"
+        expected = f"{Path('/src/pkg/__init__.py')}: warning: 'x' is exported but never bound"
+        assert format_diagnostic(diagnostic) == expected
 
     def test_format_json_leaves_out_diagnostics_by_default(self) -> None:
         module = Module(name="m", assignments=(), classes=(), functions=())

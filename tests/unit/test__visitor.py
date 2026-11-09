@@ -977,10 +977,11 @@ def test_syntax_error_reports_path_line_and_column() -> None:
     with pytest.raises(ParseError) as info:
         visit_module("x = 1\ndef f(:\n", "pkg.mod", Path("src/pkg/mod.py"))
 
-    assert info.value.path == "src/pkg/mod.py"
+    path = str(Path("src/pkg/mod.py"))
+    assert info.value.path == path
     assert info.value.lineno == 2
     assert info.value.offset is not None
-    assert str(info.value).startswith(f"src/pkg/mod.py:2:{info.value.offset}: ")
+    assert str(info.value).startswith(f"{path}:2:{info.value.offset}: ")
 
 
 def test_syntax_error_without_path_has_no_path() -> None:

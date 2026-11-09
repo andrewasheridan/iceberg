@@ -4,6 +4,7 @@ __all__ = ["main"]
 
 import argparse
 import dataclasses
+import io
 import os
 import stat
 import sys
@@ -281,6 +282,22 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _print_utf8(text: str) -> None:
+    """Print *text* to stdout as UTF-8.
+
+    On Windows, a pipe or a redirect to a file often uses a code page such as
+    cp1252. That code page cannot encode the tree connectors. UTF-8 also makes
+    stdout agree with the ``--output`` file.
+
+    Args:
+        text: The text to print.
+    """
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        sys.stdout.reconfigure(encoding="utf-8")
+
+    print(text)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the iceberg CLI.
 
@@ -331,7 +348,7 @@ def _run(args: argparse.Namespace) -> int:
         output = format_tree(report.api, show_overload_implementation=args.show_overload_implementations)
 
     if args.output is None:
-        print(output)
+        _print_utf8(output)
     else:
         try:
             _write_output(args.output, output)
