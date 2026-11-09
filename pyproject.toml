@@ -74,7 +74,6 @@ extend-select = [
 # Ignore `D` errors in tests dir
 "**/tests/**" = ["D"]
 "test_*.py" = ["D"]
-"**/examples/**" = ["D"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["sheridan"]
