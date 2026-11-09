@@ -107,6 +107,10 @@ and reference object has a `node_type` field (`package`, `module`, `class`,
 `function`, `assignment` or `reference`). Function objects also have a `kind`
 field (`function`, `method`, `classmethod`, `staticmethod` or `property`).
 
+[`docs/schema/iceberg.schema.json`](docs/schema/iceberg.schema.json) is a JSON
+Schema (draft 2020-12) for this output. The tests validate the output of every
+case against it.
+
 The [`cases/`](cases) directory documents each supported layout and edge case
 alongside its expected output.
 

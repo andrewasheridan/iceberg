@@ -305,7 +305,8 @@ def format_tree(api: Package | Module, *, show_overload_implementation: bool = F
 JSON_SCHEMA_VERSION = 2
 """Version of the JSON output format, emitted as the top-level ``schema_version``.
 
-Bump it whenever a change to the JSON output could break a consumer.
+Bump it whenever a change to the JSON output could break a consumer, and
+update ``docs/schema/iceberg.schema.json`` to match.
 """
 
 _NODE_TYPES: dict[type, str] = {
