@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from sheridan.iceberg._exceptions import InvalidPathError, ParseError
+from sheridan.iceberg._exceptions import InvalidPathError, NotFoundError, ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Package, Parameter
 from sheridan.iceberg.utilities import get_assignment, get_class, get_function, get_module, get_package
 
@@ -129,12 +129,12 @@ def test_path_function_found_correct_param(tmp_path: Path) -> None:
     assert result.positional_parameters[0].name == "x"
 
 
-def test_path_function_not_found_raises_invalid_path_error(tmp_path: Path) -> None:
+def test_path_function_not_found_raises_not_found_error(tmp_path: Path) -> None:
     src = "def the_func(x: int) -> bool:\n    return True\n"
     file: Path = tmp_path / "sample.py"
     file.write_text(src, encoding="utf-8")
 
-    with pytest.raises(InvalidPathError):
+    with pytest.raises(NotFoundError):
         get_function(file, name="nonexistent_func")
 
 
@@ -182,14 +182,14 @@ def test_path_dotted_name_selects_nested_class_method(tmp_path: Path) -> None:
     assert [p.name for p in result.positional_parameters] == ["self", "inner_arg"]
 
 
-def test_path_dotted_name_not_found_raises_invalid_path_error(tmp_path: Path) -> None:
+def test_path_dotted_name_not_found_raises_not_found_error(tmp_path: Path) -> None:
     file: Path = tmp_path / "sample.py"
     file.write_text(_SHADOWED_SRC, encoding="utf-8")
 
-    with pytest.raises(InvalidPathError):
+    with pytest.raises(NotFoundError):
         get_function(file, name="Runner.missing")
 
-    with pytest.raises(InvalidPathError):
+    with pytest.raises(NotFoundError):
         get_function(file, name="Missing.run")
 
 
@@ -305,12 +305,12 @@ def test_get_class_path_found(tmp_path: Path) -> None:
     assert result.name == "MyClass"
 
 
-def test_get_class_path_not_found_raises_invalid_path_error(tmp_path: Path) -> None:
+def test_get_class_path_not_found_raises_not_found_error(tmp_path: Path) -> None:
     src = "class MyClass:\n    pass\n"
     file: Path = tmp_path / "sample.py"
     file.write_text(src, encoding="utf-8")
 
-    with pytest.raises(InvalidPathError):
+    with pytest.raises(NotFoundError):
         get_class(file, name="NonExistent")
 
 
@@ -343,10 +343,10 @@ def test_get_class_path_dotted_name_selects_nested_class(tmp_path: Path) -> None
     assert [a.name for a in result.assignments] == ["nested"]
 
 
-def test_get_class_path_dotted_name_not_found_raises_invalid_path_error(tmp_path: Path) -> None:
+def test_get_class_path_dotted_name_not_found_raises_not_found_error(tmp_path: Path) -> None:
     file: Path = tmp_path / "sample.py"
     file.write_text(_NESTED_CLASS_SRC, encoding="utf-8")
-    with pytest.raises(InvalidPathError):
+    with pytest.raises(NotFoundError):
         get_class(file, name="Outer.Missing")
 
 
@@ -478,12 +478,12 @@ def test_get_assignment_path_missing_name_raises_type_error(tmp_path: Path) -> N
         get_assignment(file)  # type: ignore[call-overload]
 
 
-def test_get_assignment_path_name_not_found_raises_invalid_path_error(tmp_path: Path) -> None:
+def test_get_assignment_path_name_not_found_raises_not_found_error(tmp_path: Path) -> None:
     src = "MY_CONST: int = 99\n"
     file: Path = tmp_path / "consts.py"
     file.write_text(src, encoding="utf-8")
 
-    with pytest.raises(InvalidPathError):
+    with pytest.raises(NotFoundError):
         get_assignment(file, name="MISSING")
 
 

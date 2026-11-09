@@ -4,7 +4,15 @@ All exceptions raised by iceberg are subclasses of ``IcebergError``, allowing
 callers to catch the entire family with a single clause when desired.
 """
 
-__all__ = ["ConfigError", "IcebergError", "InvalidPathError", "ParseError", "SnapshotError", "SourceReadError"]
+__all__ = [
+    "ConfigError",
+    "IcebergError",
+    "InvalidPathError",
+    "NotFoundError",
+    "ParseError",
+    "SnapshotError",
+    "SourceReadError",
+]
 
 
 class IcebergError(Exception):
@@ -21,6 +29,15 @@ class InvalidPathError(IcebergError):
     A valid target is either a ``.py`` file or a Python package directory.
     Any other path, or a path that does not exist on the filesystem, triggers
     this exception.
+    """
+
+
+class NotFoundError(IcebergError, LookupError):
+    """Raised when a lookup by name finds nothing in a valid source.
+
+    The source itself is fine, so this is distinct from ``InvalidPathError``.
+    It is also a ``LookupError``, so callers that already catch that keep
+    working.
     """
 
 

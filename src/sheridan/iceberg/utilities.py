@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, overload
 
 from sheridan.iceberg._api import get_public_api
-from sheridan.iceberg._exceptions import InvalidPathError, ParseError
+from sheridan.iceberg._exceptions import InvalidPathError, NotFoundError, ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Package
 from sheridan.iceberg._utilities import module_level_statements, parse_source, read_source
 from sheridan.iceberg._visitor import (
@@ -189,10 +189,11 @@ def get_function(
         ParseError: When a source string or file cannot be parsed as valid
             Python, or when no function definition is found in the provided
             source string.
-        InvalidPathError: When a ``Path`` is provided but no function with
-            the given ``name`` is found in that file, when a callable is a
-            lambda, or when the source of a callable cannot be located
-            (builtins, functions defined in a REPL or by ``exec``).
+        NotFoundError: When a ``Path`` is provided but no function with the
+            given ``name`` is found in that file.
+        InvalidPathError: When a callable is a lambda, or when the source of
+            a callable cannot be located (builtins, functions defined in a
+            REPL or by ``exec``).
         TypeError: When a ``Path`` is provided without supplying ``name``.
     """
     match source_or_node_or_path_or_func:
@@ -220,7 +221,7 @@ def get_function(
             if isinstance(func_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 return _build_function(func_node)
 
-            raise InvalidPathError(f"No function {name!r} found in {source_or_node_or_path_or_func}")
+            raise NotFoundError(f"No function {name!r} found in {source_or_node_or_path_or_func}")
 
         case _:
             return get_function(_get_source(source_or_node_or_path_or_func))
@@ -273,10 +274,11 @@ def get_class(
         ParseError: When a source string or file cannot be parsed as valid
             Python, or when no class definition is found in the provided
             source string.
-        InvalidPathError: When a ``Path`` is provided but no class with the
-            given ``name`` is found in that file, or when the source of a
-            class object cannot be located (C extension types, classes
-            defined in a REPL or by ``exec``).
+        NotFoundError: When a ``Path`` is provided but no class with the
+            given ``name`` is found in that file.
+        InvalidPathError: When the source of a class object cannot be
+            located (C extension types, classes defined in a REPL or by
+            ``exec``).
         TypeError: When a ``Path`` is provided without supplying ``name``.
     """
     match source_or_node_or_path_or_cls:
@@ -304,7 +306,7 @@ def get_class(
             if isinstance(class_node, ast.ClassDef):
                 return _build_class(class_node)
 
-            raise InvalidPathError(f"No class {name!r} found in {source_or_node_or_path_or_cls}")
+            raise NotFoundError(f"No class {name!r} found in {source_or_node_or_path_or_cls}")
 
         case _:
             return get_class(_get_source(source_or_node_or_path_or_cls))
@@ -358,7 +360,7 @@ def get_assignment(
         ParseError: When a source string or file cannot be parsed as valid
             Python, when the target of an AST node is non-simple, or when no
             matching assignment is found in the provided source.
-        InvalidPathError: When a ``Path`` is provided but no assignment with
+        NotFoundError: When a ``Path`` is provided but no assignment with
             the given ``name`` is found in that file.
         TypeError: When a ``Path`` is provided without supplying ``name``.
     """
@@ -396,7 +398,7 @@ def get_assignment(
             if found is not None:
                 return found
 
-            raise InvalidPathError(f"No assignment {name!r} found in {source_or_node_or_path}")
+            raise NotFoundError(f"No assignment {name!r} found in {source_or_node_or_path}")
 
 
 @overload

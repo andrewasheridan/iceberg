@@ -2,10 +2,12 @@
 
 import pytest
 
+import sheridan.iceberg
 from sheridan.iceberg._exceptions import (
     ConfigError,
     IcebergError,
     InvalidPathError,
+    NotFoundError,
     ParseError,
     SourceReadError,
 )
@@ -17,6 +19,16 @@ def test_iceberg_error_is_subclass_of_exception() -> None:
 
 def test_invalid_path_error_is_subclass_of_iceberg_error() -> None:
     assert issubclass(InvalidPathError, IcebergError)
+
+
+def test_not_found_error_is_iceberg_error_and_lookup_error() -> None:
+    assert issubclass(NotFoundError, IcebergError)
+    assert issubclass(NotFoundError, LookupError)
+
+
+def test_not_found_error_is_exported_from_package() -> None:
+    assert sheridan.iceberg.NotFoundError is NotFoundError
+    assert "NotFoundError" in sheridan.iceberg.__all__
 
 
 def test_parse_error_is_subclass_of_iceberg_error() -> None:
@@ -59,7 +71,7 @@ def test_config_error_can_be_raised_and_caught() -> None:
 
 @pytest.mark.parametrize(
     "exc_class",
-    [InvalidPathError, ParseError, ConfigError, SourceReadError],
+    [InvalidPathError, NotFoundError, ParseError, ConfigError, SourceReadError],
 )
 def test_subclass_caught_as_iceberg_error(exc_class: type) -> None:
     with pytest.raises(IcebergError):

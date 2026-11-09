@@ -43,6 +43,7 @@ package sheridan.iceberg
 │   ├── functions: tuple[Function, ...]
 │   ├── references: tuple[Reference, ...]
 │   └── property is_public: bool
+├── class NotFoundError(IcebergError, LookupError)
 ├── class Package
 │   ├── name: str
 │   ├── path: Path
