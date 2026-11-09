@@ -17,6 +17,28 @@ from sheridan.iceberg._utilities import read_source
 from sheridan.iceberg._visitor import _build_assignment, _build_class, _build_function, _build_type_alias, visit_module
 
 
+def _get_source(obj: object) -> str:
+    """Look up the source of *obj* with ``inspect.getsource``.
+
+    Args:
+        obj: A function or class object.
+
+    Returns:
+        The source code of *obj*.
+
+    Raises:
+        InvalidPathError: When *obj* is a lambda, or when its source cannot be
+            located (builtins, C extension types, objects defined in a REPL or
+            by ``exec``).
+    """
+    if getattr(obj, "__name__", None) == "<lambda>":
+        raise InvalidPathError(f"Cannot build a Function from a lambda: {obj!r}; pass a def function instead")
+    try:
+        return inspect.getsource(obj)  # type: ignore[arg-type]
+    except (OSError, TypeError) as exc:
+        raise InvalidPathError(f"Cannot locate source for {obj!r}: {exc}") from exc
+
+
 @overload
 def get_function(source: str, /) -> Function: ...
 @overload
@@ -63,7 +85,9 @@ def get_function(
             Python, or when no function definition is found in the provided
             source string.
         InvalidPathError: When a ``Path`` is provided but no function with
-            the given ``name`` is found in that file.
+            the given ``name`` is found in that file, when a callable is a
+            lambda, or when the source of a callable cannot be located
+            (builtins, functions defined in a REPL or by ``exec``).
         TypeError: When a ``Path`` is provided without supplying ``name``.
     """
     match source_or_node_or_path_or_func:
@@ -95,8 +119,7 @@ def get_function(
             raise InvalidPathError(f"No function {name!r} found in {source_or_node_or_path_or_func}")
 
         case _:
-            src = inspect.getsource(source_or_node_or_path_or_func)
-            return get_function(src)
+            return get_function(_get_source(source_or_node_or_path_or_func))
 
 
 @overload
@@ -145,7 +168,9 @@ def get_class(
             Python, or when no class definition is found in the provided
             source string.
         InvalidPathError: When a ``Path`` is provided but no class with the
-            given ``name`` is found in that file.
+            given ``name`` is found in that file, or when the source of a
+            class object cannot be located (C extension types, classes
+            defined in a REPL or by ``exec``).
         TypeError: When a ``Path`` is provided without supplying ``name``.
     """
     match source_or_node_or_path_or_cls:
@@ -177,8 +202,7 @@ def get_class(
             raise InvalidPathError(f"No class {name!r} found in {source_or_node_or_path_or_cls}")
 
         case _:
-            src = inspect.getsource(source_or_node_or_path_or_cls)
-            return get_class(src)
+            return get_class(_get_source(source_or_node_or_path_or_cls))
 
 
 @overload
@@ -341,7 +365,7 @@ def get_module(
         ParseError: When a source string or file cannot be parsed as valid
             Python.
         InvalidPathError: When a ``ModuleType`` is provided but its source
-            file cannot be located.
+            file cannot be located (for example, a builtin module).
     """
     match source_or_path_or_mod:
         case str():
@@ -355,7 +379,10 @@ def get_module(
             return visit_module(text, dotted)
 
         case _:
-            sf = inspect.getsourcefile(source_or_path_or_mod)
+            try:
+                sf = inspect.getsourcefile(source_or_path_or_mod)
+            except TypeError:
+                sf = None
             if sf is None:
                 raise InvalidPathError(f"Cannot locate source for module {source_or_path_or_mod!r}")
             return get_module(Path(sf), name=name or source_or_path_or_mod.__name__)

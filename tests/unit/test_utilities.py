@@ -171,6 +171,23 @@ def test_callable_positional_params() -> None:
     assert "b" in param_names
 
 
+def test_callable_builtin_raises_invalid_path_error() -> None:
+    with pytest.raises(InvalidPathError, match="Cannot locate source"):
+        get_function(len)
+
+
+def test_callable_without_source_raises_invalid_path_error() -> None:
+    namespace: dict[str, object] = {}
+    exec("def made_at_runtime(): pass", namespace)
+    with pytest.raises(InvalidPathError, match="Cannot locate source"):
+        get_function(namespace["made_at_runtime"])  # type: ignore[arg-type]
+
+
+def test_callable_lambda_raises_invalid_path_error() -> None:
+    with pytest.raises(InvalidPathError, match="lambda"):
+        get_function(lambda x: x)
+
+
 # ---------------------------------------------------------------------------
 # get_class — str overload
 # ---------------------------------------------------------------------------
@@ -245,6 +262,18 @@ class _TestClass:
 def test_get_class_type_overload_name() -> None:
     result: Class = get_class(_TestClass)
     assert result.name == "_TestClass"
+
+
+def test_get_class_c_extension_type_raises_invalid_path_error() -> None:
+    with pytest.raises(InvalidPathError, match="Cannot locate source"):
+        get_class(int)
+
+
+def test_get_class_without_source_raises_invalid_path_error() -> None:
+    namespace: dict[str, object] = {}
+    exec("class MadeAtRuntime: pass", namespace)
+    with pytest.raises(InvalidPathError, match="Cannot locate source"):
+        get_class(namespace["MadeAtRuntime"])  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
@@ -415,6 +444,11 @@ def test_get_module_module_type_name_contains_textwrap() -> None:
 
     result: Module = get_module(textwrap)
     assert "textwrap" in result.name
+
+
+def test_get_module_builtin_module_raises_invalid_path_error() -> None:
+    with pytest.raises(InvalidPathError, match="Cannot locate source"):
+        get_module(sys)
 
 
 # ---------------------------------------------------------------------------
