@@ -3,8 +3,8 @@
 ## Setup
 
 ```bash
-git clone https://github.com/sheridan/sheridan-iceberg
-cd sheridan-iceberg
+git clone https://github.com/andrewasheridan/iceberg
+cd iceberg
 task install
 uv run prek install
 ```
@@ -48,8 +48,8 @@ CONTAINER_RUNTIME=docker task ci
 ## Workflow
 
 1. Create a branch: `git checkout -b feat/your-feature`
-2. Write code following [code conventions](CLAUDE.md#code-conventions)
-3. Write tests (90% coverage minimum)
+2. Write code that follows the [docstring](#docstrings) and [comment](#comments) rules
+3. Write tests (90% coverage minimum, set in `[tool.coverage.report]` in `pyproject.toml`)
 4. Run `task check` — all gates must pass
 5. Commit using conventional commits: `feat:`, `fix:`, `chore:`, etc.
 6. Open a PR
@@ -112,7 +112,7 @@ task lint         # ruff check --fix (autofix)
 task format:check # ruff format --check (read-only)
 task format       # ruff format (write)
 task typecheck    # pyrefly check (src/ and tests/)
-task test         # pytest --cov
+task test         # pytest (with coverage)
 task iceberg      # iceberg src/ (dogfood — show public API)
 task api:check    # fail if the public API differs from api.txt
 task api:update   # rewrite api.txt from src/sheridan/
@@ -128,6 +128,6 @@ your change, so that every API change shows up in review.
 
 ## Adding dependencies
 
-Per the project conventions, **propose the dependency first**. The
-`dependency-auditor` agent reviews all new dependencies before they are added.
-Do not open PRs that add unapproved dependencies.
+**Propose the dependency first** in an issue, and wait for the maintainer to approve
+it. Do not open PRs that add unapproved dependencies. After you change dependencies,
+run `uv lock` and commit `uv.lock`.

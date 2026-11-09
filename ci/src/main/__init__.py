@@ -107,7 +107,7 @@ class SheridanIcebergCi:
         source: Annotated[dagger.Directory, DefaultPath(".")],
     ) -> str:
         """Run pytest with coverage."""
-        return await _base(source).with_exec(["uv", "run", "pytest", "--cov"]).stdout()
+        return await _base(source).with_exec(["uv", "run", "pytest"]).stdout()
 
     @function
     async def security(
@@ -148,7 +148,7 @@ class SheridanIcebergCi:
             ("lint", base.with_exec(["uv", "run", "ruff", "check", "."])),
             ("format-check", base.with_exec(["uv", "run", "ruff", "format", "--check", "."])),
             ("typecheck", base.with_exec(["uv", "run", "pyrefly", "check"])),
-            ("test", base.with_exec(["uv", "run", "pytest", "--cov"])),
+            ("test", base.with_exec(["uv", "run", "pytest"])),
             ("security", base.with_exec(["uv", "run", "bandit", "-r", "src/"])),
             ("docs", base.with_exec(["uv", "run", "zensical", "build"])),
         ]
