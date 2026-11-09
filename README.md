@@ -48,6 +48,7 @@ pip install sheridan-iceberg
 ```bash
 iceberg src/mypkg            # tree output
 iceberg src/mypkg --json     # machine-readable output
+iceberg src/mypkg --json -o api.json  # write UTF-8 to a file instead of stdout
 iceberg src/mypkg --show-overload-implementations  # also show @overload implementations
 iceberg src/mypkg --keep-going  # skip files that cannot be read or parsed
 iceberg --version            # print the installed version
@@ -60,9 +61,14 @@ after the path it is given: `iceberg src/sheridan` reports `sheridan.iceberg`,
 while `iceberg src/sheridan/iceberg` reports `iceberg`.
 
 Exit codes: `0` on success, `1` for iceberg errors (missing path, invalid
-config, unreadable or unparseable source), `2` for unexpected errors. Source files
+config, unreadable or unparseable source, unwritable `--output` file), `2` for unexpected errors. Source files
 are decoded the way Python decodes them: UTF-8 unless a PEP 263 encoding
 declaration such as `# -*- coding: latin-1 -*-` says otherwise.
+
+`-o/--output PATH` writes the report to PATH as UTF-8 with a final newline,
+whatever the console encoding. iceberg writes to a temporary file and moves it
+into place only when the report is complete, so an error never leaves a partial
+file or overwrites the previous one.
 
 ### Keep going past bad files
 

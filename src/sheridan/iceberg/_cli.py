@@ -4,7 +4,9 @@ __all__ = ["main"]
 
 import argparse
 import dataclasses
+import os
 import sys
+import tempfile
 from collections.abc import Sequence
 from importlib.metadata import version
 from pathlib import Path
@@ -34,6 +36,41 @@ def _positive_int(value: str) -> int:
     if number < 1:
         raise argparse.ArgumentTypeError(f"expected a positive integer, got {value!r}")
     return number
+
+
+def _new_file_mode() -> int:
+    """Compute the permission bits ``open()`` would give a new file under the current umask.
+
+    ``tempfile.mkstemp`` creates files readable only by their owner, which would
+    otherwise carry over to the report once it is moved into place.
+    """
+    umask = os.umask(0)
+    os.umask(umask)
+    return 0o666 & ~umask
+
+
+def _write_output(path: Path, text: str) -> None:
+    """Write *text* to *path* as UTF-8 with a final newline, replacing it atomically.
+
+    The text goes to a temporary file in the same directory first, so a failed
+    write never leaves a partial file at *path* or destroys an existing one.
+
+    Args:
+        path: The file to write.
+        text: The report text, without the final newline.
+
+    Raises:
+        OSError: If the file cannot be written.
+    """
+    fd, temp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as file:
+            file.write(f"{text}\n".encode())
+        os.chmod(temp_name, _new_file_mode())
+        os.replace(temp_name, path)
+    except BaseException:
+        Path(temp_name).unlink(missing_ok=True)
+        raise
 
 
 def _resolve_config(args: argparse.Namespace) -> Config:
@@ -69,7 +106,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the iceberg CLI.
 
     Parses *argv* (or ``sys.argv[1:]`` when *argv* is ``None``), resolves the
-    public API of the given path, and writes the result to stdout. With
+    public API of the given path, and writes the result to stdout (or to the
+    ``--output`` file). With
     ``--keep-going``, diagnostics go to stderr (and into the JSON output).
 
     Args:
@@ -99,6 +137,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         default=False,
         help="Emit output as JSON instead of the default tree format.",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        metavar="PATH",
+        help=(
+            "Write the report to PATH as UTF-8 instead of stdout. The file is replaced "
+            "only when the report is complete, so an error never leaves a partial file."
+        ),
     )
     parser.add_argument(
         "--show-overload-implementations",
@@ -169,7 +217,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         output = format_json(report.api, report.diagnostics if args.keep_going else None)
     else:
         output = format_tree(report.api, show_overload_implementation=args.show_overload_implementations)
-    print(output)
+    if args.output is None:
+        print(output)
+    else:
+        try:
+            _write_output(args.output, output)
+        except OSError as exc:
+            print(f"error: cannot write {args.output}: {exc.strerror or exc}", file=sys.stderr)
+            return 1
     if not args.keep_going:
         return 0
     for diagnostic in report.diagnostics:
