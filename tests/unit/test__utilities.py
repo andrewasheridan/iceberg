@@ -302,6 +302,73 @@ def test_extract_all_warns_on_unsupported_forms_in_blocks(source: str) -> None:
         assert extract_all(ast.parse(source), "pkg") is None
 
 
+_TRY_IMPORT_ALL = """\
+try:
+    from ._fast import __all__
+except ImportError:
+    __all__ = []
+__all__ += ["extra"]
+"""
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("from .sub import __all__", {"x", "y"}),
+        ("from .sub import __all__\n__all__ += ['a']", {"a", "x", "y"}),
+        ("from pkg.sub import __all__ as __all__", {"x", "y"}),
+        ("try:\n    from .sub import __all__\nexcept ImportError:\n    __all__ = ['a']", {"a", "x", "y"}),
+        ("if X:\n    from .sub import __all__\nelse:\n    __all__ = ['a']", {"a", "x", "y"}),
+    ],
+)
+def test_extract_all_resolves_imported_all(source: str, expected: set[str]) -> None:
+    assert _extract(source, known={"pkg.sub": frozenset({"x", "y"})}) == expected
+
+
+def test_extract_all_resolves_all_imported_in_try_branch() -> None:
+    assert _extract(_TRY_IMPORT_ALL, known={"pkg._fast": frozenset({"fast"})}) == {"fast", "extra"}
+
+
+def test_extract_all_warns_when_all_imported_in_try_branch_is_unknown() -> None:
+    with pytest.warns(UserWarning, match=r"cannot evaluate __all__"):
+        assert extract_all(ast.parse(_TRY_IMPORT_ALL), "pkg") is None
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from .sub import names as __all__",
+        "import names as __all__",
+        "__all__ = ['a']\nfor __all__ in [['b']]:\n    pass",
+        "__all__ = ['a']\nwith open(path) as __all__:\n    pass",
+        "__all__ = ['a']\nwhile X:\n    __all__ = ['b']",
+        "__all__ = ['a']\ndel __all__",
+        "def __all__():\n    pass",
+        "(__all__ := ['a'])",
+        "try:\n    import names as __all__\nexcept ImportError:\n    __all__ = ['a']",
+        "if X:\n    for __all__ in [['b']]:\n        pass\nelse:\n    __all__ = ['a']",
+    ],
+)
+def test_extract_all_warns_on_other_statements_that_bind_all(source: str) -> None:
+    with pytest.warns(UserWarning, match=r"cannot evaluate __all__"):
+        assert extract_all(ast.parse(source), "pkg") is None
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "__all__ = ['a']\nfor x in y:\n    pass",
+        "__all__ = ['a']\nwith lock:\n    x = 1",
+        "__all__ = ['a']\n__all__: list[str]",
+        "__all__ = ['a']\ndef f():\n    __all__ = ['b']",
+        "__all__ = ['a']\nclass C:\n    __all__ = ['b']",
+        "__all__ = ['a']\nfrom .sub import __all__ as sub_all",
+    ],
+)
+def test_extract_all_ignores_statements_that_do_not_bind_all(source: str) -> None:
+    assert _extract(source) == {"a"}
+
+
 def test_extract_all_keeps_membership_after_sort() -> None:
     source = "__all__ = ['b', 'a']\n__all__.sort()\n\ndef a(): pass\ndef b(): pass\ndef c(): pass\n"
     assert _extract(source) == {"a", "b"}

@@ -119,6 +119,7 @@ def extract_all(
     - ``__all__.extend(...)`` and ``__all__.append("name")``
     - ``__all__.insert(i, "name")`` and ``__all__.remove("name")``
     - ``__all__.sort(...)`` and ``__all__.reverse()``, which keep the names
+    - ``from .sub import __all__``, which takes the ``__all__`` of ``sub``
 
     A value may be a list or tuple of string literals, a concatenation of
     values with ``+``, the current ``__all__``, or the ``__all__`` of another
@@ -129,6 +130,9 @@ def extract_all(
     The branches of an ``if`` or ``try`` block are evaluated separately and
     their results are joined, so ``__all__`` keeps every name that any branch
     adds. A ``try`` handler starts from ``__all__`` as it was before the block.
+
+    Any other statement that binds ``__all__``, such as ``import x as __all__``
+    or ``for __all__ in ...``, cannot be evaluated.
 
     When a statement cannot be evaluated, a ``UserWarning`` names the file and
     line, and the function returns ``None`` so the caller falls back to
@@ -168,10 +172,12 @@ def extract_all(
         # ``import pkg.sub as sub`` and ``from .sub import __all__`` name the
         # module itself; ``from . import sub`` names a submodule of ``pkg``.
         target = module if attribute in {None, "__all__"} else f"{module}.{attribute}"
+        return module_all(node, target)
 
-        found = lookup(target) if lookup is not None else None
+    def module_all(node: ast.AST, module: str) -> list[str]:
+        found = lookup(module) if lookup is not None else None
         if found is None:
-            raise _NotStaticError(node, f"the __all__ of {target!r} is not known")
+            raise _NotStaticError(node, f"the __all__ of {module!r} is not known")
 
         return sorted(found)
 
@@ -260,6 +266,14 @@ def extract_all(
                     case _:
                         raise _NotStaticError(node, f"__all__.{method}(...) is not supported")
 
+            case ast.ImportFrom(names=aliases) if any(
+                alias.name == "__all__" and alias.asname in {None, "__all__"} for alias in aliases
+            ):
+                return module_all(node, _import_from_source(node, package))
+
+            case _ if _binds_all(node):
+                raise _NotStaticError(node, "__all__ is bound by a statement iceberg does not evaluate")
+
             case _:
                 return current
 
@@ -312,6 +326,33 @@ def extract_all(
         return None
 
     return None if result is None else frozenset(result)
+
+
+def _binds_all(node: ast.AST) -> bool:
+    """Check whether *node* binds or deletes the module-level name ``__all__``.
+
+    Function, class and lambda bodies are skipped, because names bound there
+    are local to them.
+    """
+    match node:
+        case ast.FunctionDef(name=name) | ast.AsyncFunctionDef(name=name) | ast.ClassDef(name=name):
+            return name == "__all__"
+
+        case ast.Lambda():
+            return False
+
+        case ast.AnnAssign(value=None):
+            return False  # a bare annotation binds nothing
+
+        case ast.Import(names=aliases) | ast.ImportFrom(names=aliases):
+            # ``import a.b`` binds ``a``.
+            return any((alias.asname or alias.name.split(".")[0]) == "__all__" for alias in aliases)
+
+        case ast.Name(id="__all__", ctx=ctx):
+            return not isinstance(ctx, ast.Load)
+
+        case _:
+            return any(_binds_all(child) for child in ast.iter_child_nodes(node))
 
 
 def bound_names(target: ast.expr) -> Iterator[str]:
