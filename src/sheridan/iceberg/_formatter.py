@@ -101,6 +101,30 @@ def _function_str(function: Function) -> str:
     return signature
 
 
+def _function_labels(function: Function, *, show_overload_implementation: bool) -> list[str]:
+    """Render the tree labels for a function: one per overload, then the implementation.
+
+    Args:
+        function: The function to render.
+        show_overload_implementation: ``True`` to show the implementation
+            signature of an overloaded function after its overloads.
+
+    Returns:
+        ``[signature]`` for a function without overloads. For an overloaded
+        function, one signature per overload, followed by the implementation
+        signature when *show_overload_implementation* is ``True`` and the
+        function is not itself one of the overloads.
+    """
+    if not function.overloads:
+        return [_function_str(function)]
+
+    labels = [_function_str(overload) for overload in function.overloads]
+    is_overload = any(decorator.rpartition(".")[2] == "overload" for decorator in function.decorators)
+    if show_overload_implementation and not is_overload:
+        labels.append(_function_str(function))
+    return labels
+
+
 def _assignment_str(assignment: Assignment) -> str:
     """Render an assignment as ``name: annotation`` or ``name``.
 
@@ -142,17 +166,18 @@ def _reference_str(reference: Reference) -> str:
     return label
 
 
-def _render_lines(node: Package | Module | Class, prefix: str) -> list[str]:
+def _render_lines(node: Package | Module | Class, prefix: str, *, show_overload_implementation: bool) -> list[str]:
     """Recursively collect tree lines for *node* using *prefix* for indentation.
 
     Args:
         node: The current tree node whose children should be rendered.
         prefix: The indentation prefix accumulated from parent calls.
+        show_overload_implementation: Passed on to ``_children``.
 
     Returns:
         A list of strings, one per tree row, ready to be joined with newlines.
     """
-    children = _children(node)
+    children = _children(node, show_overload_implementation=show_overload_implementation)
     lines: list[str] = []
     last_index = len(children) - 1
 
@@ -162,13 +187,17 @@ def _render_lines(node: Package | Module | Class, prefix: str) -> list[str]:
 
         if child is not None:
             extension = _BLANK if index == last_index else _PIPE
-            lines.extend(_render_lines(child, prefix + extension))
+            lines.extend(
+                _render_lines(child, prefix + extension, show_overload_implementation=show_overload_implementation)
+            )
 
     return lines
 
 
 def _children(
     node: Package | Module | Class,
+    *,
+    show_overload_implementation: bool,
 ) -> list[tuple[str, Package | Module | Class | None]]:
     """List the children of *node* as ordered ``(label, child_node_or_None)`` pairs.
 
@@ -177,8 +206,13 @@ def _children(
     subpackages, classes) carry the node itself so ``_render_lines`` can
     recurse.
 
+    An overloaded function gives one leaf per overload signature, and its
+    implementation signature only when *show_overload_implementation* is set.
+
     Args:
         node: A ``Package``, ``Module``, or ``Class`` to enumerate children for.
+        show_overload_implementation: ``True`` to list the implementation
+            signature of an overloaded function after its overloads.
 
     Returns:
         An ordered list of ``(label, child_or_None)`` pairs where *label* is
@@ -198,7 +232,10 @@ def _children(
                     for cls in m.classes:
                         items.append((f"class {cls.name}", cls))
                     for fn in m.functions:
-                        items.append((_function_str(fn), None))
+                        items.extend(
+                            (label, None)
+                            for label in _function_labels(fn, show_overload_implementation=show_overload_implementation)
+                        )
                     for ref in m.references:
                         items.append((_reference_str(ref), None))
                 else:
@@ -214,7 +251,10 @@ def _children(
             for cls in node.classes:
                 items.append((f"class {cls.name}", cls))
             for fn in node.functions:
-                items.append((_function_str(fn), None))
+                items.extend(
+                    (label, None)
+                    for label in _function_labels(fn, show_overload_implementation=show_overload_implementation)
+                )
             for ref in node.references:
                 items.append((_reference_str(ref), None))
             return items
@@ -226,21 +266,30 @@ def _children(
             for a in node.assignments:
                 items.append((_assignment_str(a), None))
             for fn in node.methods:
-                items.append((_function_str(fn), None))
+                items.extend(
+                    (label, None)
+                    for label in _function_labels(fn, show_overload_implementation=show_overload_implementation)
+                )
             return items
 
 
-def format_tree(api: Package | Module) -> str:
+def format_tree(api: Package | Module, *, show_overload_implementation: bool = False) -> str:
     """Render a Unicode box-drawing tree of *package*'s public API.
+
+    An overloaded function is shown as its ``@overload`` signatures. Its
+    implementation signature is hidden unless *show_overload_implementation*
+    is ``True``.
 
     Args:
         api: The root package/module to render.
+        show_overload_implementation: ``True`` to also show the implementation
+            signature of each overloaded function, after its overloads.
 
     Returns:
         A multi-line string suitable for printing to a terminal.
     """
     header = f"package {api.name}" if isinstance(api, Package) else f"module {api.name}"
-    body = _render_lines(api, prefix="")
+    body = _render_lines(api, prefix="", show_overload_implementation=show_overload_implementation)
     return "\n".join([header, *body])
 
 

@@ -945,3 +945,104 @@ def test_star_import_from_module_with_known_all_binds_its_names() -> None:
 def test_star_import_from_unknown_module_is_candidate() -> None:
     module = visit_module('from os.path import *\n__all__ = ["join"]\n', "pkg.mod")
     assert module.references == (Reference(name="join", module="os.path", attribute="join"),)
+
+
+# ---------------------------------------------------------------------------
+# typing.overload grouping
+# ---------------------------------------------------------------------------
+
+
+def test_module_level_overloads_are_grouped_into_the_implementation() -> None:
+    source = """
+from typing import overload
+
+@overload
+def f(x: int) -> int: ...
+@overload
+def f(x: str) -> str: ...
+def f(x):
+    return x
+"""
+    module = _visit(source)
+
+    assert [fn.name for fn in module.functions] == ["f"]
+    (f,) = module.functions
+    assert f.decorators == ()
+    assert f.returns is None
+    assert [o.returns for o in f.overloads] == ["int", "str"]
+    assert all(o.decorators == ("overload",) and o.overloads == () for o in f.overloads)
+    assert all(o.kind == "function" for o in f.overloads)
+
+
+def test_method_overloads_are_grouped_and_keep_their_kind() -> None:
+    source = """
+import typing
+
+class C:
+    @typing.overload
+    def m(self, x: int) -> int: ...
+    @typing.overload
+    def m(self, x: str) -> str: ...
+    def m(self, x):
+        return x
+
+    @typing.overload
+    @classmethod
+    def k(cls, x: int) -> int: ...
+    @typing.overload
+    @classmethod
+    def k(cls, x: str) -> str: ...
+    @classmethod
+    def k(cls, x):
+        return x
+"""
+    (cls,) = _visit(source).classes
+
+    assert [fn.name for fn in cls.methods] == ["m", "k"]
+    m, k = cls.methods
+    assert [o.returns for o in m.overloads] == ["int", "str"]
+    assert {o.kind for o in m.overloads} == {"method"}
+    assert k.kind == "classmethod"
+    assert {o.kind for o in k.overloads} == {"classmethod"}
+
+
+def test_overloads_without_implementation_are_one_function() -> None:
+    source = """
+from typing import overload
+
+class C:
+    @overload
+    def m(self, x: int) -> int: ...
+    @overload
+    def m(self, x: str) -> str: ...
+"""
+    (cls,) = _visit(source).classes
+
+    (m,) = cls.methods
+    assert m.returns == "str"
+    assert [o.returns for o in m.overloads] == ["int", "str"]
+
+
+def test_overloads_in_type_checking_block_group_with_later_implementation() -> None:
+    source = """
+from typing import TYPE_CHECKING, overload
+
+if TYPE_CHECKING:
+    @overload
+    def f(x: int) -> int: ...
+    @overload
+    def f(x: str) -> str: ...
+
+def f(x):
+    return x
+"""
+    (f,) = _visit(source).functions
+
+    assert f.returns is None
+    assert len(f.overloads) == 2
+
+
+def test_function_without_overloads_has_empty_overloads() -> None:
+    (f,) = _visit("def f(x: int) -> int: ...").functions
+
+    assert f.overloads == ()

@@ -43,6 +43,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Emit output as JSON instead of the default tree format.",
     )
     parser.add_argument(
+        "--show-overload-implementations",
+        action="store_true",
+        default=False,
+        help=(
+            "In the tree output, also show the implementation signature of each "
+            "overloaded function after its @overload signatures."
+        ),
+    )
+    parser.add_argument(
         "--exclude",
         action="append",
         default=[],
@@ -67,7 +76,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"unexpected error: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2
 
-    output = format_json(package) if args.json else format_tree(package)
+    if args.json:
+        output = format_json(package)
+    else:
+        output = format_tree(package, show_overload_implementation=args.show_overload_implementations)
     print(output)
     return 0
 
