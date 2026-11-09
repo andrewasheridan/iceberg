@@ -13,6 +13,12 @@
 # the label. The SHA of the last sweep is saved in .issue-loop/last-sweep, and the
 # next sweep reviews the commits after it in depth.
 #
+# Usage limits: when a session stops at a Claude usage limit ("You've hit your
+# 5-hour limit · resets 9:10pm (America/New_York)"), the loop sleeps until the
+# reset (plus RATE_LIMIT_BUFFER_MIN) and resumes the same session, so it picks up
+# where it stopped. scripts/limit_reset.py reads the reset time; when it cannot,
+# the loop waits RATE_LIMIT_FALLBACK_MIN and tries again.
+#
 # Usage: scripts/issue-loop.sh [--once] [--max N] [--sweep | --no-sweep]
 #
 #   --once      work on one issue, then stop
@@ -26,6 +32,8 @@
 #   MERGE_TIMEOUT_MIN       minutes to wait for a merge after checks pass (default: 30)
 #   SWEEP_EVERY             merged issues between sweeps; 0 turns this off (default: 5)
 #   SWEEP_MAX_ISSUES        most issues one sweep may file (default: 3)
+#   RATE_LIMIT_BUFFER_MIN   minutes to wait after a usage limit resets (default: 2)
+#   RATE_LIMIT_FALLBACK_MIN minutes to wait when the reset time is unknown (default: 60)
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
@@ -54,6 +62,8 @@ mode="${CLAUDE_PERMISSION_MODE:-auto}"
 merge_timeout=$(( ${MERGE_TIMEOUT_MIN:-30} * 60 ))
 sweep_every="${SWEEP_EVERY:-5}"
 sweep_max="${SWEEP_MAX_ISSUES:-3}"
+rate_limit_buffer=$(( ${RATE_LIMIT_BUFFER_MIN:-2} * 60 ))
+rate_limit_fallback=$(( ${RATE_LIMIT_FALLBACK_MIN:-60} * 60 ))
 log_dir=".issue-loop"
 last_sweep_file="$log_dir/last-sweep"
 mkdir -p "$log_dir"
@@ -64,6 +74,42 @@ die() { printf '\n!!! %s\n' "$*" >&2; exit 1; }
 claude_args() {
   args=(-p "$1" --permission-mode "$mode")
   if [ -n "${CLAUDE_MAX_BUDGET_USD:-}" ]; then args+=(--max-budget-usd "$CLAUDE_MAX_BUDGET_USD"); fi
+}
+
+resume_prompt="You stopped at a Claude usage limit. The limit has reset. Continue the \
+task from where you stopped; check what is already done (branch, commits, PR) before \
+you repeat a step. End with the final line the task asks for."
+
+# Run one headless session with prompt $1 and append its output to log $2.
+# When the session stops at a usage limit, sleep until the limit resets and
+# resume the same session. Returns the exit status of the last attempt.
+run_claude() {
+  local prompt="$1" log="$2" sid part status wait_s limit_status resume_at
+  sid=$(uuidgen | tr '[:upper:]' '[:lower:]')
+  part="$log.part"
+  claude_args "$prompt"
+  args+=(--session-id "$sid")
+  while :; do
+    : > "$part"
+    status=0
+    claude "${args[@]}" | tee -a "$log" "$part" || status=$?
+
+    limit_status=0
+    wait_s=$(uv run --quiet --no-sync python scripts/limit_reset.py < "$part") || limit_status=$?
+    case "$limit_status" in
+      0) wait_s=$(( wait_s + rate_limit_buffer )) ;;
+      3) wait_s=$rate_limit_fallback ;;
+      *) rm -f "$part"; return "$status" ;;
+    esac
+    [ "$wait_s" -ge 60 ] || wait_s=60
+    resume_at=$(date -r $(( $(date +%s) + wait_s )) '+%Y-%m-%d %H:%M' 2>/dev/null \
+      || date -d "@$(( $(date +%s) + wait_s ))" '+%Y-%m-%d %H:%M')
+    say "usage limit hit; sleeping until $resume_at, then resuming session $sid"
+    sleep "$wait_s"
+
+    claude_args "$resume_prompt"
+    args+=(--resume "$sid")
+  done
 }
 
 sync_main() {
@@ -81,8 +127,7 @@ run_sweep() {
   log="$log_dir/$(date +%Y%m%d-%H%M%S)-sweep.log"
   say "sweep of ${since:-the last 20 commits}${since:+..$head}  (log: $log)"
 
-  claude_args "/sweep $sweep_max${since:+ $since}"
-  claude "${args[@]}" | tee "$log" || die "claude exited with an error during the sweep (see $log)"
+  run_claude "/sweep $sweep_max${since:+ $since}" "$log" || die "claude exited with an error during the sweep (see $log)"
 
   last=$(grep -E '^(SWEEP|BLOCKED): ' "$log" | tail -1 || true)
   case "$last" in
@@ -121,8 +166,7 @@ while [ "$max" -eq 0 ] || [ "$done_count" -lt "$max" ]; do
   log="$log_dir/$(date +%Y%m%d-%H%M%S)-$issue.log"
   say "#$issue $title  (log: $log)"
 
-  claude_args "/next-issue $issue"
-  claude "${args[@]}" | tee "$log" || die "claude exited with an error for #$issue (see $log)"
+  run_claude "/next-issue $issue" "$log" || die "claude exited with an error for #$issue (see $log)"
 
   last=$(grep -E '^(PR|BLOCKED): ' "$log" | tail -1 || true)
   case "$last" in
