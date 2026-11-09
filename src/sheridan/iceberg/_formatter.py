@@ -297,6 +297,22 @@ def format_tree(api: Package | Module, *, show_overload_implementation: bool = F
 # JSON formatter
 # ---------------------------------------------------------------------------
 
+JSON_SCHEMA_VERSION = 1
+"""Version of the JSON output format, emitted as the top-level ``schema_version``.
+
+Bump it whenever a change to the JSON output could break a consumer.
+"""
+
+_NODE_TYPES: dict[type, str] = {
+    Package: "package",
+    Module: "module",
+    Class: "class",
+    Function: "function",
+    Assignment: "assignment",
+    Reference: "reference",
+}
+"""The ``node_type`` value serialized for each model class."""
+
 
 def _sort_key(obj: Any) -> str:
     """Compute a stable sort key for a plain-Python value produced by ``_to_plain``.
@@ -349,7 +365,9 @@ def _to_plain(obj: Any, root: Path | None = None) -> Any:
     """
     match obj:
         case _ if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-            return {f.name: _to_plain(getattr(obj, f.name), root) for f in dataclasses.fields(obj)}
+            fields = {f.name: _to_plain(getattr(obj, f.name), root) for f in dataclasses.fields(obj)}
+            node_type = _NODE_TYPES.get(type(obj))
+            return fields if node_type is None else {"node_type": node_type, **fields}
 
         case Path():
             return _relative_path(obj, root)
@@ -368,6 +386,11 @@ def _to_plain(obj: Any, root: Path | None = None) -> Any:
 def format_json(api: Package | Module) -> str:
     """Render *api* as deterministic, indented JSON.
 
+    The top-level object starts with ``schema_version`` (see
+    ``JSON_SCHEMA_VERSION``). Every package, module, class, function,
+    assignment and reference object starts with a ``node_type`` field naming
+    what it is; the other keys follow in model field order.
+
     ``frozenset`` fields are serialized as sorted lists so that output is
     stable across interpreter runs. Package paths are relative to the root
     package directory (the root itself is ``"."``), so the same source in two
@@ -377,7 +400,7 @@ def format_json(api: Package | Module) -> str:
         api: The root package or module to serialize.
 
     Returns:
-        A JSON string with two-space indentation and sorted keys.
+        A JSON string with two-space indentation and keys in a fixed order.
     """
     root = api.path if isinstance(api, Package) else None
-    return json.dumps(_to_plain(api, root), indent=2)
+    return json.dumps({"schema_version": JSON_SCHEMA_VERSION, **_to_plain(api, root)}, indent=2)

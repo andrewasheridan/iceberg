@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from sheridan.iceberg._formatter import format_json, format_tree
+from sheridan.iceberg._formatter import JSON_SCHEMA_VERSION, format_json, format_tree
 from sheridan.iceberg._models import (
     Assignment,
     Class,
@@ -332,7 +332,7 @@ def test_format_tree_golden_string() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 2. format_json — valid JSON with sorted keys
+# 2. format_json — valid JSON
 # ---------------------------------------------------------------------------
 
 
@@ -727,7 +727,7 @@ def test_format_json_includes_references() -> None:
         references=(Reference(name="json", module="json", attribute=None),),
     )
     data = json.loads(format_json(module))
-    assert data["references"] == [{"name": "json", "module": "json", "attribute": None}]
+    assert data["references"] == [{"node_type": "reference", "name": "json", "module": "json", "attribute": None}]
 
 
 def test_format_json_path_outside_root_is_not_absolute() -> None:
@@ -821,3 +821,72 @@ def test_format_json_includes_overloads() -> None:
 
     (fn,) = data["functions"]
     assert [o["returns"] for o in fn["overloads"]] == ["int", "str"]
+
+
+# ---------------------------------------------------------------------------
+# format_json — node_type and schema_version
+# ---------------------------------------------------------------------------
+
+
+def test_format_json_top_level_has_schema_version() -> None:
+    parsed = json.loads(format_json(_make_package(name="mylib")))
+    assert parsed["schema_version"] == JSON_SCHEMA_VERSION
+    assert next(iter(parsed)) == "schema_version"
+
+
+def test_format_json_module_root_has_schema_version() -> None:
+    parsed = json.loads(format_json(_make_module(name="m")))
+    assert parsed["schema_version"] == JSON_SCHEMA_VERSION
+
+
+def test_format_json_schema_version_only_at_top_level() -> None:
+    sub = _make_package(name="mylib.sub", path=Path("/p/sub"))
+    pkg = _make_package(name="mylib", path=Path("/p"), modules=(_make_module(name="m"),), subpackages=(sub,))
+    parsed = json.loads(format_json(pkg))
+    assert "schema_version" not in parsed["subpackages"][0]
+    assert "schema_version" not in parsed["modules"][0]
+
+
+def test_format_json_every_node_has_node_type() -> None:
+    method = _make_function(name="act")
+    cls = _make_class(name="Agent", methods=(method,), nested_classes=(_make_class(name="Inner"),))
+    mod = Module(
+        name="m",
+        assignments=(_make_assignment(),),
+        classes=(cls,),
+        functions=(_overloaded(),),
+        references=(Reference(name="json", module="json", attribute=None),),
+    )
+    sub = _make_package(name="mylib.sub", path=Path("/p/sub"))
+    pkg = _make_package(name="mylib", path=Path("/p"), modules=(mod,), subpackages=(sub,))
+
+    parsed = json.loads(format_json(pkg))
+    module = parsed["modules"][0]
+    cls_data = module["classes"][0]
+    function = module["functions"][0]
+
+    assert parsed["node_type"] == "package"
+    assert parsed["subpackages"][0]["node_type"] == "package"
+    assert module["node_type"] == "module"
+    assert module["assignments"][0]["node_type"] == "assignment"
+    assert module["references"][0]["node_type"] == "reference"
+    assert cls_data["node_type"] == "class"
+    assert cls_data["nested_classes"][0]["node_type"] == "class"
+    assert cls_data["methods"][0]["node_type"] == "function"
+    assert function["node_type"] == "function"
+    assert {o["node_type"] for o in function["overloads"]} == {"function"}
+
+
+def test_format_json_node_type_does_not_replace_function_kind() -> None:
+    method = _make_function(name="make", kind="classmethod")
+    mod = _make_module(name="m", classes=(_make_class(name="C", methods=(method,)),))
+    parsed = json.loads(format_json(mod))
+    method_data = parsed["classes"][0]["methods"][0]
+    assert method_data["node_type"] == "function"
+    assert method_data["kind"] == "classmethod"
+
+
+def test_format_json_parameters_have_no_node_type() -> None:
+    fn = _make_function(name="f", positional_parameters=(_make_parameter(),))
+    parsed = json.loads(format_json(_make_module(name="m", functions=(fn,))))
+    assert "node_type" not in parsed["functions"][0]["positional_parameters"][0]
