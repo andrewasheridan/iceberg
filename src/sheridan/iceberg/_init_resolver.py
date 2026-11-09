@@ -14,14 +14,14 @@ own ``Module``; it never synthesises placeholder entries for subpackages.
 Callers must assemble ``Package.subpackages`` separately.
 """
 
-__all__ = ["ResolveReport", "resolve_init", "resolve_module_references"]
+__all__ = ["resolve_init", "resolve_module_references"]
 
 import ast
 import dataclasses
 from collections.abc import Callable, Mapping
 from pathlib import Path
 
-from sheridan.iceberg._models import Assignment, Class, Function, Module, Reference, ResolveReport
+from sheridan.iceberg._models import Assignment, Class, Function, Module, Reference
 from sheridan.iceberg._utilities import collect_imports, extract_all, infer_all, parse_source, star_candidate
 from sheridan.iceberg._visitor import visit_module
 
@@ -36,7 +36,7 @@ def resolve_init(
     path: Path | None = None,
     known_all: Mapping[str, frozenset[str] | None] | None = None,
     tree: ast.Module | None = None,
-) -> tuple[Module, ResolveReport]:
+) -> Module:
     """Resolve an ``__init__.py`` source into a ``Module`` with re-exports attached.
 
     Parses *init_source*, determines the public name set (via ``__all__`` or
@@ -47,9 +47,9 @@ def resolve_init(
        sibling's ``Module`` object and attach the resolved object.
     2. If the name is defined locally in the init file, use whatever
        ``visit_module`` captured.
-    3. If the name cannot be resolved from either source, record it in
-       ``ResolveReport.unresolved`` and attach a ``Reference`` describing
-       where it was imported from (if anywhere) — no exception is raised.
+    3. If the name cannot be resolved from either source, attach a
+       ``Reference`` describing where it was imported from (if anywhere) —
+       no exception is raised.
 
     Subpackage visibility is the orchestrator's concern, not this resolver's.
 
@@ -77,9 +77,8 @@ def resolve_init(
             file once. *init_source* is not parsed again when it is given.
 
     Returns:
-        A two-tuple of ``(module, report)`` where *module* is the resolved
-        ``Module`` for the init file and *report* records any names that could
-        not be resolved.
+        The resolved ``Module`` for the init file. Names that could not be
+        resolved are in its ``references``.
 
     Raises:
         ParseError: When *init_source* cannot be parsed as valid Python.
@@ -123,7 +122,6 @@ def resolve_init(
     classes: list[Class] = []
     functions: list[Function] = []
     references: list[Reference] = []
-    unresolved: list[str] = []
 
     for name in sorted(public_names):
         # Subpackage names are the orchestrator's domain — skip silently.
@@ -133,7 +131,6 @@ def resolve_init(
         obj = _resolve_name(name, import_map, sibling_modules, local_index)
 
         if obj is None:
-            unresolved.append(name)
             module_name, attribute = all_imports.get(name, (None, None) if candidate is None else (candidate, name))
             references.append(Reference(name=name, module=module_name, attribute=attribute))
             continue
@@ -146,15 +143,13 @@ def resolve_init(
             case Function():
                 functions.append(obj)
 
-    module = Module(
+    return Module(
         name=dotted_package,
         assignments=tuple(assignments),
         classes=tuple(classes),
         functions=tuple(functions),
         references=tuple(references),
     )
-
-    return module, ResolveReport(unresolved=tuple(unresolved))
 
 
 def resolve_module_references(

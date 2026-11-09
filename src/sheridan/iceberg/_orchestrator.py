@@ -16,10 +16,10 @@ from functools import partial
 from pathlib import Path
 
 from sheridan.iceberg._config import Config
-from sheridan.iceberg._discovery import discover
+from sheridan.iceberg._discovery import DiscoveredModule, discover
 from sheridan.iceberg._exceptions import ParseError
 from sheridan.iceberg._init_resolver import resolve_init, resolve_module_references
-from sheridan.iceberg._models import DiscoveredModule, Module, Package
+from sheridan.iceberg._models import Module, Package
 from sheridan.iceberg._utilities import extract_all, parse_source, read_source
 from sheridan.iceberg._visitor import visit_module
 
@@ -362,7 +362,7 @@ def build_package(root: Path, config: Config) -> Package | Module:
 
         package_all_map[init_module.dotted_name] = known_all.get(init_module.dotted_name)
 
-        module, _report = resolve_init(
+        module = resolve_init(
             source,
             init_module.dotted_name,
             module_map,

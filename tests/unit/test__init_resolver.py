@@ -1,11 +1,11 @@
-"""Tests for sheridan.iceberg._init_resolver (resolve_init and ResolveReport)."""
+"""Tests for sheridan.iceberg._init_resolver."""
 
 from pathlib import Path
 
 import pytest
 
 from sheridan.iceberg._exceptions import ParseError
-from sheridan.iceberg._init_resolver import ResolveReport, resolve_init, resolve_module_references
+from sheridan.iceberg._init_resolver import resolve_init, resolve_module_references
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Reference
 
 _EMPTY_MODULE = Module(name="", assignments=(), classes=(), functions=())
@@ -48,13 +48,18 @@ def _resolve(
     package: str = "mypkg",
     siblings: dict[str, Module] | None = None,
     subpackage_names: frozenset[str] = frozenset(),
-) -> tuple[Module, ResolveReport]:
+) -> Module:
     return resolve_init(
         init_source=source,
         dotted_package=package,
         sibling_modules=siblings if siblings is not None else {},
         subpackage_names=subpackage_names,
     )
+
+
+def _unresolved(module: Module) -> tuple[str, ...]:
+    """Names in the init's public surface that resolved to no concrete object."""
+    return tuple(reference.name for reference in module.references)
 
 
 def test_no_all_public_function_included() -> None:
@@ -66,7 +71,7 @@ def _local_helper():
 """
     fn = _make_function("public_func")
     sibling = _make_module("mypkg.core", functions=(fn,))
-    module, _ = _resolve(source, siblings={"mypkg.core": sibling})
+    module = _resolve(source, siblings={"mypkg.core": sibling})
     names = {f.name for f in module.functions}
     assert "public_func" in names
 
@@ -75,7 +80,7 @@ def test_no_all_private_import_excluded() -> None:
     source = "from .core import _private_func\n"
     fn = _make_function("_private_func")
     sibling = _make_module("mypkg.core", functions=(fn,))
-    module, _ = _resolve(source, siblings={"mypkg.core": sibling})
+    module = _resolve(source, siblings={"mypkg.core": sibling})
     names = {f.name for f in module.functions}
     assert "_private_func" not in names
 
@@ -87,7 +92,7 @@ from .utils import helper, _internal
     helper_fn = _make_function("helper")
     internal_fn = _make_function("_internal")
     sibling = _make_module("mypkg.utils", functions=(helper_fn, internal_fn))
-    module, _ = _resolve(source, siblings={"mypkg.utils": sibling})
+    module = _resolve(source, siblings={"mypkg.utils": sibling})
     names = {f.name for f in module.functions}
     assert "helper" in names
     assert "_internal" not in names
@@ -101,7 +106,7 @@ class PublicClass:
 class _PrivateClass:
     pass
 """
-    module, _ = _resolve(source)
+    module = _resolve(source)
     names = {c.name for c in module.classes}
     assert "PublicClass" in names
     assert "_PrivateClass" not in names
@@ -112,7 +117,7 @@ def test_no_all_locally_defined_public_assignment_included() -> None:
 VERSION: str = "1.0.0"
 _INTERNAL: int = 0
 """
-    module, _ = _resolve(source)
+    module = _resolve(source)
     names = {a.name for a in module.assignments}
     assert "VERSION" in names
     assert "_INTERNAL" not in names
@@ -125,7 +130,7 @@ from .core import my_func
 """
     fn = _make_function("my_func")
     sibling = _make_module("mypkg.core", functions=(fn,))
-    module, _ = _resolve(source, siblings={"mypkg.core": sibling})
+    module = _resolve(source, siblings={"mypkg.core": sibling})
     assert len(module.functions) == 1
     assert module.functions[0] == fn
 
@@ -137,7 +142,7 @@ from .models import MyClass
 """
     cls = _make_class("MyClass")
     sibling = _make_module("mypkg.models", classes=(cls,))
-    module, _ = _resolve(source, siblings={"mypkg.models": sibling})
+    module = _resolve(source, siblings={"mypkg.models": sibling})
     assert len(module.classes) == 1
     assert module.classes[0] == cls
 
@@ -149,7 +154,7 @@ from .constants import CONSTANT
 """
     asgn = _make_assignment("CONSTANT")
     sibling = _make_module("mypkg.constants", assignments=(asgn,))
-    module, _ = _resolve(source, siblings={"mypkg.constants": sibling})
+    module = _resolve(source, siblings={"mypkg.constants": sibling})
     assert len(module.assignments) == 1
     assert module.assignments[0] == asgn
 
@@ -169,11 +174,11 @@ from .c import CONST_C
         "mypkg.b": _make_module("mypkg.b", classes=(cls,)),
         "mypkg.c": _make_module("mypkg.c", assignments=(asgn,)),
     }
-    module, report = _resolve(source, siblings=siblings)
+    module = _resolve(source, siblings=siblings)
     assert module.functions[0] == fn
     assert module.classes[0] == cls
     assert module.assignments[0] == asgn
-    assert report.unresolved == ()
+    assert _unresolved(module) == ()
 
 
 def test_all_driven_aliased_import_resolved() -> None:
@@ -184,7 +189,7 @@ from .core import X as Y
 """
     fn = _make_function("X")
     sibling = _make_module("mypkg.core", functions=(fn,))
-    module, _ = _resolve(source, siblings={"mypkg.core": sibling})
+    module = _resolve(source, siblings={"mypkg.core": sibling})
     assert len(module.functions) == 1
     assert module.functions[0].name == "Y"
 
@@ -196,18 +201,18 @@ __all__ = ["local_fn"]
 def local_fn() -> None:
     pass
 """
-    module, report = _resolve(source)
+    module = _resolve(source)
     names = {f.name for f in module.functions}
     assert "local_fn" in names
-    assert report.unresolved == ()
+    assert _unresolved(module) == ()
 
 
 def test_unresolvable_name_in_report() -> None:
     source = """
 __all__ = ["ghost"]
 """
-    _, report = _resolve(source)
-    assert "ghost" in report.unresolved
+    module = _resolve(source)
+    assert "ghost" in _unresolved(module)
 
 
 def test_unresolvable_name_does_not_raise() -> None:
@@ -215,8 +220,8 @@ def test_unresolvable_name_does_not_raise() -> None:
 __all__ = ["missing_a", "missing_b"]
 """
     # Must not raise; both names go into unresolved
-    _, report = _resolve(source)
-    assert set(report.unresolved) == {"missing_a", "missing_b"}
+    module = _resolve(source)
+    assert set(_unresolved(module)) == {"missing_a", "missing_b"}
 
 
 def test_unresolvable_sibling_module_not_in_mapping() -> None:
@@ -225,15 +230,15 @@ __all__ = ["something"]
 from .absent_module import something
 """
     # sibling_modules is empty — module not found
-    _, report = _resolve(source, siblings={})
-    assert "something" in report.unresolved
+    module = _resolve(source, siblings={})
+    assert "something" in _unresolved(module)
 
 
 def test_unresolvable_name_not_added_to_module_members() -> None:
     source = """
 __all__ = ["ghost"]
 """
-    module, _ = _resolve(source)
+    module = _resolve(source)
     all_names = (
         {f.name for f in module.functions} | {c.name for c in module.classes} | {a.name for a in module.assignments}
     )
@@ -247,10 +252,10 @@ from .core import real_func
 """
     fn = _make_function("real_func")
     sibling = _make_module("mypkg.core", functions=(fn,))
-    module, report = _resolve(source, siblings={"mypkg.core": sibling})
+    module = _resolve(source, siblings={"mypkg.core": sibling})
     assert module.functions[0] == fn
-    assert "ghost" in report.unresolved
-    assert "real_func" not in report.unresolved
+    assert "ghost" in _unresolved(module)
+    assert "real_func" not in _unresolved(module)
 
 
 def test_deep_relative_import_resolved() -> None:
@@ -260,9 +265,9 @@ from .sub.deep import deep_fn
 """
     fn = _make_function("deep_fn")
     sibling = _make_module("mypkg.sub.deep", functions=(fn,))
-    module, report = _resolve(source, package="mypkg", siblings={"mypkg.sub.deep": sibling})
+    module = _resolve(source, package="mypkg", siblings={"mypkg.sub.deep": sibling})
     assert module.functions[0] == fn
-    assert report.unresolved == ()
+    assert _unresolved(module) == ()
 
 
 def test_deep_relative_import_three_levels() -> None:
@@ -272,7 +277,7 @@ from .a.b.c import leaf_cls
 """
     cls = _make_class("leaf_cls")
     sibling = _make_module("pkg.a.b.c", classes=(cls,))
-    module, _ = _resolve(source, package="pkg", siblings={"pkg.a.b.c": sibling})
+    module = _resolve(source, package="pkg", siblings={"pkg.a.b.c": sibling})
     assert module.classes[0] == cls
 
 
@@ -283,7 +288,7 @@ from .utils.strings import helper
 """
     fn = _make_function("helper")
     sibling = _make_module("mylib.sub.utils.strings", functions=(fn,))
-    module, _ = _resolve(
+    module = _resolve(
         source,
         package="mylib.sub",
         siblings={"mylib.sub.utils.strings": sibling},
@@ -298,14 +303,14 @@ from .core import real_fn
 """
     fn = _make_function("real_fn")
     sibling = _make_module("mypkg.core", functions=(fn,))
-    module, report = _resolve(
+    module = _resolve(
         source,
         siblings={"mypkg.core": sibling},
         subpackage_names=frozenset({"sub"}),
     )
     assert module.functions == (fn,)
     # sub is a subpackage name — resolver skips it silently (not in unresolved)
-    assert "sub" not in report.unresolved
+    assert "sub" not in _unresolved(module)
     assert module.references == ()
 
 
@@ -336,28 +341,14 @@ def test_syntax_error_wrapped_as_iceberg_error() -> None:
 
 
 def test_valid_empty_source_does_not_raise() -> None:
-    module, report = _resolve("")
+    module = _resolve("")
     assert module.name == "mypkg"
-    assert report.unresolved == ()
-
-
-def test_resolve_report_is_frozen() -> None:
-    report = ResolveReport(unresolved=("a",))
-    with pytest.raises((AttributeError, TypeError)):
-        report.unresolved = ("b",)  # type: ignore[misc]
-
-
-def test_resolve_report_unresolved_is_tuple() -> None:
-    source = """
-__all__ = ["x", "y"]
-"""
-    _, report = _resolve(source)
-    assert isinstance(report.unresolved, tuple)
+    assert _unresolved(module) == ()
 
 
 def test_returned_module_name_matches_dotted_package() -> None:
     source = "__all__ = []\n"
-    module, _ = _resolve(source, package="org.lib.sub")
+    module = _resolve(source, package="org.lib.sub")
     assert module.name == "org.lib.sub"
 
 
@@ -368,9 +359,9 @@ from mypkg.core import abs_fn
 """
     fn = _make_function("abs_fn")
     sibling = _make_module("mypkg.core", functions=(fn,))
-    module, report = _resolve(source, package="mypkg", siblings={"mypkg.core": sibling})
+    module = _resolve(source, package="mypkg", siblings={"mypkg.core": sibling})
     assert module.functions[0] == fn
-    assert report.unresolved == ()
+    assert _unresolved(module) == ()
 
 
 def test_absolute_import_outside_package_ignored() -> None:
@@ -382,9 +373,9 @@ from other_pkg.core import foreign_fn
     fn = _make_function("foreign_fn")
     sibling = _make_module("other_pkg.core", functions=(fn,))
     # sibling is provided but shouldn't be used — it's outside mypkg
-    _, report = _resolve(source, package="mypkg", siblings={"other_pkg.core": sibling})
+    module = _resolve(source, package="mypkg", siblings={"other_pkg.core": sibling})
     # foreign_fn should be unresolved since other_pkg is not a sibling of mypkg
-    assert "foreign_fn" in report.unresolved
+    assert "foreign_fn" in _unresolved(module)
 
 
 def test_bare_relative_import_resolved() -> None:
@@ -395,7 +386,7 @@ from . import bare_fn
     fn = _make_function("bare_fn")
     # level=1, no module → resolves to dotted_package itself
     sibling = _make_module("mypkg", functions=(fn,))
-    module, _ = _resolve(source, package="mypkg", siblings={"mypkg": sibling})
+    module = _resolve(source, package="mypkg", siblings={"mypkg": sibling})
     assert module.functions[0] == fn
 
 
@@ -404,9 +395,9 @@ def test_unresolved_external_reexport_becomes_reference() -> None:
 __all__ = ["sqrt"]
 from math import sqrt
 """
-    module, report = _resolve(source)
+    module = _resolve(source)
     assert module.references == (Reference(name="sqrt", module="math", attribute="sqrt"),)
-    assert report.unresolved == ("sqrt",)
+    assert _unresolved(module) == ("sqrt",)
 
 
 def test_unresolved_aliased_external_reexport_keeps_original_attribute() -> None:
@@ -414,7 +405,7 @@ def test_unresolved_aliased_external_reexport_keeps_original_attribute() -> None
 __all__ = ["Ordered"]
 from collections import OrderedDict as Ordered
 """
-    module, _ = _resolve(source)
+    module = _resolve(source)
     assert module.references == (Reference(name="Ordered", module="collections", attribute="OrderedDict"),)
 
 
@@ -423,7 +414,7 @@ def test_unresolved_module_import_becomes_reference() -> None:
 __all__ = ["json"]
 import json
 """
-    module, _ = _resolve(source)
+    module = _resolve(source)
     assert module.references == (Reference(name="json", module="json", attribute=None),)
 
 
@@ -431,7 +422,7 @@ def test_unbound_name_becomes_reference_without_source() -> None:
     source = """
 __all__ = ["ghost"]
 """
-    module, _ = _resolve(source)
+    module = _resolve(source)
     assert module.references == (Reference(name="ghost", module=None, attribute=None),)
 
 
@@ -440,7 +431,7 @@ def test_intra_package_lookup_failure_reference_is_absolute() -> None:
 __all__ = ["missing"]
 from ._core import missing
 """
-    module, _ = _resolve(source, siblings={"mypkg._core": _make_module("mypkg._core")})
+    module = _resolve(source, siblings={"mypkg._core": _make_module("mypkg._core")})
     assert module.references == (Reference(name="missing", module="mypkg._core", attribute="missing"),)
 
 
@@ -450,7 +441,7 @@ __all__ = ["real_func"]
 from .core import real_func
 """
     sibling = _make_module("mypkg.core", functions=(_make_function("real_func"),))
-    module, _ = _resolve(source, siblings={"mypkg.core": sibling})
+    module = _resolve(source, siblings={"mypkg.core": sibling})
     assert module.references == ()
 
 
@@ -458,16 +449,16 @@ def test_child_names_are_not_references() -> None:
     source = """
 __all__ = ["sub", "helpers"]
 """
-    module, report = _resolve(source, subpackage_names=frozenset({"sub", "helpers"}))
+    module = _resolve(source, subpackage_names=frozenset({"sub", "helpers"}))
     assert module.references == ()
-    assert report.unresolved == ()
+    assert _unresolved(module) == ()
 
 
 def test_no_all_external_imports_are_not_public() -> None:
     source = """
 from pathlib import Path
 """
-    module, _ = _resolve(source)
+    module = _resolve(source)
     assert module.references == ()
 
 
@@ -484,9 +475,9 @@ except ImportError:
         "mypkg._fast": _make_module("mypkg._fast", functions=(fast,)),
         "mypkg._slow": _make_module("mypkg._slow", functions=(_make_function("other"),)),
     }
-    module, report = _resolve(source, siblings=siblings)
+    module = _resolve(source, siblings=siblings)
     assert module.functions == (fast,)
-    assert report.unresolved == ()
+    assert _unresolved(module) == ()
 
 
 def test_absolute_import_from_elsewhere_in_root_package_resolved() -> None:
@@ -495,7 +486,7 @@ __all__ = ["fn"]
 from mypkg.other import fn
 """
     fn = _make_function("fn")
-    module, _ = _resolve(
+    module = _resolve(
         source, package="mypkg.sub", siblings={"mypkg.other": _make_module("mypkg.other", functions=(fn,))}
     )
     assert module.functions == (fn,)
@@ -507,7 +498,7 @@ __all__ = ["get_public_api"]
 from sheridan.iceberg._api import get_public_api
 """
     fn = _make_function("get_public_api")
-    module, report = resolve_init(
+    module = resolve_init(
         init_source=source,
         dotted_package="iceberg",
         sibling_modules={"iceberg._api": _make_module("iceberg._api", functions=(fn,))},
@@ -515,7 +506,7 @@ from sheridan.iceberg._api import get_public_api
         namespace_parents=("home", "src", "sheridan"),
     )
     assert module.functions == (fn,)
-    assert report.unresolved == ()
+    assert _unresolved(module) == ()
 
 
 def test_namespace_prefix_must_match_directories_above_root() -> None:
@@ -524,7 +515,7 @@ __all__ = ["get_public_api"]
 from other.iceberg._api import get_public_api
 """
     fn = _make_function("get_public_api")
-    module, report = resolve_init(
+    module = resolve_init(
         init_source=source,
         dotted_package="iceberg",
         sibling_modules={"iceberg._api": _make_module("iceberg._api", functions=(fn,))},
@@ -535,7 +526,7 @@ from other.iceberg._api import get_public_api
     assert module.references == (
         Reference(name="get_public_api", module="other.iceberg._api", attribute="get_public_api"),
     )
-    assert report.unresolved == ("get_public_api",)
+    assert _unresolved(module) == ("get_public_api",)
 
 
 def test_multi_level_namespace_prefix_resolved() -> None:
@@ -544,7 +535,7 @@ __all__ = ["fn"]
 from org.team.pkg.core import fn
 """
     fn = _make_function("fn")
-    module, _ = resolve_init(
+    module = resolve_init(
         init_source=source,
         dotted_package="pkg",
         sibling_modules={"pkg.core": _make_module("pkg.core", functions=(fn,))},
