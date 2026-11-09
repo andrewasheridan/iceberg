@@ -109,10 +109,10 @@ def extract_all(
 ) -> frozenset[str] | None:
     """Evaluate ``__all__`` statically from the module-level statements.
 
-    Applies, in source order, every top-level statement that changes
-    ``__all__``:
+    Applies, in source order, every module-level statement that changes
+    ``__all__``, including those inside ``if`` and ``try`` blocks:
 
-    - ``__all__ = ...`` and ``__all__: list[str] = ...``
+    - ``__all__ = ...``, ``__all__ = x = ...`` and ``__all__: list[str] = ...``
     - ``__all__ += ...``
     - ``__all__.extend(...)`` and ``__all__.append("name")``
     - ``__all__.insert(i, "name")`` and ``__all__.remove("name")``
@@ -123,6 +123,10 @@ def extract_all(
     module in the analyzed tree (``sub.__all__`` after ``from . import sub``,
     or a name bound by ``from .sub import __all__ as sub_all``). Other modules
     are looked up with *lookup*.
+
+    The branches of an ``if`` or ``try`` block are evaluated separately and
+    their results are joined, so ``__all__`` keeps every name that any branch
+    adds. A ``try`` handler starts from ``__all__`` as it was before the block.
 
     When a statement cannot be evaluated, a ``UserWarning`` names the file and
     line, and the function returns ``None`` so the caller falls back to
@@ -140,7 +144,6 @@ def extract_all(
         The names in ``__all__``, or ``None`` when ``__all__`` is absent or
         cannot be evaluated statically.
     """
-    current: list[str] | None = None
     imports: dict[str, tuple[str, str | None]] | None = None
 
     def imported(name: str) -> tuple[str, str | None] | None:
@@ -162,7 +165,7 @@ def extract_all(
             raise _NotStaticError(node, f"the __all__ of {target!r} is not known")
         return sorted(found)
 
-    def evaluate(node: ast.expr) -> list[str]:
+    def evaluate(node: ast.expr, current: list[str] | None) -> list[str]:
         match node:
             case ast.List(elts=elts) | ast.Tuple(elts=elts):
                 names: list[str] = []
@@ -174,7 +177,7 @@ def extract_all(
                             raise _NotStaticError(elt, "an element is not a string literal")
                 return names
             case ast.BinOp(left=left, op=ast.Add(), right=right):
-                return evaluate(left) + evaluate(right)
+                return evaluate(left, current) + evaluate(right, current)
             case ast.Name(id="__all__"):
                 if current is None:
                     raise _NotStaticError(node, "__all__ is used before it is assigned")
@@ -186,47 +189,81 @@ def extract_all(
             case _:
                 raise _NotStaticError(node, "the value is not a literal list or tuple")
 
-    try:
-        for node in tree.body:
+    def change(node: ast.stmt, current: list[str] | None) -> list[str] | None:
+        match node:
+            case ast.Assign(targets=targets, value=value) if any(
+                "__all__" in bound_names(target) for target in targets
+            ):
+                if not any(isinstance(target, ast.Name) and target.id == "__all__" for target in targets):
+                    raise _NotStaticError(node, "__all__ is bound by unpacking")
+                return evaluate(value, current)
+
+            case ast.AnnAssign(target=ast.Name(id="__all__"), value=value) if value is not None:
+                return evaluate(value, current)
+
+            case ast.AugAssign(target=ast.Name(id="__all__"), op=op, value=value):
+                if current is None:
+                    raise _NotStaticError(node, "__all__ is changed before it is assigned")
+                if not isinstance(op, ast.Add):
+                    raise _NotStaticError(node, "only += is supported")
+                return current + evaluate(value, current)
+
+            case ast.Expr(value=ast.Call(func=ast.Attribute(value=ast.Name(id="__all__"), attr=method)) as call):
+                if current is None:
+                    raise _NotStaticError(node, "__all__ is changed before it is assigned")
+                match method, call.args, call.keywords:
+                    case "extend", [arg], []:
+                        return current + evaluate(arg, current)
+                    case "append", [ast.Constant(value=str(s))], []:
+                        return [*current, s]
+                    case "insert", [index, ast.Constant(value=str(s))], [] if _is_int_literal(index):
+                        # Only membership matters, so the position is ignored.
+                        return [*current, s]
+                    case "remove", [ast.Constant(value=str(s))], []:
+                        if s not in current:
+                            raise _NotStaticError(node, f"__all__.remove({s!r}) removes a missing name")
+                        current = list(current)
+                        current.remove(s)
+                        return current
+                    case "sort", [], keywords if all(kw.arg in {"key", "reverse"} for kw in keywords):
+                        return current  # reordering keeps the membership
+                    case "reverse", [], []:
+                        return current
+                    case _:
+                        raise _NotStaticError(node, f"__all__.{method}(...) is not supported")
+
+            case _:
+                return current
+
+    def union(*branches: list[str] | None) -> list[str] | None:
+        # Which branch runs is unknown statically, so a name that any branch
+        # exports is kept, the same way definitions in every branch count.
+        assigned = [branch for branch in branches if branch is not None]
+        return list(dict.fromkeys(name for branch in assigned for name in branch)) if assigned else None
+
+    def run(body: list[ast.stmt], current: list[str] | None) -> list[str] | None:
+        for node in body:
             match node:
-                case ast.Assign(targets=[ast.Name(id="__all__")], value=value):
-                    current = evaluate(value)
+                case ast.If(body=if_body, orelse=orelse):
+                    current = union(run(if_body, current), run(orelse, current))
 
-                case ast.AnnAssign(target=ast.Name(id="__all__"), value=value) if value is not None:
-                    current = evaluate(value)
-
-                case ast.AugAssign(target=ast.Name(id="__all__"), op=op, value=value):
-                    if current is None:
-                        raise _NotStaticError(node, "__all__ is changed before it is assigned")
-                    if not isinstance(op, ast.Add):
-                        raise _NotStaticError(node, "only += is supported")
-                    current = current + evaluate(value)
-
-                case ast.Expr(value=ast.Call(func=ast.Attribute(value=ast.Name(id="__all__"), attr=method)) as call):
-                    if current is None:
-                        raise _NotStaticError(node, "__all__ is changed before it is assigned")
-                    match method, call.args, call.keywords:
-                        case "extend", [arg], []:
-                            current = current + evaluate(arg)
-                        case "append", [ast.Constant(value=str(s))], []:
-                            current = [*current, s]
-                        case "insert", [index, ast.Constant(value=str(s))], [] if _is_int_literal(index):
-                            # Only membership matters, so the position is ignored.
-                            current = [*current, s]
-                        case "remove", [ast.Constant(value=str(s))], []:
-                            if s not in current:
-                                raise _NotStaticError(node, f"__all__.remove({s!r}) removes a missing name")
-                            current = list(current)
-                            current.remove(s)
-                        case "sort", [], keywords if all(kw.arg in {"key", "reverse"} for kw in keywords):
-                            pass  # reordering keeps the membership
-                        case "reverse", [], []:
-                            pass
-                        case _:
-                            raise _NotStaticError(node, f"__all__.{method}(...) is not supported")
+                case (
+                    ast.Try(body=try_body, handlers=handlers, orelse=orelse, finalbody=finalbody)
+                    | ast.TryStar(body=try_body, handlers=handlers, orelse=orelse, finalbody=finalbody)
+                ):
+                    # A handler may start anywhere in the try body; starting it
+                    # from the state before the try is the common case, an
+                    # ImportError on the first line.
+                    completed = run(orelse, run(try_body, current))
+                    handled = [run(handler.body, current) for handler in handlers]
+                    current = run(finalbody, union(completed, *handled))
 
                 case _:
-                    pass
+                    current = change(node, current)
+        return current
+
+    try:
+        result = run(tree.body, None)
     except _NotStaticError as exc:
         location = ":".join(str(part) for part in (path, exc.lineno) if part is not None)
         prefix = f"{location}: " if location else ""
@@ -238,7 +275,7 @@ def extract_all(
         )
         return None
 
-    return None if current is None else frozenset(current)
+    return None if result is None else frozenset(result)
 
 
 def bound_names(target: ast.expr) -> Iterator[str]:
