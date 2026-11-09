@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.14"
 
 [[package]]
@@ -676,7 +676,7 @@ name = "sheridan-iceberg"
 version = "6.3.0"
 source = { editable = "." }
 
-[package.optional-dependencies]
+[package.dev-dependencies]
 dev = [
     { name = "bandit" },
     { name = "commitizen" },
@@ -689,40 +689,19 @@ dev = [
     { name = "zensical" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "bandit" },
-    { name = "commitizen" },
-    { name = "mkdocstrings", extra = ["python"] },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "zensical" },
-]
-
 [package.metadata]
-requires-dist = [
-    { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.9.4" },
-    { name = "commitizen", marker = "extra == 'dev'", specifier = ">=4.13.10" },
-    { name = "mkdocstrings", extras = ["python"], marker = "extra == 'dev'", specifier = ">=1.0.3" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.5.1" },
-    { name = "pyrefly", marker = "extra == 'dev'", specifier = ">=1.4.1" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=7.1.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.15.10" },
-    { name = "zensical", marker = "extra == 'dev'", specifier = ">=0.0.32" },
-]
-provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "bandit", extras = ["toml"], specifier = ">=1.9.4" },
-    { name = "commitizen", specifier = ">=4.13.9" },
+    { name = "commitizen", specifier = ">=4.13.10" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.3" },
     { name = "pre-commit", specifier = ">=4.5.1" },
-    { name = "pytest", specifier = ">=9.0.2" },
+    { name = "pyrefly", specifier = ">=1.4.1" },
+    { name = "pytest", specifier = ">=9.0.3" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
-    { name = "zensical", specifier = ">=0.0.30" },
+    { name = "ruff", specifier = ">=0.15.10" },
+    { name = "zensical", specifier = ">=0.0.32" },
 ]
 
 [[package]]
