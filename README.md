@@ -96,6 +96,15 @@ package case_09
     └── MAX_RETRIES: int
 ```
 
+### JSON output
+
+`--json` prints one object for the analyzed package or module. Its first key is
+`schema_version`, an integer that changes when the JSON format changes in a way
+that can break consumers. Every package, module, class, function, assignment
+and reference object has a `node_type` field (`package`, `module`, `class`,
+`function`, `assignment` or `reference`). Function objects also have a `kind`
+field (`function`, `method`, `classmethod`, `staticmethod` or `property`).
+
 The [`cases/`](cases) directory documents each supported layout and edge case
 alongside its expected output.
 
