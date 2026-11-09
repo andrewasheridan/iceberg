@@ -364,3 +364,73 @@ def test_non_identifier_file_is_skipped(tmp_path: Path, filename: str) -> None:
     result = discover(pkg, _default_config())
 
     assert set(_by_dotted(result)) == {"pkg", "pkg.core"}
+
+
+# ---------------------------------------------------------------------------
+# Default pruned directories and the exclude option
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "dirname",
+    ["build", "dist", "venv", "env", "node_modules", "site-packages", "mypkg.egg-info"],
+)
+def test_common_non_source_directories_are_pruned(tmp_path: Path, dirname: str) -> None:
+    """Build output, virtual environments and egg-info directories are not walked."""
+    root = tmp_path / "pkg"
+    _write(root / "__init__.py")
+    _write(root / dirname / "leaked.py")
+
+    names = set(_by_dotted(discover(root, _default_config())))
+
+    assert names == {"pkg"}
+
+
+def test_exclude_prunes_matching_directory(tmp_path: Path) -> None:
+    """A directory matching an exclude glob is not walked."""
+    root = tmp_path / "pkg"
+    _write(root / "__init__.py")
+    _write(root / "legacy" / "old.py")
+    _write(root / "keep.py")
+
+    names = set(_by_dotted(discover(root, Config(exclude=("legacy",)))))
+
+    assert names == {"pkg", "pkg.keep"}
+
+
+def test_exclude_is_relative_to_analyzed_root(tmp_path: Path) -> None:
+    """A pattern without ``**`` only matches at the top of the analyzed directory."""
+    root = tmp_path / "pkg"
+    _write(root / "__init__.py")
+    _write(root / "legacy.py")
+    _write(root / "sub" / "legacy.py")
+
+    names = set(_by_dotted(discover(root, Config(exclude=("legacy.py",)))))
+
+    assert names == {"pkg", "pkg.sub.legacy"}
+
+
+def test_exclude_double_star_matches_at_any_depth(tmp_path: Path) -> None:
+    """``**/name`` matches at the top level and in nested directories."""
+    root = tmp_path / "pkg"
+    _write(root / "__init__.py")
+    _write(root / "generated" / "a.py")
+    _write(root / "sub" / "generated" / "b.py")
+    _write(root / "sub" / "c.py")
+
+    names = set(_by_dotted(discover(root, Config(exclude=("**/generated",)))))
+
+    assert names == {"pkg", "pkg.sub.c"}
+
+
+def test_exclude_matches_files_with_wildcards(tmp_path: Path) -> None:
+    """File globs such as ``**/*_pb2.py`` skip matching modules."""
+    root = tmp_path / "pkg"
+    _write(root / "__init__.py")
+    _write(root / "msg_pb2.py")
+    _write(root / "sub" / "other_pb2.py")
+    _write(root / "sub" / "real.py")
+
+    names = set(_by_dotted(discover(root, Config(exclude=("**/*_pb2.py",)))))
+
+    assert names == {"pkg", "pkg.sub.real"}

@@ -9,14 +9,19 @@ visit. Test modules are filtered out according to
 __all__ = ["DiscoveredModule", "discover"]
 
 import keyword
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from sheridan.iceberg._config import Config
 from sheridan.iceberg._exceptions import InvalidPathError
 from sheridan.iceberg._models import DiscoveredModule
 
-_PRUNED_DIRS = frozenset({"__pycache__", ".venv", ".git"})
+_PRUNED_DIRS = frozenset(
+    {"__pycache__", ".venv", ".git", "build", "dist", "venv", "env", "node_modules", "site-packages"}
+)
 """Directory names that are unconditionally excluded from the filesystem walk."""
+
+_PRUNED_SUFFIXES = (".egg-info",)
+"""Directory name suffixes that are unconditionally excluded from the filesystem walk."""
 
 
 def _is_importable_name(name: str) -> bool:
@@ -38,12 +43,32 @@ def _should_prune(name: str) -> bool:
         name: The bare directory name (not a full path).
 
     Returns:
-        ``True`` for ``__pycache__``, ``.venv``, ``.git``, any name that
-        starts with ``'.'``, and any name that cannot be imported (not an
-        identifier, or a keyword). Modules under such a directory are not
-        importable, so they are skipped silently.
+        ``True`` for a name in :data:`_PRUNED_DIRS` (``__pycache__``,
+        ``build``, ``dist``, ``venv`` and similar), a name that ends with
+        ``.egg-info``, any name that starts with ``'.'``, and any name that
+        cannot be imported (not an identifier, or a keyword). Modules under
+        such a directory are not importable or not source, so they are
+        skipped silently.
     """
-    return name in _PRUNED_DIRS or name.startswith(".") or not _is_importable_name(name)
+    return (
+        name in _PRUNED_DIRS or name.endswith(_PRUNED_SUFFIXES) or name.startswith(".") or not _is_importable_name(name)
+    )
+
+
+def _is_excluded(path: Path, root: Path, patterns: tuple[str, ...]) -> bool:
+    """Check if *path* matches one of the user's ``exclude`` glob patterns.
+
+    Args:
+        path: A directory or file below *root*.
+        root: The analyzed directory; patterns are relative to it.
+        patterns: Glob patterns from :attr:`~sheridan.iceberg._config.Config.exclude`.
+
+    Returns:
+        ``True`` when the POSIX path of *path* relative to *root* fully
+        matches any pattern.
+    """
+    relative = PurePosixPath(path.relative_to(root).as_posix())
+    return any(relative.full_match(pattern) for pattern in patterns)
 
 
 def _compute_dotted_name(py_file: Path, root: Path) -> tuple[str, tuple[str, ...]]:
@@ -140,9 +165,11 @@ def _discover_directory(root: Path, config: Config) -> tuple[DiscoveredModule, .
 
     Args:
         root: The package directory (or namespace container) to walk.
-        config: Runtime configuration carrying the test-module filter pattern.
-            The pattern is searched in each file's POSIX path relative to
-            ``root.parent``, so the path starts with *root*'s own name.
+        config: Runtime configuration carrying the test-module filter pattern
+            and the ``exclude`` globs. The test pattern is searched in each
+            file's POSIX path relative to ``root.parent``, so the path starts
+            with *root*'s own name. The ``exclude`` globs are matched against
+            paths relative to *root* itself.
 
     Returns:
         A tuple of :class:`DiscoveredModule` values, one per qualifying
@@ -158,7 +185,9 @@ def _discover_directory(root: Path, config: Config) -> tuple[DiscoveredModule, .
 
     for dirpath, dirnames, filenames in root.walk():
         # Mutate dirnames in-place to prune unwanted subtrees.
-        dirnames[:] = [d for d in dirnames if not _should_prune(d)]
+        dirnames[:] = [
+            d for d in dirnames if not _should_prune(d) and not _is_excluded(dirpath / d, root, config.exclude)
+        ]
 
         for filename in filenames:
             if not filename.endswith(".py"):
@@ -173,6 +202,9 @@ def _discover_directory(root: Path, config: Config) -> tuple[DiscoveredModule, .
             # Match against the path relative to root.parent (root's own name
             # included) so directories above root, such as ~/tests/, never match.
             if config.test_module_pattern.search(py_file.relative_to(name_root).as_posix()):
+                continue
+
+            if _is_excluded(py_file, root, config.exclude):
                 continue
 
             results.append(_make_module(py_file, name_root))

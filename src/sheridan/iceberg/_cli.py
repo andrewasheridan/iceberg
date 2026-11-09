@@ -3,11 +3,13 @@
 __all__ = ["main"]
 
 import argparse
+import dataclasses
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 from sheridan.iceberg._api import get_public_api
+from sheridan.iceberg._config import load_config
 from sheridan.iceberg._exceptions import IcebergError
 from sheridan.iceberg._formatter import format_json, format_tree
 
@@ -40,11 +42,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=False,
         help="Emit output as JSON instead of the default tree format.",
     )
+    parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        metavar="GLOB",
+        help=(
+            "Skip directories and files whose path relative to PATH matches GLOB. "
+            "Repeatable; extends the 'exclude' list from the configuration file."
+        ),
+    )
 
     args = parser.parse_args(argv)
 
     try:
-        package = get_public_api(args.path)
+        config = load_config(args.path)
+        if args.exclude:
+            config = dataclasses.replace(config, exclude=(*config.exclude, *args.exclude))
+        package = get_public_api(args.path, config=config)
     except IcebergError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
