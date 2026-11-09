@@ -7,6 +7,7 @@ import dataclasses
 import os
 import sys
 import tempfile
+import traceback
 from collections.abc import Sequence
 from importlib.metadata import version
 from pathlib import Path
@@ -15,6 +16,36 @@ from sheridan.iceberg._api import get_public_api_report
 from sheridan.iceberg._config import Config, load_config, load_config_file
 from sheridan.iceberg._exceptions import IcebergError
 from sheridan.iceberg._formatter import format_diagnostic, format_json, format_tree
+
+_ISSUES_URL = "https://github.com/andrewasheridan/iceberg/issues"
+
+
+def _traceback_requested(args: argparse.Namespace) -> bool:
+    """Tell whether the user asked for full tracebacks on unexpected errors.
+
+    Args:
+        args: The parsed command-line arguments.
+
+    Returns:
+        True if ``--traceback`` was given or ``ICEBERG_DEBUG`` is set to ``1``.
+    """
+    return args.traceback or os.environ.get("ICEBERG_DEBUG") == "1"
+
+
+def _report_unexpected_error(exc: Exception, *, show_traceback: bool) -> None:
+    """Print an unexpected exception to stderr in a form users can put in a bug report.
+
+    Args:
+        exc: The exception that escaped the analysis.
+        show_traceback: Print the full traceback instead of a hint on how to get it.
+    """
+    if show_traceback:
+        traceback.print_exception(exc, file=sys.stderr)
+    else:
+        print(f"unexpected error: {type(exc).__name__}: {exc}", file=sys.stderr)
+        print("Run again with --traceback (or ICEBERG_DEBUG=1) for the full traceback.", file=sys.stderr)
+
+    print(f"This is a bug in iceberg. Please report it at {_ISSUES_URL}", file=sys.stderr)
 
 
 def _positive_int(value: str) -> int:
@@ -198,6 +229,15 @@ def _build_parser() -> argparse.ArgumentParser:
             "unresolved names are printed to stderr, and the exit code is 1 if any module was skipped."
         ),
     )
+    parser.add_argument(
+        "--traceback",
+        action="store_true",
+        default=False,
+        help=(
+            "On an unexpected error, print the full traceback for a bug report. "
+            "Setting the ICEBERG_DEBUG=1 environment variable does the same."
+        ),
+    )
 
     return parser
 
@@ -227,7 +267,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     except Exception as exc:
-        print(f"unexpected error: {type(exc).__name__}: {exc}", file=sys.stderr)
+        _report_unexpected_error(exc, show_traceback=_traceback_requested(args))
         return 2
 
     if args.json:

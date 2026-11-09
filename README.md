@@ -51,6 +51,7 @@ iceberg src/mypkg --json     # machine-readable output
 iceberg src/mypkg --json -o api.json  # write UTF-8 to a file instead of stdout
 iceberg src/mypkg --show-overload-implementations  # also show @overload implementations
 iceberg src/mypkg --keep-going  # skip files that cannot be read or parsed
+iceberg src/mypkg --traceback  # print the full traceback of an unexpected error
 iceberg --version            # print the installed version
 python -m sheridan.iceberg src/mypkg
 ```
@@ -61,7 +62,10 @@ after the path it is given: `iceberg src/sheridan` reports `sheridan.iceberg`,
 while `iceberg src/sheridan/iceberg` reports `iceberg`.
 
 Exit codes: `0` on success, `1` for iceberg errors (missing path, invalid
-config, unreadable or unparseable source, unwritable `--output` file), `2` for unexpected errors. Source files
+config, unreadable or unparseable source, unwritable `--output` file), `2` for unexpected errors.
+An unexpected error is a bug in iceberg: run again with `--traceback` (or set
+`ICEBERG_DEBUG=1`) to print the full traceback, and include it when you
+[report the bug](https://github.com/andrewasheridan/iceberg/issues). Source files
 are decoded the way Python decodes them: UTF-8 unless a PEP 263 encoding
 declaration such as `# -*- coding: latin-1 -*-` says otherwise.
 

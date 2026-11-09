@@ -187,6 +187,72 @@ def test_main_unexpected_error_message_to_stderr(capsys: pytest.CaptureFixture[s
     assert captured.out == ""
 
 
+def test_main_unexpected_error_hints_at_traceback_and_tracker(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without --traceback, the message names the option and the issue tracker."""
+    monkeypatch.delenv("ICEBERG_DEBUG", raising=False)
+
+    with patch("sheridan.iceberg._cli.get_public_api_report", side_effect=RuntimeError("boom")):
+        main(["any/path"])
+
+    err = capsys.readouterr().err
+
+    assert "--traceback" in err
+    assert "ICEBERG_DEBUG=1" in err
+    assert "https://github.com/andrewasheridan/iceberg/issues" in err
+    assert "Traceback (most recent call last)" not in err
+
+
+def test_main_traceback_option_prints_full_traceback(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--traceback prints the full traceback of an unexpected error."""
+    monkeypatch.delenv("ICEBERG_DEBUG", raising=False)
+
+    with patch("sheridan.iceberg._cli.get_public_api_report", side_effect=RuntimeError("boom")):
+        exit_code = main(["any/path", "--traceback"])
+
+    err = capsys.readouterr().err
+
+    assert exit_code == 2
+    assert "Traceback (most recent call last)" in err
+    assert "RuntimeError: boom" in err
+    assert "https://github.com/andrewasheridan/iceberg/issues" in err
+
+
+@pytest.mark.parametrize(("value", "shows_traceback"), [("1", True), ("0", False), ("", False)])
+def test_main_iceberg_debug_env_prints_full_traceback(
+    value: str,
+    shows_traceback: bool,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ICEBERG_DEBUG=1 works like --traceback; other values do not."""
+    monkeypatch.setenv("ICEBERG_DEBUG", value)
+
+    with patch("sheridan.iceberg._cli.get_public_api_report", side_effect=RuntimeError("boom")):
+        exit_code = main(["any/path"])
+
+    err = capsys.readouterr().err
+
+    assert exit_code == 2
+    assert ("Traceback (most recent call last)" in err) is shows_traceback
+
+
+def test_main_traceback_option_does_not_affect_iceberg_errors(capsys: pytest.CaptureFixture[str]) -> None:
+    """Known iceberg errors keep their one-line message under --traceback."""
+    with patch("sheridan.iceberg._cli.get_public_api_report", side_effect=IcebergError("bad")):
+        exit_code = main(["any/path", "--traceback"])
+
+    err = capsys.readouterr().err
+
+    assert exit_code == 1
+    assert err == "error: bad\n"
+
+
 def test_main_unexpected_error_nothing_to_stdout(capsys: pytest.CaptureFixture[str]) -> None:
     """On an unexpected exception, nothing is written to stdout."""
     with patch(
