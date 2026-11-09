@@ -4,6 +4,7 @@ import ast
 import importlib
 import sys
 import types
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -476,6 +477,23 @@ def test_get_assignment_path_missing_name_raises_type_error(tmp_path: Path) -> N
 
     with pytest.raises(TypeError):
         get_assignment(file)  # type: ignore[call-overload]
+
+
+@pytest.mark.parametrize("getter", [get_function, get_class, get_assignment])
+def test_path_missing_name_raises_type_error_for_missing_file(tmp_path: Path, getter: Callable[..., object]) -> None:
+    file: Path = tmp_path / "does_not_exist.py"
+
+    with pytest.raises(TypeError):
+        getter(file)
+
+
+@pytest.mark.parametrize("getter", [get_function, get_class, get_assignment])
+def test_path_missing_name_raises_type_error_for_invalid_file(tmp_path: Path, getter: Callable[..., object]) -> None:
+    file: Path = tmp_path / "broken.py"
+    file.write_text("def broken(:\n", encoding="utf-8")
+
+    with pytest.raises(TypeError):
+        getter(file)
 
 
 def test_get_assignment_path_name_not_found_raises_not_found_error(tmp_path: Path) -> None:

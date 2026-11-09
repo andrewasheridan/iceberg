@@ -245,8 +245,9 @@ def get_function(
             raise ParseError("The source has no function definition")
 
         case Path():
+            target = _required_name(name)
             tree = _parse(source_or_node_or_path_or_func)
-            func_node = _find_definition(tree, _required_name(name), (ast.FunctionDef, ast.AsyncFunctionDef))
+            func_node = _find_definition(tree, target, (ast.FunctionDef, ast.AsyncFunctionDef))
             if isinstance(func_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 return build_function(func_node)
 
@@ -319,8 +320,9 @@ def get_class(
             raise ParseError("The source has no class definition")
 
         case Path():
+            target = _required_name(name)
             tree = _parse(source_or_node_or_path_or_cls)
-            class_node = _find_definition(tree, _required_name(name), ast.ClassDef)
+            class_node = _find_definition(tree, target, ast.ClassDef)
             if isinstance(class_node, ast.ClassDef):
                 return build_class(class_node)
 
@@ -404,7 +406,8 @@ def get_assignment(
             raise ParseError("The source has no assignment")
 
         case Path():
-            found = _find_assignment(_parse(source_or_node_or_path), _required_name(name))
+            target = _required_name(name)
+            found = _find_assignment(_parse(source_or_node_or_path), target)
             if found is not None:
                 return found
 
