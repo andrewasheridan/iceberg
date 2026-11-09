@@ -137,6 +137,77 @@ def test_path_function_not_found_raises_invalid_path_error(tmp_path: Path) -> No
         get_function(file, name="nonexistent_func")
 
 
+_SHADOWED_SRC = """\
+class Runner:
+    def run(self, method_arg): ...
+
+    class Inner:
+        def run(self, inner_arg): ...
+
+if True:
+    def run(top_arg): ...
+"""
+
+
+def test_path_top_level_function_preferred_over_method(tmp_path: Path) -> None:
+    file: Path = tmp_path / "sample.py"
+    file.write_text("class Runner:\n    def run(self, method_arg): ...\n\ndef run(top_arg): ...\n", encoding="utf-8")
+    result: Function = get_function(file, name="run")
+    assert result.positional_parameters[0].name == "top_arg"
+
+
+def test_path_top_level_function_in_if_block_preferred_over_method(tmp_path: Path) -> None:
+    file: Path = tmp_path / "sample.py"
+    file.write_text(_SHADOWED_SRC, encoding="utf-8")
+    result: Function = get_function(file, name="run")
+    assert result.positional_parameters[0].name == "top_arg"
+
+
+def test_path_dotted_name_selects_method(tmp_path: Path) -> None:
+    file: Path = tmp_path / "sample.py"
+    file.write_text(_SHADOWED_SRC, encoding="utf-8")
+    result: Function = get_function(file, name="Runner.run")
+    assert [p.name for p in result.positional_parameters] == ["self", "method_arg"]
+
+
+def test_path_dotted_name_selects_nested_class_method(tmp_path: Path) -> None:
+    file: Path = tmp_path / "sample.py"
+    file.write_text(_SHADOWED_SRC, encoding="utf-8")
+    result: Function = get_function(file, name="Runner.Inner.run")
+    assert [p.name for p in result.positional_parameters] == ["self", "inner_arg"]
+
+
+def test_path_dotted_name_not_found_raises_invalid_path_error(tmp_path: Path) -> None:
+    file: Path = tmp_path / "sample.py"
+    file.write_text(_SHADOWED_SRC, encoding="utf-8")
+    with pytest.raises(InvalidPathError):
+        get_function(file, name="Runner.missing")
+    with pytest.raises(InvalidPathError):
+        get_function(file, name="Missing.run")
+
+
+@pytest.mark.parametrize(
+    "src",
+    [
+        "class C:\n    def run(self, method_arg): ...\ntry:\n    pass\nexcept OSError:\n    def run(top_arg): ...\n",
+        "class C:\n    def run(self, method_arg): ...\nmatch 1:\n    case _:\n        def run(top_arg): ...\n",
+    ],
+    ids=["except-handler", "match-case"],
+)
+def test_path_module_level_function_in_compound_statement_preferred(tmp_path: Path, src: str) -> None:
+    file: Path = tmp_path / "sample.py"
+    file.write_text(src, encoding="utf-8")
+    result: Function = get_function(file, name="run")
+    assert result.positional_parameters[0].name == "top_arg"
+
+
+def test_path_nested_only_function_still_found(tmp_path: Path) -> None:
+    file: Path = tmp_path / "sample.py"
+    file.write_text("class Runner:\n    def only_method(self): ...\n", encoding="utf-8")
+    result: Function = get_function(file, name="only_method")
+    assert result.name == "only_method"
+
+
 def test_path_missing_name_raises_type_error(tmp_path: Path) -> None:
     src = "def the_func(): pass\n"
     file: Path = tmp_path / "sample.py"
@@ -240,6 +311,40 @@ def test_get_class_path_not_found_raises_invalid_path_error(tmp_path: Path) -> N
     file.write_text(src, encoding="utf-8")
     with pytest.raises(InvalidPathError):
         get_class(file, name="NonExistent")
+
+
+_NESTED_CLASS_SRC = """\
+class Outer:
+    class Config:
+        nested: int
+
+try:
+    class Config:
+        top: int
+except ImportError:
+    pass
+"""
+
+
+def test_get_class_path_top_level_preferred_over_nested(tmp_path: Path) -> None:
+    file: Path = tmp_path / "sample.py"
+    file.write_text(_NESTED_CLASS_SRC, encoding="utf-8")
+    result: Class = get_class(file, name="Config")
+    assert [a.name for a in result.assignments] == ["top"]
+
+
+def test_get_class_path_dotted_name_selects_nested_class(tmp_path: Path) -> None:
+    file: Path = tmp_path / "sample.py"
+    file.write_text(_NESTED_CLASS_SRC, encoding="utf-8")
+    result: Class = get_class(file, name="Outer.Config")
+    assert [a.name for a in result.assignments] == ["nested"]
+
+
+def test_get_class_path_dotted_name_not_found_raises_invalid_path_error(tmp_path: Path) -> None:
+    file: Path = tmp_path / "sample.py"
+    file.write_text(_NESTED_CLASS_SRC, encoding="utf-8")
+    with pytest.raises(InvalidPathError):
+        get_class(file, name="Outer.Missing")
 
 
 def test_get_class_path_missing_name_raises_type_error(tmp_path: Path) -> None:
