@@ -86,6 +86,9 @@ iceberg decodes source files in the same way as Python. The encoding is UTF-8,
 unless a PEP 263 encoding declaration such as `# -*- coding: latin-1 -*-` gives
 a different encoding.
 
+iceberg writes the report to stdout as UTF-8. The encoding of the console or the
+pipe has no effect. Thus, the tree connectors do not cause an error on Windows.
+
 `-o/--output PATH` writes the report to PATH as UTF-8 with a final newline. The
 encoding of the console has no effect. iceberg writes to a temporary file first.
 When the report is complete, iceberg moves the file into PATH. Thus, an error

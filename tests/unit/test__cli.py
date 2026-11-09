@@ -1,8 +1,10 @@
 """Test sheridan.iceberg._cli."""
 
+import io
 import json
 import os
 import stat
+import sys
 from importlib.metadata import version
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -827,3 +829,20 @@ class TestOutput:
         assert main([str(package), "--no-config", "--keep-going", "-o", str(target)]) == 1
         assert "def greet() -> str" in target.read_text(encoding="utf-8")
         assert "error:" in capsys.readouterr().err
+
+
+class TestStdoutEncoding:
+    """The report goes to stdout as UTF-8, whatever the encoding of the console or pipe."""
+
+    def test_tree_writes_utf8_to_a_stdout_that_cannot_encode_it(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        stdout = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")
+        monkeypatch.setattr(sys, "stdout", stdout)
+
+        with (
+            patch("sheridan.iceberg._cli.get_public_api_report", return_value=Report(api=MagicMock())),
+            patch("sheridan.iceberg._cli.format_tree", return_value="package café\n└── módulo"),
+        ):
+            assert main(["some/path"]) == 0
+
+        stdout.flush()
+        assert stdout.buffer.getvalue() == "package café\n└── módulo\n".encode()
