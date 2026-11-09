@@ -6,8 +6,19 @@
 git clone https://github.com/sheridan/sheridan-iceberg
 cd sheridan-iceberg
 task install
-pre-commit install
+uv run prek install
 ```
+
+`uv run prek install` sets up the Git hooks from `.pre-commit-config.yaml`:
+
+- **pre-commit**: file hygiene checks, `detect-private-key`, a block on committing to
+  `main`, ruff (check and format), pyrefly on `src/` and `no-banner-comments`.
+- **commit-msg**: `cz check`, so commit messages follow Conventional Commits.
+- **pre-push**: the test suite (`pytest`).
+
+ruff, pyrefly, commitizen and pytest run through `uv run --frozen`, so the hooks use the
+versions pinned in `uv.lock`. Run every pre-commit hook by hand with
+`uv run prek run --all-files`.
 
 ### CI pipeline (Dagger)
 
@@ -91,7 +102,7 @@ a non-obvious consequence. Don't use banner or section-divider comments (a line 
 only of `#` and ten or more `-` or `=`, usually around a section title). To group code,
 use a test class, a separate module or a docstring.
 `tests/unit/test_comment_style.py` enforces this across the repo, and the
-`no-banner-comments` pre-commit hook catches it before you commit.
+`no-banner-comments` prek hook catches it before you commit.
 
 ## Running checks
 

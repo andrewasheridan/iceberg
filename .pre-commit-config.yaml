@@ -1,30 +1,62 @@
-default_language_version:
-  python: python3.14
+# Managed by prek (`uv run prek install`). The ruff, pyrefly, commitizen and pytest
+# hooks run through `uv run --frozen`, so they use the versions pinned in uv.lock.
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
+default_stages: [pre-commit]
 
 repos:
 
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
+  - repo: builtin
     hooks:
-
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-json
+      - id: check-toml
       - id: check-merge-conflict
+      - id: detect-private-key
+      - id: no-commit-to-branch
+        args: [--branch, main]
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.7
-    hooks:
-      - id: ruff-check
-        args: [ --fix ]
-      - id: ruff-format
-
-  # Same pattern as tests/unit/test_comment_style.py; keep them in sync.
   - repo: local
     hooks:
+      - id: ruff-check
+        name: ruff check
+        language: system
+        entry: uv run --frozen ruff check --fix --force-exclude
+        types_or: [python, pyi]
+        require_serial: true
+
+      - id: ruff-format
+        name: ruff format
+        language: system
+        entry: uv run --frozen ruff format --force-exclude
+        types_or: [python, pyi]
+        require_serial: true
+
+      - id: pyrefly
+        name: pyrefly
+        language: system
+        entry: uv run --frozen pyrefly check src/
+        pass_filenames: false
+        files: ^src/.*\.pyi?$
+
+      # Same pattern as tests/unit/test_comment_style.py; keep them in sync.
       - id: no-banner-comments
         name: no banner comments
         language: pygrep
         entry: '^\s*#\s*[-=]{10,}\s*$'
         types_or: [python, pyi, toml, yaml, shell]
+
+      - id: commitizen
+        name: conventional commit message
+        language: system
+        entry: uv run --frozen cz check --allow-abort --commit-msg-file
+        stages: [commit-msg]
+
+      - id: pytest
+        name: pytest
+        language: system
+        entry: uv run --frozen pytest -q
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
