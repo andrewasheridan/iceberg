@@ -43,6 +43,26 @@ CONTAINER_RUNTIME=docker task ci
 5. Commit using conventional commits: `feat:`, `fix:`, `chore:`, etc.
 6. Open a PR
 
+## Issue loop and triage
+
+`scripts/issue-loop.sh` works the issue backlog with headless Claude Code sessions:
+`/next-issue` turns one issue into an auto-merging PR. Run
+`scripts/issue-loop.sh --help` for the options.
+
+The loop also runs **sweeps** (`/sweep`): a session that reviews the code and files
+new issues, but changes no code. A sweep runs after every `SWEEP_EVERY` merged issues
+(default 5) and once when the backlog is empty. `--sweep` runs only a sweep;
+`--no-sweep` turns sweeps off. One sweep files at most `SWEEP_MAX_ISSUES` issues
+(default 3).
+
+Every issue a sweep files has the `needs triage` label and the line "Found by an
+automated sweep." The loop never works on an issue with `needs triage`. To let the
+loop take one:
+
+1. Read it, and close it as "not planned" if it is wrong or not worth doing.
+2. Check its `type:` and `priority:` labels.
+3. Remove `needs triage`.
+
 ## Commit format
 
 This repo uses [Commitizen](https://commitizen-tools.github.io/commitizen/) to
