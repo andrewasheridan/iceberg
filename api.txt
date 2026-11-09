@@ -1,0 +1,83 @@
+package sheridan.iceberg
+├── class Assignment
+│   ├── name: str
+│   ├── annotation: str | None
+│   └── property is_public: bool
+├── class Class
+│   ├── name: str
+│   ├── assignments: tuple[Assignment, ...]
+│   ├── methods: tuple[Function, ...]
+│   ├── nested_classes: tuple[Class, ...]
+│   └── property is_public: bool
+├── class Config
+│   ├── test_module_pattern: re.Pattern[str]
+│   ├── max_workers: int
+│   └── exclude: tuple[str, ...]
+├── class ConfigError
+├── class Function
+│   ├── name: str
+│   ├── positional_parameters: tuple[Parameter, ...]
+│   ├── keyword_parameters: frozenset[Parameter]
+│   ├── var_positional: Parameter | None
+│   ├── var_keyword: Parameter | None
+│   ├── returns: str | None
+│   ├── is_async: bool
+│   ├── kind: FunctionKind
+│   ├── decorators: tuple[str, ...]
+│   ├── overloads: tuple[Function, ...]
+│   └── property is_public: bool
+├── class IcebergError
+├── class InvalidPathError
+├── class Module
+│   ├── name: str
+│   ├── assignments: tuple[Assignment, ...]
+│   ├── classes: tuple[Class, ...]
+│   ├── functions: tuple[Function, ...]
+│   ├── references: tuple[Reference, ...]
+│   └── property is_public: bool
+├── class Package
+│   ├── name: str
+│   ├── path: Path
+│   ├── modules: tuple[Module, ...]
+│   ├── subpackages: tuple[Package, ...]
+│   ├── property assignments: tuple[Assignment, ...]
+│   ├── property classes: tuple[Class, ...]
+│   ├── property functions: tuple[Function, ...]
+│   ├── property references: tuple[Reference, ...]
+│   └── property is_public: bool
+├── class Parameter
+│   ├── name: str
+│   ├── annotation: str | None
+│   ├── default: str | None
+│   └── property is_public: bool
+├── class ParseError
+│   ├── def __init__(self, message: str, *, lineno: int | None = None, offset: int | None = None, path: str | None = None) -> None
+│   └── classmethod def from_syntax_error(cls, exc: SyntaxError) -> ParseError
+├── class Reference
+│   ├── name: str
+│   ├── module: str | None
+│   ├── attribute: str | None
+│   └── property is_public: bool
+├── class SnapshotError
+├── class SourceReadError
+│   └── def __init__(self, message: str, *, path: str) -> None
+├── def get_public_api(path: Path, *, config: Config | None = None) -> Package | Module
+├── def load_json(text: str, *, root: Path | None = None) -> Package | Module
+└── module sheridan.iceberg.utilities
+    ├── def get_function(source: str) -> Function
+    ├── def get_function(node: ast.FunctionDef | ast.AsyncFunctionDef) -> Function
+    ├── def get_function(path: Path, *, name: str) -> Function
+    ├── def get_function(func: Callable[..., Any]) -> Function
+    ├── def get_class(source: str) -> Class
+    ├── def get_class(node: ast.ClassDef) -> Class
+    ├── def get_class(path: Path, *, name: str) -> Class
+    ├── def get_class(cls: type) -> Class
+    ├── def get_assignment(source: str, *, name: str | None = ...) -> Assignment
+    ├── def get_assignment(node: ast.Assign | ast.AnnAssign | ast.TypeAlias) -> Assignment
+    ├── def get_assignment(path: Path, *, name: str) -> Assignment
+    ├── def get_module(source: str, *, name: str | None = ...) -> Module
+    ├── def get_module(path: Path, *, name: str | None = ...) -> Module
+    ├── def get_module(mod: types.ModuleType) -> Module
+    ├── def get_package(path: Path) -> Package
+    ├── def get_package(path: str) -> Package
+    └── def get_package(mod: types.ModuleType) -> Package

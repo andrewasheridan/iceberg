@@ -69,14 +69,29 @@ tasks:
     cmds:
       - uv run iceberg src/ {{.CLI_ARGS}}
 
+  api:update:
+    desc: Write the public API snapshot (api.txt) from src/sheridan/
+    cmds:
+      - uv run iceberg src/sheridan/ > api.txt
+
+  api:check:
+    desc: Fail if the public API differs from the committed snapshot (api.txt)
+    cmds:
+      - |
+        uv run iceberg src/sheridan/ | diff -u --label api.txt --label "iceberg src/sheridan/" api.txt - || {
+          echo "The public API changed. If that is intended, run: task api:update" >&2
+          exit 1
+        }
+
   check:
-    desc: Run all gates (lock:check, lint:check, format:check, typecheck, test)
+    desc: Run all gates (lock:check, lint:check, format:check, typecheck, test, api:check)
     cmds:
       - task: lock:check
       - task: lint:check
       - task: format:check
       - task: typecheck
       - task: test
+      - task: api:check
 
   ci-init:
     desc: Initialise the Dagger module (run once; generates ci/sdk/ and pins engineVersion)

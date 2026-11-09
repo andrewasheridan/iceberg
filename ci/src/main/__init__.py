@@ -13,12 +13,16 @@ __all__ = [
 ]
 
 import asyncio
-from typing import Annotated
+import difflib
+from collections.abc import Coroutine
+from typing import Annotated, Any
 
 import dagger
 from dagger import DefaultPath, dag, function, object_type
 
 _PYTHON_IMAGE = "python:3.14-slim"
+_API_SNAPSHOT = "api.txt"
+_API_PATH = "src/sheridan/"
 
 
 def _uv(source: dagger.Directory) -> dagger.Container:
@@ -34,6 +38,31 @@ def _uv(source: dagger.Directory) -> dagger.Container:
 
 def _base(source: dagger.Directory) -> dagger.Container:
     return _uv(source).with_exec(["uv", "sync", "--locked"])
+
+
+async def _api_check(source: dagger.Directory) -> str:
+    """Compare iceberg's output for the package with the committed snapshot.
+
+    Raises:
+        RuntimeError: The output differs from the snapshot, with the diff and the
+            command that updates the snapshot.
+    """
+    current = await _base(source).with_exec(["uv", "run", "iceberg", _API_PATH]).stdout()
+    expected = await source.file(_API_SNAPSHOT).contents()
+    if current == expected:
+        return current
+    diff = "".join(
+        difflib.unified_diff(
+            expected.splitlines(keepends=True),
+            current.splitlines(keepends=True),
+            fromfile=_API_SNAPSHOT,
+            tofile=f"iceberg {_API_PATH}",
+        )
+    )
+    raise RuntimeError(
+        f"The public API differs from {_API_SNAPSHOT}. If that is intended, run "
+        f"`task api:update` and commit {_API_SNAPSHOT}.\n\n{diff}"
+    )
 
 
 @object_type
@@ -101,8 +130,8 @@ class SheridanIcebergCi:
         self,
         source: Annotated[dagger.Directory, DefaultPath(".")],
     ) -> str:
-        """Run iceberg on itself (dogfooding)."""
-        return await _base(source).with_exec(["uv", "run", "iceberg", "src/"]).stdout()
+        """Fail if iceberg's report of its own public API differs from api.txt."""
+        return await _api_check(source)
 
     @function
     async def check(
@@ -114,7 +143,7 @@ class SheridanIcebergCi:
         Returns a pass/fail summary. Raises on any failure, showing all results.
         """
         base = _base(source)
-        gates: list[tuple[str, dagger.Container]] = [
+        containers: list[tuple[str, dagger.Container]] = [
             ("lock", _uv(source).with_exec(["uv", "lock", "--check"])),
             ("lint", base.with_exec(["uv", "run", "ruff", "check", "."])),
             ("format-check", base.with_exec(["uv", "run", "ruff", "format", "--check", "."])),
@@ -122,12 +151,15 @@ class SheridanIcebergCi:
             ("test", base.with_exec(["uv", "run", "pytest", "--cov"])),
             ("security", base.with_exec(["uv", "run", "bandit", "-r", "src/"])),
             ("docs", base.with_exec(["uv", "run", "zensical", "build"])),
-            ("iceberg", base.with_exec(["uv", "run", "iceberg", "src/sheridan/"])),
+        ]
+        gates: list[tuple[str, Coroutine[Any, Any, str]]] = [
+            *((name, container.stdout()) for name, container in containers),
+            ("iceberg", _api_check(source)),
         ]
 
         results: list[str | BaseException] = list(
             await asyncio.gather(
-                *[container.stdout() for _, container in gates],
+                *[gate for _, gate in gates],
                 return_exceptions=True,
             )
         )
