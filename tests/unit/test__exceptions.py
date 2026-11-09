@@ -87,7 +87,9 @@ def test_parse_error_str_omits_missing_parts() -> None:
 def test_parse_error_from_syntax_error_uses_filename_from_exception() -> None:
     with pytest.raises(SyntaxError) as info:
         compile("def f(:\n", "src/pkg/mod.py", "exec")
+
     err = ParseError.from_syntax_error(info.value)
+
     assert err.path == "src/pkg/mod.py"
     assert err.lineno == 1
     assert err.offset == info.value.offset
@@ -98,4 +100,5 @@ def test_parse_error_from_syntax_error_uses_filename_from_exception() -> None:
 def test_parse_error_from_syntax_error_ignores_unknown_filename() -> None:
     with pytest.raises(SyntaxError) as info:
         compile("def f(:\n", "<unknown>", "exec")
+
     assert ParseError.from_syntax_error(info.value).path is None

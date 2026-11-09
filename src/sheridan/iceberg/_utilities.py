@@ -55,6 +55,7 @@ def read_source(path: Path) -> str:
         data = path.read_bytes()
     except OSError as exc:
         raise SourceReadError(f"cannot read file: {exc.strerror or exc}", path=str(path)) from exc
+
     try:
         return importlib.util.decode_source(data)
     except (SyntaxError, UnicodeDecodeError, LookupError) as exc:
@@ -97,6 +98,7 @@ def _is_int_literal(node: ast.expr) -> bool:
     """Check whether *node* is an integer literal such as ``0`` or ``-1``."""
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub | ast.UAdd):
         node = node.operand
+
     return isinstance(node, ast.Constant) and type(node.value) is int
 
 
@@ -150,19 +152,27 @@ def extract_all(
         nonlocal imports
         if imports is None:
             imports = collect_imports(tree, package)
+
         return imports.get(name)
+
+    def is_imported_all(name: str) -> bool:
+        source = imported(name)
+        return source is not None and source[1] == "__all__"
 
     def other_all(node: ast.expr, name: str) -> list[str]:
         source = imported(name)
         if source is None:
             raise _NotStaticError(node, f"{name!r} is not an imported module")
+
         module, attribute = source
         # ``import pkg.sub as sub`` and ``from .sub import __all__`` name the
         # module itself; ``from . import sub`` names a submodule of ``pkg``.
         target = module if attribute in {None, "__all__"} else f"{module}.{attribute}"
+
         found = lookup(target) if lookup is not None else None
         if found is None:
             raise _NotStaticError(node, f"the __all__ of {target!r} is not known")
+
         return sorted(found)
 
     def evaluate(node: ast.expr, current: list[str] | None) -> list[str]:
@@ -175,17 +185,24 @@ def extract_all(
                             names.append(s)
                         case _:
                             raise _NotStaticError(elt, "an element is not a string literal")
+
                 return names
+
             case ast.BinOp(left=left, op=ast.Add(), right=right):
                 return evaluate(left, current) + evaluate(right, current)
+
             case ast.Name(id="__all__"):
                 if current is None:
                     raise _NotStaticError(node, "__all__ is used before it is assigned")
+
                 return list(current)
+
             case ast.Attribute(value=ast.Name(id=name), attr="__all__"):
                 return other_all(node, name)
-            case ast.Name(id=name) if (imported(name) or ("", None))[1] == "__all__":
+
+            case ast.Name(id=name) if is_imported_all(name):
                 return other_all(node, name)
+
             case _:
                 raise _NotStaticError(node, "the value is not a literal list or tuple")
 
@@ -196,6 +213,7 @@ def extract_all(
             ):
                 if not any(isinstance(target, ast.Name) and target.id == "__all__" for target in targets):
                     raise _NotStaticError(node, "__all__ is bound by unpacking")
+
                 return evaluate(value, current)
 
             case ast.AnnAssign(target=ast.Name(id="__all__"), value=value) if value is not None:
@@ -204,31 +222,41 @@ def extract_all(
             case ast.AugAssign(target=ast.Name(id="__all__"), op=op, value=value):
                 if current is None:
                     raise _NotStaticError(node, "__all__ is changed before it is assigned")
+
                 if not isinstance(op, ast.Add):
                     raise _NotStaticError(node, "only += is supported")
+
                 return current + evaluate(value, current)
 
             case ast.Expr(value=ast.Call(func=ast.Attribute(value=ast.Name(id="__all__"), attr=method)) as call):
                 if current is None:
                     raise _NotStaticError(node, "__all__ is changed before it is assigned")
+
                 match method, call.args, call.keywords:
                     case "extend", [arg], []:
                         return current + evaluate(arg, current)
+
                     case "append", [ast.Constant(value=str(s))], []:
                         return [*current, s]
+
                     case "insert", [index, ast.Constant(value=str(s))], [] if _is_int_literal(index):
                         # Only membership matters, so the position is ignored.
                         return [*current, s]
+
                     case "remove", [ast.Constant(value=str(s))], []:
                         if s not in current:
                             raise _NotStaticError(node, f"__all__.remove({s!r}) removes a missing name")
+
                         current = list(current)
                         current.remove(s)
                         return current
+
                     case "sort", [], keywords if all(kw.arg in {"key", "reverse"} for kw in keywords):
                         return current  # reordering keeps the membership
+
                     case "reverse", [], []:
                         return current
+
                     case _:
                         raise _NotStaticError(node, f"__all__.{method}(...) is not supported")
 
@@ -239,7 +267,14 @@ def extract_all(
         # Which branch runs is unknown statically, so a name that any branch
         # exports is kept, the same way definitions in every branch count.
         assigned = [branch for branch in branches if branch is not None]
-        return list(dict.fromkeys(name for branch in assigned for name in branch)) if assigned else None
+        if not assigned:
+            return None
+
+        names: dict[str, None] = {}
+        for branch in assigned:
+            names.update(dict.fromkeys(branch))
+
+        return list(names)
 
     def run(body: list[ast.stmt], current: list[str] | None) -> list[str] | None:
         for node in body:
@@ -260,13 +295,14 @@ def extract_all(
 
                 case _:
                     current = change(node, current)
+
         return current
 
     try:
         result = run(tree.body, None)
     except _NotStaticError as exc:
-        location = ":".join(str(part) for part in (path, exc.lineno) if part is not None)
-        prefix = f"{location}: " if location else ""
+        parts = [str(part) for part in (path, exc.lineno) if part is not None]
+        prefix = f"{':'.join(parts)}: " if parts else ""
         warnings.warn(
             f"{prefix}cannot evaluate __all__ statically ({exc.reason}); "
             "falling back to names without a leading underscore",
@@ -337,6 +373,7 @@ def infer_all(tree: ast.Module) -> frozenset[str]:
         - Attribute and subscript assignment targets are not included.
     """
     names: set[str] = set()
+
     for node in module_level_statements(tree.body):
         match node:
             case ast.FunctionDef(name=name) | ast.AsyncFunctionDef(name=name):
@@ -349,7 +386,9 @@ def infer_all(tree: ast.Module) -> frozenset[str]:
 
             case ast.Assign(targets=targets):
                 for target in targets:
-                    names.update(name for name in bound_names(target) if not name.startswith("_"))
+                    for name in bound_names(target):
+                        if not name.startswith("_"):
+                            names.add(name)
 
             case ast.AnnAssign(target=ast.Name(id=name)):
                 if not name.startswith("_"):
@@ -402,6 +441,7 @@ def module_level_statements(body: list[ast.stmt]) -> Iterator[ast.stmt]:
     """
     for node in body:
         yield node
+
         match node:
             case ast.If(body=if_body, orelse=orelse):
                 yield from module_level_statements(if_body)
@@ -412,8 +452,10 @@ def module_level_statements(body: list[ast.stmt]) -> Iterator[ast.stmt]:
                 | ast.TryStar(body=try_body, handlers=handlers, orelse=orelse, finalbody=finalbody)
             ):
                 yield from module_level_statements(try_body)
+
                 for handler in handlers:
                     yield from module_level_statements(handler.body)
+
                 yield from module_level_statements(orelse)
                 yield from module_level_statements(finalbody)
 
@@ -451,14 +493,17 @@ def collect_imports(
 
     for node in module_level_statements(tree.body):
         match node:
-            case ast.ImportFrom(module=module, names=aliases, level=level):
-                source = resolve_relative(package, module, level) if level else (module or "")
-                for alias in aliases:
+            case ast.ImportFrom() as import_from:
+                source = _import_from_source(import_from, package)
+
+                for alias in import_from.names:
                     if alias.name == "*":
                         exported = star_exports(source) if star_exports else None
                         for name in sorted(exported or ()):
                             result.setdefault(name, (source, name))
+
                         continue
+
                     result.setdefault(alias.asname or alias.name, (source, alias.name))
 
             case ast.Import(names=aliases):
@@ -495,9 +540,33 @@ def star_candidate(tree: ast.Module, package: str, star_exports: StarExports) ->
         import *`` whose module is not in the analyzed tree, or ``None``.
     """
     candidate: str | None = None
+
     for node in module_level_statements(tree.body):
-        if isinstance(node, ast.ImportFrom) and any(alias.name == "*" for alias in node.names):
-            source = resolve_relative(package, node.module, node.level) if node.level else (node.module or "")
-            if star_exports(source) is None:
-                candidate = source
+        if not isinstance(node, ast.ImportFrom):
+            continue
+
+        if not any(alias.name == "*" for alias in node.names):
+            continue
+
+        source = _import_from_source(node, package)
+        if star_exports(source) is None:
+            candidate = source
+
     return candidate
+
+
+def _import_from_source(node: ast.ImportFrom, package: str) -> str:
+    """Resolve the absolute module name a ``from ... import`` statement reads.
+
+    Args:
+        node: The ``ImportFrom`` statement.
+        package: Dotted name of the package the importing module lives in.
+
+    Returns:
+        The absolute dotted module name, with relative imports resolved
+        against *package*.
+    """
+    if node.level:
+        return resolve_relative(package, node.module, node.level)
+
+    return node.module or ""

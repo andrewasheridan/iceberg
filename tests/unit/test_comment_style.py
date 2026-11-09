@@ -23,25 +23,38 @@ _SKIP_DIRS = frozenset({"__pycache__", "node_modules", "site", "build", "dist"})
 _ALLOWED_DOT_DIRS = frozenset({".github"})
 
 
+def _is_skipped_dir(name: str) -> bool:
+    """Check whether a directory name is a cache, build output or hidden directory."""
+    if name in _SKIP_DIRS:
+        return True
+
+    return name.startswith(".") and name not in _ALLOWED_DOT_DIRS
+
+
 def _source_files(root: Path) -> Iterator[Path]:
     """Yield files under *root* to scan, skipping virtualenvs, caches and build output."""
     for path in sorted(root.rglob("*")):
         if not path.is_file() or path.suffix not in _SUFFIXES:
             continue
+
         dirs = path.relative_to(root).parts[:-1]
-        if any(d in _SKIP_DIRS or (d.startswith(".") and d not in _ALLOWED_DOT_DIRS) for d in dirs):
+        if any(_is_skipped_dir(d) for d in dirs):
             continue
+
         yield path
 
 
 def _banner_lines(paths: Iterator[Path], root: Path) -> list[str]:
     """Collect ``path:line: text`` for every banner line in *paths*."""
     hits: list[str] = []
+
     for path in paths:
         text = path.read_text(encoding="utf-8", errors="replace")
+
         for lineno, line in enumerate(text.splitlines(), start=1):
             if BANNER.match(line):
                 hits.append(f"{path.relative_to(root)}:{lineno}: {line.strip()}")
+
     return hits
 
 
@@ -92,4 +105,5 @@ def test_scan_reports_banner_and_skips_hidden_dirs(tmp_path: Path) -> None:
 
 def test_repository_has_no_banner_comments() -> None:
     hits = _banner_lines(_source_files(_REPO_ROOT), _REPO_ROOT)
+
     assert not hits, "Banner comments are not allowed (see CLAUDE.md):\n" + "\n".join(hits)

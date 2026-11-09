@@ -55,12 +55,18 @@ def get_public_api_report(path: Path, *, config: Config | None = None, keep_goin
             set and ``path`` is a directory.
     """
     path = Path(path).resolve()
+
     if not path.exists():
         raise InvalidPathError(f"path does not exist: {path}")
+
     if path.is_file() and path.suffix != ".py":
         raise InvalidPathError(f"not a .py file: {path} (expected a .py file or a Python package directory)")
 
     effective_config = config or load_config(path)
     errors: list[Diagnostic] | None = [] if keep_going else None
     api = build_package(path, effective_config, errors=errors)
-    return Report(api=api, diagnostics=(*(errors or ()), *unresolved_name_warnings(api, path)))
+
+    warnings = unresolved_name_warnings(api, path)
+    diagnostics = (*(errors or ()), *warnings)
+
+    return Report(api=api, diagnostics=diagnostics)

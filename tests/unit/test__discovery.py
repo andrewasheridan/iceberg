@@ -36,6 +36,7 @@ def test_single_file_returns_one_module(tmp_path: Path) -> None:
 
     assert len(result) == 1
     module = result[0]
+
     assert module.dotted_name == "mymodule"
     assert module.source_path == py_file
     assert module.is_init is False
@@ -57,6 +58,7 @@ def test_flat_package_produces_correct_modules(tmp_path: Path) -> None:
 
     # __init__.py: is_init=True, package_parts has no ancestors above pkg
     init_mod = by_name["pkg"]
+
     assert init_mod.is_init is True
     assert init_mod.package_parts == ()
     assert init_mod.source_path == pkg / "__init__.py"
@@ -83,18 +85,21 @@ def test_nested_package_three_levels_deep(tmp_path: Path) -> None:
 
     # Top-level __init__.py
     pkg_mod = by_name["pkg"]
+
     assert pkg_mod.is_init is True
     assert pkg_mod.package_parts == ()
     assert pkg_mod.source_path == pkg / "__init__.py"
 
     # Sub-package __init__.py
     sub_mod = by_name["pkg.sub"]
+
     assert sub_mod.is_init is True
     assert sub_mod.package_parts == ("pkg",)
     assert sub_mod.source_path == pkg / "sub" / "__init__.py"
 
     # Leaf module inside sub-package
     leaf_mod = by_name["pkg.sub.leaf"]
+
     assert leaf_mod.is_init is False
     assert leaf_mod.package_parts == ("pkg", "sub")
     assert leaf_mod.source_path == pkg / "sub" / "leaf.py"

@@ -104,6 +104,64 @@ use a test class, a separate module or a docstring.
 `tests/unit/test_comment_style.py` enforces this across the repo, and the
 `no-banner-comments` prek hook catches it before you commit.
 
+## Readability
+
+Code is read far more often than it is written. When two ways work, pick the one that
+is easier to read. Ruff decides the layout of each line, but not where a blank line
+helps or when a comprehension is too clever; that is up to you.
+
+The Zen of Python (`python -c "import this"`) is the guide. These lines matter most:
+
+- Readability counts.
+- Explicit is better than implicit.
+- Simple is better than complex.
+- Flat is better than nested.
+- Sparse is better than dense.
+- If the implementation is hard to explain, it's a bad idea.
+
+Whitespace is your friend. Use blank lines to split a function into its logical steps
+(setup, work, result) and to set off `if`, `for`, `with` and `try` blocks from the code
+around them. Flatten deep nesting with early returns or guard clauses, and replace a
+dense one-liner with a plain loop or a named intermediate value.
+
+Before:
+
+```python
+def load(path: Path) -> dict[str, str]:
+    if not path.exists():
+        return {}
+    text = path.read_text()
+    pairs = {k.strip(): v.strip() for k, _, v in (l.partition("=") for l in text.splitlines() if l and not l.startswith("#"))}
+    for key in pairs:
+        if not key.isidentifier():
+            raise ValueError(key)
+    return pairs
+```
+
+After:
+
+```python
+def load(path: Path) -> dict[str, str]:
+    if not path.exists():
+        return {}
+
+    pairs: dict[str, str] = {}
+    for line in path.read_text().splitlines():
+        if not line or line.startswith("#"):
+            continue
+
+        key, _, value = line.partition("=")
+        pairs[key.strip()] = value.strip()
+
+    for key in pairs:
+        if not key.isidentifier():
+            raise ValueError(key)
+
+    return pairs
+```
+
+This is guidance, not a lint rule; reviewers apply it.
+
 ## Running checks
 
 ```bash

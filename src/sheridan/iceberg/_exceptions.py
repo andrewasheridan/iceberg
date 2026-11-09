@@ -58,8 +58,12 @@ class ParseError(IcebergError):
         self.path = path
         self.lineno = lineno
         self.offset = offset
+
         location = [str(part) for part in (path, lineno, offset) if part is not None]
-        super().__init__(": ".join([":".join(location), message]) if location else message)
+        if location:
+            super().__init__(f"{':'.join(location)}: {message}")
+        else:
+            super().__init__(message)
 
     @classmethod
     def from_syntax_error(cls, exc: SyntaxError) -> ParseError:
@@ -74,6 +78,7 @@ class ParseError(IcebergError):
             A ``ParseError`` carrying the message, path, line and column of *exc*.
         """
         path = exc.filename if exc.filename and exc.filename != "<unknown>" else None
+
         return cls(exc.msg or str(exc), path=path, lineno=exc.lineno, offset=exc.offset)
 
 
@@ -99,6 +104,7 @@ class SourceReadError(IcebergError):
         """
         self.message = message
         self.path = path
+
         super().__init__(f"{path}: {message}")
 
 

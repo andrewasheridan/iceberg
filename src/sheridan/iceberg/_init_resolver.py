@@ -98,16 +98,17 @@ def resolve_init(
 
     # Use visit_module for locally-defined names and the public-name filter.
     # Pass the evaluated __all__ so it is not evaluated (and reported) twice.
-    local_module = visit_module(
-        init_source, dotted_package, path, {**(known_all or {}), dotted_package: explicit_all}, tree=tree
-    )
+    local_all = {**(known_all or {}), dotted_package: explicit_all}
+    local_module = visit_module(init_source, dotted_package, path, local_all, tree=tree)
 
     root_package = dotted_package.split(".")[0]
 
     def star_exports(module_name: str) -> frozenset[str] | None:
         # A visited module holds exactly its public names: its ``__all__``, or
         # the names without a leading underscore when there is none.
-        sibling = sibling_modules.get(_strip_namespace_prefix(module_name, root_package, namespace_parents))
+        sibling_name = _strip_namespace_prefix(module_name, root_package, namespace_parents)
+        sibling = sibling_modules.get(sibling_name)
+
         return None if sibling is None else _exported_names(sibling)
 
     all_imports = collect_imports(tree, dotted_package, star_exports)
@@ -131,15 +132,23 @@ def resolve_init(
         obj = _resolve_name(name, import_map, sibling_modules, local_index)
 
         if obj is None:
-            module_name, attribute = all_imports.get(name, (None, None) if candidate is None else (candidate, name))
+            if name in all_imports:
+                module_name, attribute = all_imports[name]
+            elif candidate is not None:
+                module_name, attribute = candidate, name
+            else:
+                module_name, attribute = None, None
+
             references.append(Reference(name=name, module=module_name, attribute=attribute))
             continue
 
         match obj:
             case Assignment():
                 assignments.append(obj)
+
             case Class():
                 classes.append(obj)
+
             case Function():
                 functions.append(obj)
 
@@ -183,15 +192,18 @@ def resolve_module_references(
     def resolve(name: str) -> Module | None:
         if name in resolved:
             return resolved[name]
+
         module = modules.get(name)
         if module is None or name in in_progress or not module.references:
             # In a cycle, hand back the module as visited and do not memoize it.
             return module
+
         in_progress.add(name)
         try:
             result = _resolve_references(module, namespace_parents, resolve)
         finally:
             in_progress.discard(name)
+
         resolved[name] = result
         return result
 
@@ -258,9 +270,12 @@ def _strip_namespace_prefix(module: str, root_package: str, namespace_parents: t
         prefix matches.
     """
     parts = module.split(".")
-    for depth in range(min(len(namespace_parents), len(parts) - 1), 0, -1):
+    deepest = min(len(namespace_parents), len(parts) - 1)
+
+    for depth in range(deepest, 0, -1):
         if parts[depth] == root_package and tuple(parts[:depth]) == namespace_parents[-depth:]:
             return ".".join(parts[depth:])
+
     return module
 
 
@@ -294,9 +309,7 @@ def _compute_public_names(
         if not name.startswith("_"):
             names.add(name)
 
-    # Include all non-private locally-defined names
-    local_names = infer_all(tree)
-    return local_names | names
+    return infer_all(tree) | names
 
 
 def _index_module(module: Module) -> dict[str, _Symbol]:
@@ -381,15 +394,19 @@ def _resolve_name(
         The resolved ``Function``, ``Class``, or ``Assignment``, or ``None``
         when the name cannot be resolved from any source.
     """
-    if name in import_map:
-        dotted_module, source_name = import_map[name]
-        resolved = _lookup_in_sibling(name, source_name, dotted_module, sibling_modules)
-        if resolved is not None:
-            if resolved.name != name:
-                resolved = dataclasses.replace(resolved, name=name)
-            return resolved
+    if name not in import_map:
+        return local_index.get(name)
 
-    return local_index.get(name)
+    dotted_module, source_name = import_map[name]
+    resolved = _lookup_in_sibling(name, source_name, dotted_module, sibling_modules)
+
+    if resolved is None:
+        return local_index.get(name)
+
+    if resolved.name != name:
+        resolved = dataclasses.replace(resolved, name=name)
+
+    return resolved
 
 
 def _resolve_references(
@@ -410,6 +427,7 @@ def _resolve_references(
         ``assignments``, ``classes``, or ``functions``.
     """
     root_package = module.name.split(".")[0]
+
     assignments = list(module.assignments)
     classes = list(module.classes)
     functions = list(module.functions)
@@ -418,21 +436,25 @@ def _resolve_references(
     for reference in module.references:
         symbol: _Symbol | None = None
         if reference.module is not None and reference.attribute is not None:
-            target = resolve(_strip_namespace_prefix(reference.module, root_package, namespace_parents))
+            target_name = _strip_namespace_prefix(reference.module, root_package, namespace_parents)
+            target = resolve(target_name)
             if target is not None:
                 symbol = _index_module(target).get(reference.attribute)
 
         if symbol is None:
             references.append(reference)
             continue
+
         if symbol.name != reference.name:
             symbol = dataclasses.replace(symbol, name=reference.name)
 
         match symbol:
             case Assignment():
                 assignments.append(symbol)
+
             case Class():
                 classes.append(symbol)
+
             case Function():
                 functions.append(symbol)
 

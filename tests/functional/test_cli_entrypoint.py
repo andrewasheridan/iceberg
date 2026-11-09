@@ -150,4 +150,5 @@ def test_json_output_is_identical_for_copies_in_different_directories(tmp_path: 
     assert first_result.stdout == second_result.stdout
     assert str(tmp_path) not in first_result.stdout
     parsed = json.loads(first_result.stdout)
+
     assert parsed["path"] == "."

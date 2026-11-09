@@ -34,6 +34,7 @@ def _default_config() -> Config:
 def _build_dir(path: Path, config: Config) -> Package:
     """Build a package directory, narrowing the ``Package | Module`` result."""
     result = build_package(path, config)
+
     assert isinstance(result, Package)
     return result
 
@@ -43,6 +44,7 @@ def _all_module_names(pkg: Package) -> set[str]:
     names: set[str] = {m.name for m in pkg.modules}
     for sub in pkg.subpackages:
         names |= _all_module_names(sub)
+
     return names
 
 
@@ -219,6 +221,7 @@ def test_explicit_config_max_workers_respected(tmp_path: Path) -> None:
 
     assert isinstance(result, Package)
     all_names = _all_module_names(result)
+
     assert "pkg.a" in all_names
     assert "pkg.b" in all_names
 
@@ -333,6 +336,7 @@ def test_init_all_extended_with_submodule_all(tmp_path: Path, max_workers: int) 
 
     assert isinstance(result, Package)
     init = _init_module(result, "mypkg")
+
     assert {fn.name for fn in init.functions} == {"run", "stop"}
     assert {a.name for a in init.assignments} == {"VERSION"}
 
@@ -349,6 +353,7 @@ def test_unevaluable_all_warns_and_falls_back(tmp_path: Path) -> None:
     assert len(record) == 1
     assert isinstance(result, Package)
     core = next(mod for mod in result.modules if mod.name == "mypkg.core")
+
     assert {fn.name for fn in core.functions} == {"run", "other"}
 
 
@@ -363,6 +368,7 @@ def test_reexport_chain_through_regular_modules_resolved(tmp_path: Path) -> None
 
     assert isinstance(result, Package)
     (init,) = result.modules
+
     assert [cls.name for cls in init.classes] == ["X"]
     assert init.references == ()
 
@@ -378,6 +384,7 @@ def test_reexport_cycle_through_regular_modules_left_unresolved(tmp_path: Path) 
 
     assert isinstance(result, Package)
     (init,) = result.modules
+
     assert init.classes == ()
     assert [ref.name for ref in init.references] == ["X"]
 
@@ -400,6 +407,7 @@ def test_init_star_import_from_tree_resolved(tmp_path: Path, c_source: str) -> N
 
     assert isinstance(result, Package)
     init = _init_module(result, "pkg")
+
     assert [cls.name for cls in init.classes] == ["X"]
     assert [fn.name for fn in init.functions] == ["f"]
     assert init.references == ()
@@ -428,6 +436,7 @@ def test_regular_module_star_import_from_tree_resolved(tmp_path: Path) -> None:
 
     assert isinstance(result, Package)
     init = _init_module(result, "pkg")
+
     assert [cls.name for cls in init.classes] == ["X"]
     assert init.references == ()
 
@@ -442,6 +451,7 @@ def test_init_star_import_from_outside_tree_is_candidate(tmp_path: Path) -> None
 
     assert isinstance(result, Package)
     init = _init_module(result, "pkg")
+
     assert [fn.name for fn in init.functions] == ["f"]
     assert init.references == (Reference(name="join", module="os.path", attribute="join"),)
 
@@ -470,6 +480,7 @@ def test_each_file_is_parsed_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     expected = {"__init__.py": 1, "_a.py": 1, "sub/__init__.py": 1}
     if max_workers == 1:
         expected |= {"_c.py": 1, "sub/_b.py": 1}
+
     assert parsed == expected
 
 
@@ -489,6 +500,7 @@ class TestKeepGoing:
         assert _all_module_names(result) == {"pkg", "pkg.good"}
         assert len(errors) == 1
         error = errors[0]
+
         assert (error.severity, error.module, error.path, error.lineno) == ("error", "pkg.bad", bad, 2)
         assert str(bad) not in error.message
 

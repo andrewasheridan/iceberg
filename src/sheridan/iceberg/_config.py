@@ -174,6 +174,7 @@ def _ancestors(start: Path) -> list[Path]:
     """
     resolved = start.resolve()
     base = resolved if resolved.is_dir() else resolved.parent
+
     return [base, *base.parents]
 
 
@@ -192,15 +193,19 @@ def _pyproject_section(candidate: Path) -> dict[str, object] | None:
     """
     doc = _parse_toml(_read_text(candidate), candidate)
     tool_section = doc.get("tool", {})
+
     if not isinstance(tool_section, dict):
         raise ConfigError(f"Expected '[tool]' to be a table in {candidate}, got {type(tool_section).__name__!r}.")
+
     if "iceberg" not in tool_section:
         return None
+
     iceberg_section = tool_section["iceberg"]
     if not isinstance(iceberg_section, dict):
         raise ConfigError(
             f"Expected '[tool.iceberg]' to be a table in {candidate}, got {type(iceberg_section).__name__!r}."
         )
+
     return iceberg_section
 
 
@@ -261,7 +266,9 @@ def load_config_file(path: Path) -> Config:
     """
     if not path.is_file():
         raise ConfigError(f"Configuration file not found: {path}")
+
     if path.name == "pyproject.toml":
         section = _pyproject_section(path)
         return Config() if section is None else _build_config(section)
+
     return _build_config(_parse_toml(_read_text(path), path))

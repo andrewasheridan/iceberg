@@ -14,24 +14,29 @@ _DocstringOwner = ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctio
 
 
 def _python_files() -> list[Path]:
-    return sorted(
-        path
-        for directory in SCANNED_DIRS
-        for path in (REPO_ROOT / directory).rglob("*.py")
-        if "__pycache__" not in path.parts
-    )
+    files: list[Path] = []
+
+    for directory in SCANNED_DIRS:
+        for path in (REPO_ROOT / directory).rglob("*.py"):
+            if "__pycache__" not in path.parts:
+                files.append(path)
+
+    return sorted(files)
 
 
 def _return_docstrings(path: Path) -> list[str]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     offenders = []
+
     for node in ast.walk(tree):
         if not isinstance(node, _DocstringOwner):
             continue
+
         docstring = ast.get_docstring(node)
         if docstring and RETURN_VERB.match(docstring):
             line = getattr(node, "lineno", 1)
             offenders.append(f"{path.relative_to(REPO_ROOT)}:{line}")
+
     return offenders
 
 
@@ -47,7 +52,10 @@ def test_return_verb_pattern_ignores(text: str) -> None:
 
 def test_no_docstring_starts_with_return() -> None:
     """Use a specific verb (build, find, list, ...) instead of "Return"."""
-    offenders = [hit for path in _python_files() for hit in _return_docstrings(path)]
+    offenders: list[str] = []
+    for path in _python_files():
+        offenders.extend(_return_docstrings(path))
+
     assert offenders == [], (
         "Docstrings must not start with 'Return' or 'Returns'; use a specific "
         "imperative verb instead (see CONTRIBUTING.md):\n" + "\n".join(offenders)

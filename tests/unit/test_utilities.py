@@ -20,8 +20,10 @@ def test_str_simple_function_name() -> None:
 
 def test_str_simple_function_positional_param() -> None:
     result: Function = get_function("def foo(x: int) -> str:\n    ...")
+
     assert len(result.positional_parameters) == 1
     param: Parameter = result.positional_parameters[0]
+
     assert param.name == "x"
     assert param.annotation == "int"
 
@@ -59,16 +61,20 @@ def test_str_no_function_raises_parse_error() -> None:
 def test_ast_functiondef_name() -> None:
     tree = ast.parse("def baz(a, b): pass")
     node = tree.body[0]
+
     assert isinstance(node, ast.FunctionDef)
     result: Function = get_function(node)
+
     assert result.name == "baz"
 
 
 def test_ast_functiondef_two_positional_params() -> None:
     tree = ast.parse("def baz(a, b): pass")
     node = tree.body[0]
+
     assert isinstance(node, ast.FunctionDef)
     result: Function = get_function(node)
+
     assert len(result.positional_parameters) == 2
     assert result.positional_parameters[0].name == "a"
     assert result.positional_parameters[1].name == "b"
@@ -77,24 +83,30 @@ def test_ast_functiondef_two_positional_params() -> None:
 def test_ast_asyncfunctiondef_name() -> None:
     tree = ast.parse("async def qux(a, b): pass")
     node = tree.body[0]
+
     assert isinstance(node, ast.AsyncFunctionDef)
     result: Function = get_function(node)
+
     assert result.name == "qux"
 
 
 def test_ast_asyncfunctiondef_is_async() -> None:
     tree = ast.parse("async def qux(a, b): pass")
     node = tree.body[0]
+
     assert isinstance(node, ast.AsyncFunctionDef)
     result: Function = get_function(node)
+
     assert result.is_async is True
 
 
 def test_ast_asyncfunctiondef_two_positional_params() -> None:
     tree = ast.parse("async def qux(a, b): pass")
     node = tree.body[0]
+
     assert isinstance(node, ast.AsyncFunctionDef)
     result: Function = get_function(node)
+
     assert len(result.positional_parameters) == 2
 
 
@@ -103,6 +115,7 @@ def test_path_function_found(tmp_path: Path) -> None:
     file: Path = tmp_path / "sample.py"
     file.write_text(src, encoding="utf-8")
     result: Function = get_function(file, name="the_func")
+
     assert result.name == "the_func"
 
 
@@ -111,6 +124,7 @@ def test_path_function_found_correct_param(tmp_path: Path) -> None:
     file: Path = tmp_path / "sample.py"
     file.write_text(src, encoding="utf-8")
     result: Function = get_function(file, name="the_func")
+
     assert len(result.positional_parameters) == 1
     assert result.positional_parameters[0].name == "x"
 
@@ -119,6 +133,7 @@ def test_path_function_not_found_raises_invalid_path_error(tmp_path: Path) -> No
     src = "def the_func(x: int) -> bool:\n    return True\n"
     file: Path = tmp_path / "sample.py"
     file.write_text(src, encoding="utf-8")
+
     with pytest.raises(InvalidPathError):
         get_function(file, name="nonexistent_func")
 
@@ -139,6 +154,7 @@ def test_path_top_level_function_preferred_over_method(tmp_path: Path) -> None:
     file: Path = tmp_path / "sample.py"
     file.write_text("class Runner:\n    def run(self, method_arg): ...\n\ndef run(top_arg): ...\n", encoding="utf-8")
     result: Function = get_function(file, name="run")
+
     assert result.positional_parameters[0].name == "top_arg"
 
 
@@ -146,6 +162,7 @@ def test_path_top_level_function_in_if_block_preferred_over_method(tmp_path: Pat
     file: Path = tmp_path / "sample.py"
     file.write_text(_SHADOWED_SRC, encoding="utf-8")
     result: Function = get_function(file, name="run")
+
     assert result.positional_parameters[0].name == "top_arg"
 
 
@@ -153,6 +170,7 @@ def test_path_dotted_name_selects_method(tmp_path: Path) -> None:
     file: Path = tmp_path / "sample.py"
     file.write_text(_SHADOWED_SRC, encoding="utf-8")
     result: Function = get_function(file, name="Runner.run")
+
     assert [p.name for p in result.positional_parameters] == ["self", "method_arg"]
 
 
@@ -160,14 +178,17 @@ def test_path_dotted_name_selects_nested_class_method(tmp_path: Path) -> None:
     file: Path = tmp_path / "sample.py"
     file.write_text(_SHADOWED_SRC, encoding="utf-8")
     result: Function = get_function(file, name="Runner.Inner.run")
+
     assert [p.name for p in result.positional_parameters] == ["self", "inner_arg"]
 
 
 def test_path_dotted_name_not_found_raises_invalid_path_error(tmp_path: Path) -> None:
     file: Path = tmp_path / "sample.py"
     file.write_text(_SHADOWED_SRC, encoding="utf-8")
+
     with pytest.raises(InvalidPathError):
         get_function(file, name="Runner.missing")
+
     with pytest.raises(InvalidPathError):
         get_function(file, name="Missing.run")
 
@@ -184,6 +205,7 @@ def test_path_module_level_function_in_compound_statement_preferred(tmp_path: Pa
     file: Path = tmp_path / "sample.py"
     file.write_text(src, encoding="utf-8")
     result: Function = get_function(file, name="run")
+
     assert result.positional_parameters[0].name == "top_arg"
 
 
@@ -191,6 +213,7 @@ def test_path_nested_only_function_still_found(tmp_path: Path) -> None:
     file: Path = tmp_path / "sample.py"
     file.write_text("class Runner:\n    def only_method(self): ...\n", encoding="utf-8")
     result: Function = get_function(file, name="only_method")
+
     assert result.name == "only_method"
 
 
@@ -198,6 +221,7 @@ def test_path_missing_name_raises_type_error(tmp_path: Path) -> None:
     src = "def the_func(): pass\n"
     file: Path = tmp_path / "sample.py"
     file.write_text(src, encoding="utf-8")
+
     with pytest.raises(TypeError):
         get_function(file)  # type: ignore[call-overload]
 
@@ -219,6 +243,7 @@ def test_callable_returns_function_instance() -> None:
 def test_callable_positional_params() -> None:
     result: Function = get_function(_sample_callable)
     param_names = [p.name for p in result.positional_parameters]
+
     assert "a" in param_names
     assert "b" in param_names
 
@@ -264,8 +289,10 @@ def test_get_class_str_syntax_error_raises_parse_error() -> None:
 def test_get_class_ast_node_name() -> None:
     tree = ast.parse("class Bar:\n    pass")
     node = tree.body[0]
+
     assert isinstance(node, ast.ClassDef)
     result: Class = get_class(node)
+
     assert result.name == "Bar"
 
 
@@ -274,6 +301,7 @@ def test_get_class_path_found(tmp_path: Path) -> None:
     file: Path = tmp_path / "sample.py"
     file.write_text(src, encoding="utf-8")
     result: Class = get_class(file, name="MyClass")
+
     assert result.name == "MyClass"
 
 
@@ -281,6 +309,7 @@ def test_get_class_path_not_found_raises_invalid_path_error(tmp_path: Path) -> N
     src = "class MyClass:\n    pass\n"
     file: Path = tmp_path / "sample.py"
     file.write_text(src, encoding="utf-8")
+
     with pytest.raises(InvalidPathError):
         get_class(file, name="NonExistent")
 
@@ -302,6 +331,7 @@ def test_get_class_path_top_level_preferred_over_nested(tmp_path: Path) -> None:
     file: Path = tmp_path / "sample.py"
     file.write_text(_NESTED_CLASS_SRC, encoding="utf-8")
     result: Class = get_class(file, name="Config")
+
     assert [a.name for a in result.assignments] == ["top"]
 
 
@@ -309,6 +339,7 @@ def test_get_class_path_dotted_name_selects_nested_class(tmp_path: Path) -> None
     file: Path = tmp_path / "sample.py"
     file.write_text(_NESTED_CLASS_SRC, encoding="utf-8")
     result: Class = get_class(file, name="Outer.Config")
+
     assert [a.name for a in result.assignments] == ["nested"]
 
 
@@ -323,6 +354,7 @@ def test_get_class_path_missing_name_raises_type_error(tmp_path: Path) -> None:
     src = "class MyClass:\n    pass\n"
     file: Path = tmp_path / "sample.py"
     file.write_text(src, encoding="utf-8")
+
     with pytest.raises(TypeError):
         get_class(file)  # type: ignore[call-overload]
 
@@ -371,6 +403,7 @@ def test_get_assignment_str_plain_assign_no_annotation() -> None:
 def test_get_assignment_str_name_kwarg_selects_correct() -> None:
     source = "a = 1\nb: str = 'hi'"
     result: Assignment = get_assignment(source, name="b")
+
     assert result.name == "b"
     assert result.annotation == "str"
 
@@ -389,32 +422,40 @@ def test_get_assignment_str_no_assignment_raises_parse_error() -> None:
 def test_get_assignment_ast_ann_assign_name() -> None:
     tree = ast.parse("z: float")
     node = tree.body[0]
+
     assert isinstance(node, ast.AnnAssign)
     result: Assignment = get_assignment(node)
+
     assert result.name == "z"
 
 
 def test_get_assignment_ast_ann_assign_annotation() -> None:
     tree = ast.parse("z: float")
     node = tree.body[0]
+
     assert isinstance(node, ast.AnnAssign)
     result: Assignment = get_assignment(node)
+
     assert result.annotation == "float"
 
 
 def test_get_assignment_ast_type_alias_name() -> None:
     tree = ast.parse("type Alias = int")
     node = tree.body[0]
+
     assert isinstance(node, ast.TypeAlias)
     result: Assignment = get_assignment(node)
+
     assert result.name == "Alias"
 
 
 def test_get_assignment_ast_type_alias_annotation() -> None:
     tree = ast.parse("type Alias = int")
     node = tree.body[0]
+
     assert isinstance(node, ast.TypeAlias)
     result: Assignment = get_assignment(node)
+
     assert result.annotation == "TypeAlias"
 
 
@@ -423,6 +464,7 @@ def test_get_assignment_path_found(tmp_path: Path) -> None:
     file: Path = tmp_path / "consts.py"
     file.write_text(src, encoding="utf-8")
     result: Assignment = get_assignment(file, name="MY_CONST")
+
     assert result.name == "MY_CONST"
     assert result.annotation == "int"
 
@@ -431,6 +473,7 @@ def test_get_assignment_path_missing_name_raises_type_error(tmp_path: Path) -> N
     src = "MY_CONST: int = 99\n"
     file: Path = tmp_path / "consts.py"
     file.write_text(src, encoding="utf-8")
+
     with pytest.raises(TypeError):
         get_assignment(file)  # type: ignore[call-overload]
 
@@ -439,6 +482,7 @@ def test_get_assignment_path_name_not_found_raises_invalid_path_error(tmp_path: 
     src = "MY_CONST: int = 99\n"
     file: Path = tmp_path / "consts.py"
     file.write_text(src, encoding="utf-8")
+
     with pytest.raises(InvalidPathError):
         get_assignment(file, name="MISSING")
 
@@ -468,6 +512,7 @@ def test_get_assignment_path_finds_every_bound_name(tmp_path: Path, name: str) -
     file: Path = tmp_path / "u.py"
     file.write_text(_BOUND_NAMES_SRC, encoding="utf-8")
     result: Assignment = get_assignment(file, name=name)
+
     assert result.name == name
 
 
@@ -530,6 +575,7 @@ def test_get_module_path_name_is_stem(tmp_path: Path) -> None:
     file: Path = tmp_path / "myfile.py"
     file.write_text(src, encoding="utf-8")
     result: Module = get_module(file)
+
     assert result.name == "myfile"
 
 
@@ -538,14 +584,17 @@ def test_get_module_path_custom_name(tmp_path: Path) -> None:
     file: Path = tmp_path / "myfile.py"
     file.write_text(src, encoding="utf-8")
     result: Module = get_module(file, name="custom")
+
     assert result.name == "custom"
 
 
 def test_get_module_path_syntax_error_reports_file_path(tmp_path: Path) -> None:
     file: Path = tmp_path / "bad.py"
     file.write_text("def f(:\n", encoding="utf-8")
+
     with pytest.raises(ParseError) as info:
         get_module(file)
+
     assert info.value.path == str(file)
     assert str(file) in str(info.value)
 
@@ -553,8 +602,10 @@ def test_get_module_path_syntax_error_reports_file_path(tmp_path: Path) -> None:
 def test_get_module_path_all_warning_names_file(tmp_path: Path) -> None:
     file: Path = tmp_path / "dyn.py"
     file.write_text("x = 1\n__all__ = compute()\n", encoding="utf-8")
+
     with pytest.warns(UserWarning, match="cannot evaluate __all__") as record:
         get_module(file)
+
     assert any(str(file) in str(w.message) for w in record)
 
 
@@ -608,6 +659,7 @@ def _import_namespace_package(name: str, *roots: Path) -> types.ModuleType:
     for root in roots:
         (root / name).mkdir()
         (root / name / f"part_{root.name}.py").write_text("def f() -> None: ...\n")
+
     sys.path[:0] = [str(r) for r in roots]
     try:
         return importlib.import_module(name)
@@ -629,6 +681,7 @@ def test_get_package_namespace_package_with_many_portions_raises(tmp_path: Path)
     roots = [tmp_path / "a", tmp_path / "b"]
     for root in roots:
         root.mkdir()
+
     mod = _import_namespace_package("iceberg_ns_multi", *roots)
 
     with pytest.raises(InvalidPathError, match="2 portions"):
@@ -643,7 +696,9 @@ def test_get_package_nonexistent_path_raises_invalid_path_error() -> None:
 def test_path_syntax_error_reports_file_path(tmp_path: Path) -> None:
     target = tmp_path / "mod.py"
     target.write_text("def (\n")
+
     with pytest.raises(ParseError) as info:
         get_function(target, name="f")
+
     assert info.value.path == str(target)
     assert info.value.lineno == 1

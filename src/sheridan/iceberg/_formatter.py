@@ -72,6 +72,7 @@ def _function_str(function: Function) -> str:
     if function.kind == "property":
         if function.returns is None:
             return f"property {function.name}"
+
         return f"property {function.name}: {function.returns}"
 
     params: list[str] = []
@@ -92,9 +93,12 @@ def _function_str(function: Function) -> str:
         params.append(f"**{_param_str(function.var_keyword)}")
 
     prefix = f"{function.kind} " if function.kind in {"classmethod", "staticmethod"} else ""
-    signature = f"{prefix}{'async def ' if function.is_async else 'def '}{function.name}({', '.join(params)})"
+    keyword = "async def" if function.is_async else "def"
+    signature = f"{prefix}{keyword} {function.name}({', '.join(params)})"
+
     if function.returns is not None:
         signature += f" -> {function.returns}"
+
     return signature
 
 
@@ -117,8 +121,10 @@ def _function_labels(function: Function, *, show_overload_implementation: bool) 
 
     labels = [_function_str(overload) for overload in function.overloads]
     is_overload = any(decorator.rpartition(".")[2] == "overload" for decorator in function.decorators)
+
     if show_overload_implementation and not is_overload:
         labels.append(_function_str(function))
+
     return labels
 
 
@@ -148,7 +154,10 @@ def _class_str(cls: Class) -> str:
         A string such as ``class Foo`` or ``class Foo(Base, metaclass=Meta)``.
     """
     arguments = (*cls.bases, *cls.keywords)
-    return f"class {cls.name}({', '.join(arguments)})" if arguments else f"class {cls.name}"
+    if not arguments:
+        return f"class {cls.name}"
+
+    return f"class {cls.name}({', '.join(arguments)})"
 
 
 def _reference_str(reference: Reference) -> str:
@@ -173,6 +182,7 @@ def _reference_str(reference: Reference) -> str:
 
     if bound != reference.name:
         label += f" as {reference.name}"
+
     return label
 
 
@@ -197,9 +207,10 @@ def _render_lines(node: Package | Module | Class, prefix: str, *, show_overload_
 
         if child is not None:
             extension = _BLANK if index == last_index else _PIPE
-            lines.extend(
-                _render_lines(child, prefix + extension, show_overload_implementation=show_overload_implementation)
+            child_lines = _render_lines(
+                child, prefix + extension, show_overload_implementation=show_overload_implementation
             )
+            lines.extend(child_lines)
 
     return lines
 
@@ -229,58 +240,69 @@ def _children(
         the display string and *child_or_None* is the node to recurse into, or
         ``None`` for leaf items.
     """
+    items: list[tuple[str, Package | Module | Class | None]] = []
+
     match node:
         case Package():
-            items: list[tuple[str, Package | Module | Class | None]] = []
             for m in node.modules:
                 if m.name == node.name:
                     # This is the __init__ module: hoist its contents directly
                     # at the package level rather than nesting under a spurious
                     # "module <name>" node.
-                    for a in m.assignments:
-                        items.append((_assignment_str(a), None))
-                    for cls in m.classes:
-                        items.append((_class_str(cls), cls))
-                    for fn in m.functions:
-                        items.extend(
-                            (label, None)
-                            for label in _function_labels(fn, show_overload_implementation=show_overload_implementation)
-                        )
-                    for ref in m.references:
-                        items.append((_reference_str(ref), None))
+                    items.extend(_module_items(m, show_overload_implementation=show_overload_implementation))
                 else:
                     items.append((f"module {m.name}", m))
+
             for sp in node.subpackages:
                 items.append((f"package {sp.name}", sp))
-            return items
 
         case Module():
-            items = []
-            for a in node.assignments:
-                items.append((_assignment_str(a), None))
-            for cls in node.classes:
-                items.append((_class_str(cls), cls))
-            for fn in node.functions:
-                items.extend(
-                    (label, None)
-                    for label in _function_labels(fn, show_overload_implementation=show_overload_implementation)
-                )
-            for ref in node.references:
-                items.append((_reference_str(ref), None))
-            return items
+            items.extend(_module_items(node, show_overload_implementation=show_overload_implementation))
 
         case Class():
-            items = []
             for nc in node.nested_classes:
                 items.append((_class_str(nc), nc))
+
             for a in node.assignments:
                 items.append((_assignment_str(a), None))
+
             for fn in node.methods:
-                items.extend(
-                    (label, None)
-                    for label in _function_labels(fn, show_overload_implementation=show_overload_implementation)
-                )
-            return items
+                for label in _function_labels(fn, show_overload_implementation=show_overload_implementation):
+                    items.append((label, None))
+
+    return items
+
+
+def _module_items(
+    module: Module,
+    *,
+    show_overload_implementation: bool,
+) -> list[tuple[str, Package | Module | Class | None]]:
+    """List the members of *module* as ``(label, child_node_or_None)`` pairs.
+
+    Args:
+        module: The module to enumerate.
+        show_overload_implementation: Passed on to ``_function_labels``.
+
+    Returns:
+        Its assignments, classes, functions and references, in that order.
+    """
+    items: list[tuple[str, Package | Module | Class | None]] = []
+
+    for a in module.assignments:
+        items.append((_assignment_str(a), None))
+
+    for cls in module.classes:
+        items.append((_class_str(cls), cls))
+
+    for fn in module.functions:
+        for label in _function_labels(fn, show_overload_implementation=show_overload_implementation):
+            items.append((label, None))
+
+    for ref in module.references:
+        items.append((_reference_str(ref), None))
+
+    return items
 
 
 def format_tree(api: Package | Module, *, show_overload_implementation: bool = False) -> str:
@@ -300,6 +322,7 @@ def format_tree(api: Package | Module, *, show_overload_implementation: bool = F
     """
     header = f"package {api.name}" if isinstance(api, Package) else f"module {api.name}"
     body = _render_lines(api, prefix="", show_overload_implementation=show_overload_implementation)
+
     return "\n".join([header, *body])
 
 
@@ -335,6 +358,7 @@ def _sort_key(obj: Any) -> str:
     """
     if isinstance(obj, dict) and "name" in obj:
         return str(obj["name"])
+
     return json.dumps(obj, sort_keys=True)
 
 
@@ -355,6 +379,7 @@ def _relative_path(path: Path, root: Path | None) -> str:
     """
     if root is not None and path.is_relative_to(root):
         return path.relative_to(root).as_posix() or "."
+
     return path.name or "."
 
 
@@ -373,8 +398,12 @@ def _to_plain(obj: Any, root: Path | None = None) -> Any:
     match obj:
         case _ if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
             fields = {f.name: _to_plain(getattr(obj, f.name), root) for f in dataclasses.fields(obj)}
+
             node_type = _NODE_TYPES.get(type(obj))
-            return fields if node_type is None else {"node_type": node_type, **fields}
+            if node_type is None:
+                return fields
+
+            return {"node_type": node_type, **fields}
 
         case Path():
             return _relative_path(obj, root)
@@ -399,7 +428,10 @@ def format_diagnostic(diagnostic: Diagnostic) -> str:
     Returns:
         The line, with ``:line`` left out when the line is not known.
     """
-    location = str(diagnostic.path) if diagnostic.lineno is None else f"{diagnostic.path}:{diagnostic.lineno}"
+    location = str(diagnostic.path)
+    if diagnostic.lineno is not None:
+        location += f":{diagnostic.lineno}"
+
     return f"{location}: {diagnostic.severity}: {diagnostic.message}"
 
 
@@ -428,6 +460,8 @@ def format_json(api: Package | Module, diagnostics: tuple[Diagnostic, ...] | Non
     """
     root = api.path if isinstance(api, Package) else None
     output = {"schema_version": JSON_SCHEMA_VERSION, **_to_plain(api, root)}
+
     if diagnostics is not None:
         output["diagnostics"] = _to_plain(diagnostics, root)
+
     return json.dumps(output, indent=2)

@@ -98,7 +98,8 @@ class TestSchemaRejects:
 
     def test_unknown_function_kind(self, validator: Draft202012Validator) -> None:
         document = json.loads(format_json(get_public_api(_PROJECT_ROOT / "src" / "sheridan", config=_CFG)))
-        function = next(f for module in _all_modules(document) for f in module["functions"])
+        functions = [f for module in _all_modules(document) for f in module["functions"]]
+        function = functions[0]
         function["kind"] = "coroutine"
 
         with pytest.raises(ValidationError):
@@ -107,4 +108,9 @@ class TestSchemaRejects:
 
 def _all_modules(package: dict[str, Any]) -> list[dict[str, Any]]:
     """Collect every module object in a package object and its subpackages."""
-    return [*package["modules"], *(m for sub in package["subpackages"] for m in _all_modules(sub))]
+    modules = list(package["modules"])
+
+    for subpackage in package["subpackages"]:
+        modules.extend(_all_modules(subpackage))
+
+    return modules

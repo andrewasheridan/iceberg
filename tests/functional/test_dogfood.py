@@ -63,6 +63,7 @@ def _all_modules(pkg: Package) -> list[Module]:
     result: list[Module] = list(pkg.modules)
     for sub in pkg.subpackages:
         result.extend(_all_modules(sub))
+
     return result
 
 
@@ -80,16 +81,20 @@ def _collect_public_names(pkg: Package) -> set[str]:
         names: set[str] = {cls.name}
         for nested in cls.nested_classes:
             names |= _collect_class_names(nested)
+
         return names
 
     names: set[str] = set()
     for mod in _all_modules(pkg):
         for fn in mod.functions:
             names.add(fn.name)
+
         for cls in mod.classes:
             names |= _collect_class_names(cls)
+
         for assignment in mod.assignments:
             names.add(assignment.name)
+
     return names
 
 
@@ -117,6 +122,7 @@ def test_expected_public_names_present(iceberg_package: Package) -> None:
     """
     collected = _collect_public_names(iceberg_package)
     missing = EXPECTED_PUBLIC_NAMES - collected
+
     assert not missing, (
         f"The following expected public names were not found in the iceberg "
         f"package trie: {sorted(missing)}.  Either the symbols were removed "
@@ -130,8 +136,10 @@ def test_expected_public_names_present_when_rooted_at_inner_package() -> None:
     package's ``__init__.py``.
     """
     api = get_public_api(_ICEBERG_SRC / "iceberg")
+
     assert isinstance(api, Package)
     assert api.name == "iceberg"
     missing = EXPECTED_PUBLIC_NAMES - _collect_public_names(api)
+
     assert not missing, f"Missing when rooted at the inner package: {sorted(missing)}"
     assert api.references == ()

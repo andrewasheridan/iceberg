@@ -41,7 +41,9 @@ def _error_diagnostic(name: str, path: Path, exc: IcebergError) -> Diagnostic:
         ``ParseError``, its line.
     """
     message = getattr(exc, "message", None) or str(exc)
-    return Diagnostic(severity="error", module=name, path=path, message=message, lineno=getattr(exc, "lineno", None))
+    lineno = getattr(exc, "lineno", None)
+
+    return Diagnostic(severity="error", module=name, path=path, message=message, lineno=lineno)
 
 
 def _visit_worker(
@@ -77,6 +79,7 @@ def _visit_worker(
     except IcebergError as exc:
         if not keep_going:
             raise
+
         return _error_diagnostic(discovered.dotted_name, discovered.source_path, exc)
 
 
@@ -112,35 +115,44 @@ def _evaluate_all(
     def evaluate(name: str) -> frozenset[str] | None:
         if name in result:
             return result[name]
+
         dm = by_name.get(name)
         if dm is None or name in in_progress:
             return None
+
         try:
             source = read_source(dm.source_path)
         except SourceReadError as exc:
             if errors is None:
                 raise
+
             errors.append(_error_diagnostic(name, dm.source_path, exc))
             result[name] = None
             return None
+
         if "__all__" not in source:
             result[name] = None
             return None
+
         try:
             tree = parse_source(source, dm.source_path)
         except ParseError:
             return None
+
         trees[name] = tree
         package = name if dm.is_init else name.rpartition(".")[0]
+
         in_progress.add(name)
         try:
             result[name] = extract_all(tree, package, evaluate, path=str(dm.source_path))
         finally:
             in_progress.discard(name)
+
         return result[name]
 
     for name in by_name:
         evaluate(name)
+
     return result
 
 
@@ -162,7 +174,9 @@ def _namespace_parents(root: Path) -> tuple[str, ...]:
     for parent in root.parents:
         if not parent.name.isidentifier():
             break
+
         names.append(parent.name)
+
     return tuple(reversed(names))
 
 
@@ -243,8 +257,7 @@ def _build_trie(
         else:
             pkg_parts = dm.package_parts
             regular_modules_by_parts.setdefault(pkg_parts, []).append(module)
-            if pkg_parts not in parts_to_path:
-                parts_to_path[pkg_parts] = dm.source_path.parent
+            parts_to_path.setdefault(pkg_parts, dm.source_path.parent)
 
     # Collect all unique package_parts tuples to identify every package node.
     all_pkg_parts: set[tuple[str, ...]] = set()
@@ -272,18 +285,19 @@ def _build_trie(
         explicit_all = package_all_map.get(name)
         init_module = init_modules_by_parts.get(parts)
 
-        # Find immediate children (one level deeper).
         child_parts_set: set[tuple[str, ...]] = set()
         for pkg_parts in all_pkg_parts:
             if len(pkg_parts) == len(parts) + 1 and pkg_parts[: len(parts)] == parts:
                 child_parts_set.add(pkg_parts)
 
+        direct_modules_list: list[Module] = []
+        subpackages_list: list[Package] = []
+
         if explicit_all is not None:
-            # When __all__ is defined, hoist all public symbols into a single
-            # package-level Module (the resolved init module) and suppress
-            # private sub-modules.  Regular submodules and sub-packages are
-            # included only when their short name appears in __all__.
-            direct_modules_list: list[Module] = []
+            # When __all__ is defined, the resolved init module already holds
+            # every hoisted public symbol, so private sub-modules are dropped.
+            # Regular submodules and sub-packages stay only when their short
+            # name appears in __all__.
             if init_module is not None:
                 direct_modules_list.append(init_module)
 
@@ -291,24 +305,24 @@ def _build_trie(
                 if mod.name.split(".")[-1] in explicit_all:
                     direct_modules_list.append(mod)
 
-            direct_modules: tuple[Module, ...] = tuple(sorted(direct_modules_list, key=lambda m: m.name))
-
-            filtered_children = {child for child in child_parts_set if child[-1] in explicit_all}
-            subpackages = sorted(
-                (_make_package(child) for child in sorted(filtered_children)),
-                key=lambda p: p.name,
-            )
+            for child in sorted(child_parts_set):
+                if child[-1] in explicit_all:
+                    subpackages_list.append(_make_package(child))
         else:
-            # No __all__: include all regular modules plus the init module.
-            all_direct = regular_modules_by_parts.get(parts, [])
-            all_direct = [direct_module for direct_module in all_direct if direct_module.is_public]
+            for mod in regular_modules_by_parts.get(parts, []):
+                if mod.is_public:
+                    direct_modules_list.append(mod)
+
             if init_module is not None:
-                all_direct.append(init_module)
-            direct_modules = tuple(sorted(all_direct, key=lambda m: m.name))
-            all_subpackages = (_make_package(child) for child in sorted(child_parts_set))
-            subpackages = sorted(
-                (subpackage for subpackage in all_subpackages if subpackage.is_public), key=lambda p: p.name
-            )
+                direct_modules_list.append(init_module)
+
+            for child in sorted(child_parts_set):
+                subpackage = _make_package(child)
+                if subpackage.is_public:
+                    subpackages_list.append(subpackage)
+
+        direct_modules = tuple(sorted(direct_modules_list, key=lambda m: m.name))
+        subpackages = sorted(subpackages_list, key=lambda p: p.name)
 
         return Package(
             # The root parts are empty when root's own name is not an
@@ -319,12 +333,12 @@ def _build_trie(
             subpackages=tuple(subpackages),
         )
 
-    # Determine the root package parts.
     if not all_pkg_parts:
         return Package(name=root.name, path=root, modules=(), subpackages=())
 
     # The root is the shortest parts tuple (there should be exactly one).
     root_parts = min(all_pkg_parts, key=len)
+
     return _make_package(root_parts)
 
 
@@ -345,28 +359,39 @@ def unresolved_name_warnings(api: Package | Module, path: Path) -> list[Diagnost
     """
     located: list[tuple[Module, Path]] = []
     packages: list[Package] = []
+
     if isinstance(api, Module):
         located.append((api, path))
     else:
         packages.append(api)
+
     while packages:
         package = packages.pop()
+
         for module in package.modules:
-            file_name = "__init__.py" if module.name == package.name else f"{module.name.rpartition('.')[2]}.py"
+            stem = "__init__" if module.name == package.name else module.name.rpartition(".")[2]
+            file_name = f"{stem}.py"
+
             located.append((module, package.path / file_name))
+
         packages.extend(package.subpackages)
 
-    return [
-        Diagnostic(
-            severity="warning",
-            module=module.name,
-            path=source_path,
-            message=f"{reference.name!r} is exported but never bound",
-        )
-        for module, source_path in sorted(located, key=lambda item: item[0].name)
-        for reference in module.references
-        if reference.module is None
-    ]
+    warnings: list[Diagnostic] = []
+    for module, source_path in sorted(located, key=lambda item: item[0].name):
+        for reference in module.references:
+            if reference.module is not None:
+                continue
+
+            warnings.append(
+                Diagnostic(
+                    severity="warning",
+                    module=module.name,
+                    path=source_path,
+                    message=f"{reference.name!r} is exported but never bound",
+                )
+            )
+
+    return warnings
 
 
 def build_package(root: Path, config: Config, *, errors: list[Diagnostic] | None = None) -> Package | Module:
@@ -410,21 +435,22 @@ def build_package(root: Path, config: Config, *, errors: list[Diagnostic] | None
     trees: dict[str, ast.Module] = {}
     known_all = _evaluate_all(all_discovered, trees, found if keep_going else None)
     unreadable = {diagnostic.module for diagnostic in found}
-    non_init_modules = [dm for dm in all_discovered if not dm.is_init and dm.dotted_name not in unreadable]
-    init_modules = [dm for dm in all_discovered if dm.is_init and dm.dotted_name not in unreadable]
+    readable = [dm for dm in all_discovered if dm.dotted_name not in unreadable]
+    non_init_modules = [dm for dm in readable if not dm.is_init]
+    init_modules = [dm for dm in readable if dm.is_init]
 
     # 3. Visit non-init modules. A process pool costs more to start than it
     #    saves for typical packages, and spawning workers re-imports the
     #    caller's __main__, so it is strictly opt-in.
     visit = partial(_visit_worker, known_all=known_all, keep_going=keep_going)
+    parsed_trees = [trees.get(dm.dotted_name) for dm in non_init_modules]
+
     visited: list[Module | Diagnostic]
     if config.max_workers > 1:
         with ProcessPoolExecutor(max_workers=config.max_workers) as executor:
-            visited = list(
-                executor.map(visit, non_init_modules, [trees.get(dm.dotted_name) for dm in non_init_modules])
-            )
+            visited = list(executor.map(visit, non_init_modules, parsed_trees))
     else:
-        visited = [visit(dm, trees.get(dm.dotted_name)) for dm in non_init_modules]
+        visited = [visit(dm, tree) for dm, tree in zip(non_init_modules, parsed_trees, strict=True)]
 
     module_map: dict[str, Module] = {}
     for dm, outcome in zip(non_init_modules, visited, strict=True):
@@ -463,8 +489,10 @@ def build_package(root: Path, config: Config, *, errors: list[Diagnostic] | None
         except IcebergError as exc:
             if not keep_going:
                 raise
+
             found.append(_error_diagnostic(init_module.dotted_name, init_module.source_path, exc))
             continue
+
         module_map[init_module.dotted_name] = module
 
     if errors is not None:
