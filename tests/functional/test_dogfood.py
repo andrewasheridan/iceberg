@@ -12,10 +12,6 @@ import pytest
 
 from sheridan.iceberg import Class, Module, Package, get_public_api
 
-# ---------------------------------------------------------------------------
-# Expected public surface
-# ---------------------------------------------------------------------------
-
 # Every name listed here must be reachable somewhere in the Package trie
 # returned by get_public_api.  Add names here when the public surface grows;
 # remove them only when a symbol is intentionally dropped.
@@ -41,9 +37,6 @@ EXPECTED_PUBLIC_NAMES: frozenset[str] = frozenset(
     }
 )
 
-# ---------------------------------------------------------------------------
-# Path fixture
-# ---------------------------------------------------------------------------
 
 # Resolve the package directory relative to this test file so the test works
 # regardless of the working directory the test runner is invoked from.
@@ -61,11 +54,6 @@ def iceberg_package() -> Package | Module:
         f"Expected iceberg source directory at {_ICEBERG_SRC}; check that the repo layout has not changed."
     )
     return get_public_api(_ICEBERG_SRC)
-
-
-# ---------------------------------------------------------------------------
-# Trie-walking helpers
-# ---------------------------------------------------------------------------
 
 
 def _all_modules(pkg: Package) -> list[Module]:
@@ -101,11 +89,6 @@ def _collect_public_names(pkg: Package) -> set[str]:
         for assignment in mod.assignments:
             names.add(assignment.name)
     return names
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
 
 
 def test_get_public_api_on_iceberg_returns_package(iceberg_package: Package) -> None:

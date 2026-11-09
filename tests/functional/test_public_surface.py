@@ -68,11 +68,6 @@ def test_all_names_are_accessible_as_attributes(name: str) -> None:
     assert attr is not None
 
 
-# ---------------------------------------------------------------------------
-# Design-contract tests for naming boundary and return types
-# ---------------------------------------------------------------------------
-
-
 def test_single_file_returns_bare_module(tmp_path: Path) -> None:
     """A single .py file must return a bare Module, not a Package."""
     from sheridan.iceberg._models import Module

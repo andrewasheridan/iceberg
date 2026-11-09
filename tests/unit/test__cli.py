@@ -8,17 +8,8 @@ import pytest
 from sheridan.iceberg._cli import main
 from sheridan.iceberg._exceptions import IcebergError, InvalidPathError
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 _TREE_OUTPUT = "package mypackage\n└── module mymodule"
 _JSON_OUTPUT = '{\n  "name": "mypackage"\n}'
-
-
-# ---------------------------------------------------------------------------
-# Success path — tree format (default)
-# ---------------------------------------------------------------------------
 
 
 def test_main_success_tree_stdout(capsys: pytest.CaptureFixture[str]) -> None:
@@ -73,11 +64,6 @@ def test_main_success_stderr_is_empty(capsys: pytest.CaptureFixture[str]) -> Non
     assert captured.err == ""
 
 
-# ---------------------------------------------------------------------------
-# Success path — JSON format (--json flag)
-# ---------------------------------------------------------------------------
-
-
 def test_main_json_flag_stdout(capsys: pytest.CaptureFixture[str]) -> None:
     """main returns 0 and writes JSON output to stdout when --json is passed."""
     fake_package = MagicMock()
@@ -112,11 +98,6 @@ def test_main_json_flag_stderr_is_empty(capsys: pytest.CaptureFixture[str]) -> N
 
     captured = capsys.readouterr()
     assert captured.err == ""
-
-
-# ---------------------------------------------------------------------------
-# Error path — IcebergError (exit code 1)
-# ---------------------------------------------------------------------------
 
 
 def test_main_iceberg_error_returns_1(capsys: pytest.CaptureFixture[str]) -> None:
@@ -174,11 +155,6 @@ def test_main_iceberg_error_subclasses_return_1(
         exit_code = main(["any/path"])
 
     assert exit_code == 1
-
-
-# ---------------------------------------------------------------------------
-# Error path — unexpected exception (exit code 2)
-# ---------------------------------------------------------------------------
 
 
 def test_main_unexpected_error_returns_2(capsys: pytest.CaptureFixture[str]) -> None:
@@ -241,11 +217,6 @@ def test_main_unexpected_error_includes_type_name(
     assert expected_type_name in captured.err
 
 
-# ---------------------------------------------------------------------------
-# argv defaults to sys.argv[1:] when None
-# ---------------------------------------------------------------------------
-
-
 def test_main_argv_none_reads_sys_argv(capsys: pytest.CaptureFixture[str]) -> None:
     """When argv is None, main reads from sys.argv[1:]."""
     fake_package = MagicMock()
@@ -293,11 +264,6 @@ def test_main_syntax_error_reports_file_line_and_column(tmp_path: Path, capsys: 
     assert "(<unknown>" not in err
 
 
-# ---------------------------------------------------------------------------
-# Source files that cannot be read or decoded (real files, no mocks)
-# ---------------------------------------------------------------------------
-
-
 def _package(tmp_path: Path, module_bytes: bytes) -> Path:
     pkg = tmp_path / "pkg"
     pkg.mkdir()
@@ -335,11 +301,6 @@ def test_main_broken_symlink_returns_1(tmp_path: Path, capsys: pytest.CaptureFix
     captured = capsys.readouterr()
     assert str(pkg / "mod.py") in captured.err
     assert "unexpected error" not in captured.err
-
-
-# ---------------------------------------------------------------------------
-# --exclude
-# ---------------------------------------------------------------------------
 
 
 def test_main_exclude_extends_configured_list(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

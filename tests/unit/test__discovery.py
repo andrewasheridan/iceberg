@@ -9,10 +9,6 @@ from sheridan.iceberg._config import Config
 from sheridan.iceberg._discovery import DiscoveredModule, discover
 from sheridan.iceberg._exceptions import InvalidPathError
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def _write(path: Path, text: str = "") -> Path:
     """Write *text* to *path*, creating parent directories as needed."""
@@ -31,11 +27,6 @@ def _default_config() -> Config:
     return Config()
 
 
-# ---------------------------------------------------------------------------
-# Scenario 1 — Single .py file
-# ---------------------------------------------------------------------------
-
-
 def test_single_file_returns_one_module(tmp_path: Path) -> None:
     """A single .py file produces exactly one DiscoveredModule."""
     py_file = _write(tmp_path / "mymodule.py")
@@ -49,11 +40,6 @@ def test_single_file_returns_one_module(tmp_path: Path) -> None:
     assert module.source_path == py_file
     assert module.is_init is False
     assert module.package_parts == ()
-
-
-# ---------------------------------------------------------------------------
-# Scenario 2 — Flat package
-# ---------------------------------------------------------------------------
 
 
 def test_flat_package_produces_correct_modules(tmp_path: Path) -> None:
@@ -80,11 +66,6 @@ def test_flat_package_produces_correct_modules(tmp_path: Path) -> None:
         mod = by_name[name]
         assert mod.is_init is False
         assert mod.package_parts == ("pkg",)
-
-
-# ---------------------------------------------------------------------------
-# Scenario 3 — Nested package three levels deep
-# ---------------------------------------------------------------------------
 
 
 def test_nested_package_three_levels_deep(tmp_path: Path) -> None:
@@ -119,11 +100,6 @@ def test_nested_package_three_levels_deep(tmp_path: Path) -> None:
     assert leaf_mod.source_path == pkg / "sub" / "leaf.py"
 
 
-# ---------------------------------------------------------------------------
-# Scenario 4 — src/ layout
-# ---------------------------------------------------------------------------
-
-
 def test_root_name_is_first_dotted_component(tmp_path: Path) -> None:
     """The root directory name is the first component of every dotted name.
 
@@ -146,11 +122,6 @@ def test_root_name_is_first_dotted_component(tmp_path: Path) -> None:
     mod = by_name["pkg.mod"]
     assert mod.is_init is False
     assert mod.package_parts == ("pkg",)
-
-
-# ---------------------------------------------------------------------------
-# Scenario 5 — tests/ subdirectory skipped
-# ---------------------------------------------------------------------------
 
 
 def test_tests_subdirectory_is_skipped(tmp_path: Path) -> None:
@@ -197,11 +168,6 @@ def test_pattern_sees_root_name_in_relative_path(tmp_path: Path) -> None:
     assert set(_by_dotted(result)) == {"pkg", "pkg.mod"}
 
 
-# ---------------------------------------------------------------------------
-# Scenario 6 — test_*.py and *_test.py files skipped at any depth
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.parametrize(
     "filename",
     [
@@ -235,11 +201,6 @@ def test_test_files_are_skipped_at_any_depth(tmp_path: Path, filename: str) -> N
     assert "pkg.real_module" in dotted_names
 
 
-# ---------------------------------------------------------------------------
-# Scenario 7 — __pycache__ directory ignored
-# ---------------------------------------------------------------------------
-
-
 def test_pycache_directory_is_ignored(tmp_path: Path) -> None:
     """No .py files from __pycache__ appear in the discovery result."""
     pkg = tmp_path / "pkg"
@@ -256,11 +217,6 @@ def test_pycache_directory_is_ignored(tmp_path: Path) -> None:
     # Confirm no source_path points into __pycache__
     for mod in result:
         assert "__pycache__" not in mod.source_path.parts
-
-
-# ---------------------------------------------------------------------------
-# Scenario 8 — Non-existent root raises InvalidPathError
-# ---------------------------------------------------------------------------
 
 
 def test_nonexistent_root_raises_invalid_path_error(tmp_path: Path) -> None:
@@ -281,11 +237,6 @@ def test_nonexistent_root_error_message_contains_path(tmp_path: Path) -> None:
         discover(missing, config)
 
 
-# ---------------------------------------------------------------------------
-# DiscoveredModule dataclass invariants
-# ---------------------------------------------------------------------------
-
-
 def test_discovered_module_is_frozen(tmp_path: Path) -> None:
     """DiscoveredModule instances are immutable (frozen dataclass)."""
     import dataclasses
@@ -303,11 +254,6 @@ def test_discovered_module_is_frozen(tmp_path: Path) -> None:
 def test_discovered_module_has_slots() -> None:
     """DiscoveredModule uses __slots__ for memory efficiency."""
     assert hasattr(DiscoveredModule, "__slots__")
-
-
-# ---------------------------------------------------------------------------
-# Scenario 9 — Namespace package as root includes namespace in dotted names
-# ---------------------------------------------------------------------------
 
 
 def test_namespace_package_as_root_includes_namespace_in_dotted_name(
@@ -332,11 +278,6 @@ def test_namespace_package_as_root_includes_namespace_in_dotted_name(
 
     # Regression guard: no name may start with just "widgets" (without the namespace)
     assert not any(name == "widgets" or name.startswith("widgets.") for name in dotted_names)
-
-
-# ---------------------------------------------------------------------------
-# Scenario 10 — Paths that are not Python identifiers are not importable
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("dirname", ["my-dir", "1abc", "class", "has space"])
@@ -364,11 +305,6 @@ def test_non_identifier_file_is_skipped(tmp_path: Path, filename: str) -> None:
     result = discover(pkg, _default_config())
 
     assert set(_by_dotted(result)) == {"pkg", "pkg.core"}
-
-
-# ---------------------------------------------------------------------------
-# Default pruned directories and the exclude option
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(

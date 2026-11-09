@@ -19,10 +19,6 @@ from sheridan.iceberg._models import (
     Reference,
 )
 
-# ---------------------------------------------------------------------------
-# Shared fixture helpers (mirrored from test__models.py conventions)
-# ---------------------------------------------------------------------------
-
 
 def _make_parameter(
     name: str = "x",
@@ -101,11 +97,6 @@ def _make_package(
         modules=modules,
         subpackages=subpackages,
     )
-
-
-# ---------------------------------------------------------------------------
-# 1. format_tree — golden string output
-# ---------------------------------------------------------------------------
 
 
 def test_format_tree_empty_package() -> None:
@@ -331,11 +322,6 @@ def test_format_tree_golden_string() -> None:
     assert result == expected
 
 
-# ---------------------------------------------------------------------------
-# 2. format_json — valid JSON
-# ---------------------------------------------------------------------------
-
-
 def test_format_json_returns_valid_json() -> None:
     """format_json must return a string parseable by json.loads."""
     pkg = _make_package(name="mylib")
@@ -419,11 +405,6 @@ def test_format_json_indented_two_spaces() -> None:
     assert not second_line.startswith("   ")
 
 
-# ---------------------------------------------------------------------------
-# 3. frozenset fields serialise as sorted lists (deterministic)
-# ---------------------------------------------------------------------------
-
-
 def test_format_json_frozenset_keyword_params_sorted() -> None:
     """keyword_parameters (frozenset) must appear sorted by name in JSON."""
     kw_z = _make_parameter(name="zebra", annotation="str")
@@ -490,11 +471,6 @@ def test_format_json_frozenset_same_name_params_stable() -> None:
     assert len(kw_list) == 2
     found_annotations = {p["annotation"] for p in kw_list}
     assert found_annotations == {"int", "str"}
-
-
-# ---------------------------------------------------------------------------
-# 4. Edge cases
-# ---------------------------------------------------------------------------
 
 
 def test_format_tree_empty_package_no_newline() -> None:
@@ -606,11 +582,6 @@ def test_format_tree_parameter_rendering(
     assert expected_param_str in result
 
 
-# ---------------------------------------------------------------------------
-# 5. __init__ module hoisting behaviour
-# ---------------------------------------------------------------------------
-
-
 def test_format_tree_init_module_hoisted_no_intermediate_node() -> None:
     """A Package whose only module is the init module (module.name == package.name)
     must NOT produce an intermediate ``module <name>`` node — its contents are
@@ -682,11 +653,6 @@ def test_format_tree_mixed_init_and_non_init_modules() -> None:
     assert "top_level_func()" in result, "init-level function must be present"
 
 
-# ---------------------------------------------------------------------------
-# References
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.parametrize(
     ("reference", "expected"),
     [
@@ -736,11 +702,6 @@ def test_format_json_path_outside_root_is_not_absolute() -> None:
     pkg = _make_package(name="mylib", path=Path("/some/path"), subpackages=(sub,))
     parsed = json.loads(format_json(pkg))
     assert parsed["subpackages"][0]["path"] == "sub"
-
-
-# ---------------------------------------------------------------------------
-# Overloads
-# ---------------------------------------------------------------------------
 
 
 def _overloaded() -> Function:
@@ -821,11 +782,6 @@ def test_format_json_includes_overloads() -> None:
 
     (fn,) = data["functions"]
     assert [o["returns"] for o in fn["overloads"]] == ["int", "str"]
-
-
-# ---------------------------------------------------------------------------
-# format_json — node_type and schema_version
-# ---------------------------------------------------------------------------
 
 
 def test_format_json_top_level_has_schema_version() -> None:

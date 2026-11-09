@@ -26,10 +26,6 @@ from sheridan.iceberg._models import Assignment, Class, Function, Module, Refere
 from sheridan.iceberg._utilities import collect_imports, extract_all, infer_all, star_candidate
 from sheridan.iceberg._visitor import visit_module
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
 
 def resolve_init(
     init_source: str,
@@ -204,10 +200,6 @@ def resolve_module_references(
 
     return {name: resolve(name) or module for name, module in modules.items()}
 
-
-# ---------------------------------------------------------------------------
-# Private helpers
-# ---------------------------------------------------------------------------
 
 # A resolved symbol is one of these three concrete types.
 _Symbol = Assignment | Class | Function

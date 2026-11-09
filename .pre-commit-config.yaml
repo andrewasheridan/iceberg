@@ -3,12 +3,6 @@ default_language_version:
 
 repos:
 
-  # ------------------------
-
-  # General file hygiene
-
-  # ------------------------
-
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
@@ -19,16 +13,18 @@ repos:
       - id: check-json
       - id: check-merge-conflict
 
-
-  # ------------------------
-
-  # Ruff (lint + format)
-
-  # ------------------------
-
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.7
     hooks:
       - id: ruff-check
         args: [ --fix ]
       - id: ruff-format
+
+  # Same pattern as tests/unit/test_comment_style.py; keep them in sync.
+  - repo: local
+    hooks:
+      - id: no-banner-comments
+        name: no banner comments
+        language: pygrep
+        entry: '^\s*#\s*[-=]{10,}\s*$'
+        types_or: [python, pyi, toml, yaml, shell]

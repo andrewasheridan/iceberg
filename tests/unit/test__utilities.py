@@ -24,11 +24,6 @@ def _imports(source: str, package: str = "pkg") -> dict[str, tuple[str, str | No
     return collect_imports(ast.parse(source), package)
 
 
-# ---------------------------------------------------------------------------
-# resolve_relative
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.parametrize(
     ("package", "module", "level", "expected"),
     [
@@ -41,11 +36,6 @@ def _imports(source: str, package: str = "pkg") -> dict[str, tuple[str, str | No
 )
 def test_resolve_relative(package: str, module: str | None, level: int, expected: str) -> None:
     assert resolve_relative(package, module, level) == expected
-
-
-# ---------------------------------------------------------------------------
-# collect_imports
-# ---------------------------------------------------------------------------
 
 
 def test_from_import_absolute() -> None:
@@ -155,11 +145,6 @@ class C:
     assert _imports(source) == {}
 
 
-# ---------------------------------------------------------------------------
-# bound_names / infer_all
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.parametrize(
     ("source", "expected"),
     [
@@ -201,11 +186,6 @@ finally:
     _h = 1
 """
     assert infer_all(ast.parse(source)) == frozenset({"A", "b", "C", "d", "e", "f", "g"})
-
-
-# ---------------------------------------------------------------------------
-# extract_all
-# ---------------------------------------------------------------------------
 
 
 def _extract(
@@ -287,11 +267,6 @@ def test_extract_all_warning_names_path_and_line() -> None:
     tree = ast.parse("__all__ = ['a']\n__all__ += make()")
     with pytest.warns(UserWarning, match=r"^pkg/mod\.py:2: cannot evaluate __all__"):
         extract_all(tree, "pkg", path="pkg/mod.py")
-
-
-# ---------------------------------------------------------------------------
-# read_source
-# ---------------------------------------------------------------------------
 
 
 def test_read_source_reads_utf8(tmp_path: Path) -> None:

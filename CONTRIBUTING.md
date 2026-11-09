@@ -84,6 +84,15 @@ def snapshot(path: Path) -> Package:
 
 `tests/unit/test_docstring_style.py` enforces this in `src/` and `tests/`.
 
+## Comments
+
+Write a comment only when it says something the code can't: a reason, a constraint or
+a non-obvious consequence. Don't use banner or section-divider comments (a line made
+only of `#` and ten or more `-` or `=`, usually around a section title). To group code,
+use a test class, a separate module or a docstring.
+`tests/unit/test_comment_style.py` enforces this across the repo, and the
+`no-banner-comments` pre-commit hook catches it before you commit.
+
 ## Running checks
 
 ```bash

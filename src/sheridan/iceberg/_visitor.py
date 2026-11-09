@@ -161,11 +161,6 @@ def visit_module(
     )
 
 
-# ---------------------------------------------------------------------------
-# Private helpers
-# ---------------------------------------------------------------------------
-
-
 def _top_level_public_names(
     tree: ast.Module,
     explicit_all: frozenset[str] | None,

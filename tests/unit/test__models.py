@@ -14,10 +14,6 @@ from sheridan.iceberg._models import (
     Parameter,
 )
 
-# ---------------------------------------------------------------------------
-# Fixtures / helpers
-# ---------------------------------------------------------------------------
-
 ALL_CLASSES = [Parameter, Function, Assignment, Class, Module, Package]
 
 
@@ -98,19 +94,9 @@ def _make_package(
     )
 
 
-# ---------------------------------------------------------------------------
-# 1. is_dataclass returns True for each of the six classes
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.parametrize("cls", ALL_CLASSES)
 def test_is_dataclass(cls: type) -> None:
     assert dataclasses.is_dataclass(cls) is True
-
-
-# ---------------------------------------------------------------------------
-# 2. FrozenInstanceError is raised on field assignment
-# ---------------------------------------------------------------------------
 
 
 def test_parameter_frozen() -> None:
@@ -149,20 +135,10 @@ def test_package_frozen() -> None:
         pkg.name = "other_package"  # type: ignore[misc]
 
 
-# ---------------------------------------------------------------------------
-# 3. Each class has a non-empty __slots__
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.parametrize("cls", ALL_CLASSES)
 def test_has_nonempty_slots(cls: type) -> None:
     assert hasattr(cls, "__slots__")
     assert len(cls.__slots__) > 0
-
-
-# ---------------------------------------------------------------------------
-# 4. Function can be constructed with all parameter kinds
-# ---------------------------------------------------------------------------
 
 
 def test_function_all_parameter_kinds() -> None:
@@ -191,11 +167,6 @@ def test_function_all_parameter_kinds() -> None:
     assert f.is_async is True
 
 
-# ---------------------------------------------------------------------------
-# 5. Two Functions with keyword parameters in different order compare equal
-# ---------------------------------------------------------------------------
-
-
 def test_function_keyword_order_independent_equality() -> None:
     kw_a = _make_parameter(name="alpha", annotation="int")
     kw_b = _make_parameter(name="beta", annotation="str")
@@ -206,11 +177,6 @@ def test_function_keyword_order_independent_equality() -> None:
     assert f1 == f2
 
 
-# ---------------------------------------------------------------------------
-# 6. Two Functions with positional parameters in different order compare unequal
-# ---------------------------------------------------------------------------
-
-
 def test_function_positional_order_sensitive_equality() -> None:
     p1 = _make_parameter(name="first", annotation="int")
     p2 = _make_parameter(name="second", annotation="str")
@@ -219,11 +185,6 @@ def test_function_positional_order_sensitive_equality() -> None:
     f_ba = _make_function(positional_parameters=(p2, p1))
 
     assert f_ab != f_ba
-
-
-# ---------------------------------------------------------------------------
-# 7. Parameter instances are hashable
-# ---------------------------------------------------------------------------
 
 
 def test_parameter_hashable_in_set() -> None:
