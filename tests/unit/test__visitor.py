@@ -3,7 +3,7 @@
 import pytest
 
 from sheridan.iceberg._exceptions import ParseError
-from sheridan.iceberg._models import Assignment, Class, Function, Module, Reference
+from sheridan.iceberg._models import Assignment, Class, Function, Module, Parameter, Reference
 from sheridan.iceberg._visitor import visit_module
 
 # ---------------------------------------------------------------------------
@@ -716,3 +716,100 @@ def test_all_unbound_name_becomes_reference_without_source() -> None:
 def test_no_all_means_no_references() -> None:
     module = _visit("from math import sqrt\n\ndef f():\n    pass\n")
     assert module.references == ()
+
+
+# ---------------------------------------------------------------------------
+# Definitions inside module-level if / try blocks
+# ---------------------------------------------------------------------------
+
+
+def test_type_checking_block_definitions_captured() -> None:
+    source = """
+from typing import TYPE_CHECKING
+
+__all__ = ["Alias", "Proto", "helper"]
+
+if TYPE_CHECKING:
+    Alias = int
+
+    class Proto:
+        pass
+
+    def helper() -> None:
+        pass
+"""
+    module = _visit(source)
+    assert [a.name for a in module.assignments] == ["Alias"]
+    assert [c.name for c in module.classes] == ["Proto"]
+    assert [f.name for f in module.functions] == ["helper"]
+    assert module.references == ()
+
+
+def test_version_check_branches_without_all_keep_first_definition() -> None:
+    source = """
+import sys
+
+if sys.version_info >= (3, 12):
+    def compat(x: int) -> int:
+        return x
+    LIMIT: int = 1
+else:
+    def compat(x):
+        return x
+    LIMIT = 2
+"""
+    module = _visit(source)
+    assert module.functions == (
+        Function(
+            name="compat",
+            positional_parameters=(Parameter(name="x", annotation="int", default=None),),
+            keyword_parameters=frozenset(),
+            var_positional=None,
+            var_keyword=None,
+            returns="int",
+            is_async=False,
+        ),
+    )
+    assert module.assignments == (Assignment(name="LIMIT", annotation="int"),)
+
+
+def test_try_except_fallback_definition_captured() -> None:
+    source = """
+__all__ = ["fast", "Thing"]
+
+try:
+    from ._speedups import fast
+except ImportError:
+    def fast():
+        pass
+finally:
+    class Thing:
+        pass
+"""
+    module = visit_module(source, "pkg.mod")
+    assert [f.name for f in module.functions] == ["fast"]
+    assert [c.name for c in module.classes] == ["Thing"]
+    assert module.references == ()
+
+
+def test_try_except_fallback_without_all_is_captured() -> None:
+    source = """
+try:
+    import tomllib as toml_reader
+except ImportError:
+    toml_reader = None
+else:
+    VERSION = 1
+"""
+    module = _visit(source)
+    assert [a.name for a in module.assignments] == ["toml_reader", "VERSION"]
+
+
+def test_private_definitions_in_if_block_excluded_without_all() -> None:
+    module = _visit("if True:\n    def _hidden():\n        pass\n    def shown():\n        pass\n")
+    assert [f.name for f in module.functions] == ["shown"]
+
+
+def test_definitions_inside_functions_not_captured() -> None:
+    module = _visit("def outer():\n    if True:\n        def inner():\n            pass\n")
+    assert [f.name for f in module.functions] == ["outer"]

@@ -6,6 +6,12 @@ Public names are determined as follows:
   there are considered public.
 - Otherwise every top-level name that does **not** start with ``_`` is public.
 
+Top-level means module level: definitions inside module-level ``if`` and
+``try`` blocks (every branch) count, so ``if TYPE_CHECKING:`` blocks,
+``sys.version_info`` checks and ``except ImportError:`` fallbacks are
+captured. When a name is defined more than once, the first definition in
+source order is kept.
+
 Names listed in ``__all__`` that are not defined in the module itself (for
 example re-exports of imported names) are captured as ``Reference`` entries so
 they are never silently dropped.
@@ -28,7 +34,13 @@ import ast
 
 from sheridan.iceberg._exceptions import ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Parameter, Reference
-from sheridan.iceberg._utilities import bound_names, collect_imports, extract_all, infer_all
+from sheridan.iceberg._utilities import (
+    bound_names,
+    collect_imports,
+    extract_all,
+    infer_all,
+    module_level_statements,
+)
 
 
 def visit_module(source: str, dotted_name: str) -> Module:
@@ -55,28 +67,37 @@ def visit_module(source: str, dotted_name: str) -> Module:
     assignments: list[Assignment] = []
     classes: list[Class] = []
     functions: list[Function] = []
+    # The first definition of a name wins, as in ``collect_imports``: in
+    # ``if``/``else`` or ``try``/``except`` branches, the first branch is reported.
+    seen: set[str] = set()
 
-    for node in tree.body:
+    def keep(name: str) -> bool:
+        if name not in public or name in seen:
+            return False
+        seen.add(name)
+        return True
+
+    for node in module_level_statements(tree.body):
         match node:
             case (ast.FunctionDef() | ast.AsyncFunctionDef()) as fn_node:
-                if fn_node.name in public:
+                if keep(fn_node.name):
                     functions.append(_build_function(fn_node))
 
             case ast.ClassDef() as cls_node:
-                if cls_node.name in public:
+                if keep(cls_node.name):
                     classes.append(_build_class(cls_node))
 
             case ast.Assign() as assign_node:
-                assignments.extend(a for a in _build_assignments(assign_node) if a.name in public)
+                assignments.extend(a for a in _build_assignments(assign_node) if keep(a.name))
 
             case ast.AnnAssign() as ann_node:
                 result = _build_assignment(ann_node)
-                if result is not None and result.name in public:
+                if result is not None and keep(result.name):
                     assignments.append(result)
 
             case ast.TypeAlias() as alias_node:
                 alias = _build_type_alias(alias_node)
-                if alias.name in public:
+                if keep(alias.name):
                     assignments.append(alias)
 
             case _:
@@ -84,8 +105,7 @@ def visit_module(source: str, dotted_name: str) -> Module:
 
     references: tuple[Reference, ...] = ()
     if explicit_all is not None:
-        defined = {a.name for a in assignments} | {c.name for c in classes} | {f.name for f in functions}
-        references = _build_references(tree, explicit_all - defined, dotted_name.rpartition(".")[0])
+        references = _build_references(tree, explicit_all - seen, dotted_name.rpartition(".")[0])
 
     return Module(
         name=dotted_name,

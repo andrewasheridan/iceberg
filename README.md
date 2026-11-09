@@ -15,6 +15,9 @@ code, and it has no runtime dependencies.
 
 - Reports every public module, class, function, and assignment, with full
   signatures (parameter names, annotations, defaults) and class members.
+  Definitions inside module-level `if` / `try` blocks (`if TYPE_CHECKING:`,
+  version checks, `except ImportError:` fallbacks) count; when a name is
+  defined more than once, the first definition is kept.
 - Uses `__all__` as the source of truth when present and falls back to
   underscore-prefix inference when it is absent. Dunder class members such as
   `__call__` and `__eq__` are public; `_x` and name-mangled `__x` are private.

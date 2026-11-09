@@ -141,3 +141,23 @@ def test_bound_names(source: str, expected: list[str]) -> None:
 def test_infer_all_includes_chained_and_unpacked_names() -> None:
     tree = ast.parse("a = b = 1\nc, *rest = 1, 2\nd, _e = 1, 2\n")
     assert infer_all(tree) == frozenset({"a", "b", "c", "rest", "d"})
+
+
+def test_infer_all_descends_into_if_and_try_blocks() -> None:
+    source = """
+if TYPE_CHECKING:
+    class A: ...
+elif x:
+    b: int = 1
+else:
+    type C = int
+try:
+    def d(): ...
+except ImportError:
+    e = f = 1
+else:
+    async def g(): ...
+finally:
+    _h = 1
+"""
+    assert infer_all(ast.parse(source)) == frozenset({"A", "b", "C", "d", "e", "f", "g"})
