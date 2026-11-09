@@ -126,8 +126,18 @@ identifier.
 
 ## Configuration
 
-iceberg walks up from the analyzed path looking for `.iceberg.toml` or a
-`[tool.iceberg]` table in `pyproject.toml`. Unknown keys are rejected.
+iceberg walks up from the analyzed path and checks each directory, nearest
+first:
+
+- If the directory has an `.iceberg.toml`, iceberg uses it. In one directory,
+  `.iceberg.toml` has priority over `pyproject.toml`.
+- Otherwise, if the directory has a `pyproject.toml`, it is the project root and
+  the search stops there. iceberg uses its `[tool.iceberg]` table, or the
+  defaults if it has none. Configuration above the project root (for example a
+  `~/.iceberg.toml` or a parent project's `pyproject.toml`) never applies.
+- If no file is found, iceberg uses the defaults.
+
+Unknown keys are rejected.
 
 ```toml
 [tool.iceberg]
