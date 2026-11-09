@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sheridan.iceberg._cli import main
+from sheridan.iceberg._config import Config
 from sheridan.iceberg._exceptions import IcebergError, InvalidPathError
 
 _TREE_OUTPUT = "package mypackage\n└── module mymodule"
@@ -366,3 +367,124 @@ def test_main_version_prints_installed_version(capsys: pytest.CaptureFixture[str
 
     assert exc_info.value.code == 0
     assert capsys.readouterr().out == f"iceberg {version('sheridan-iceberg')}\n"
+
+
+def _config_passed_to_api(argv: list[str]) -> Config:
+    """Run main with get_public_api mocked and return the Config it received."""
+    with (
+        patch("sheridan.iceberg._cli.get_public_api", return_value=MagicMock()) as mock_api,
+        patch("sheridan.iceberg._cli.format_tree", return_value=_TREE_OUTPUT),
+    ):
+        assert main(argv) == 0
+    config = mock_api.call_args.kwargs["config"]
+    assert isinstance(config, Config)
+    return config
+
+
+def test_main_config_option_replaces_discovered_file(tmp_path: Path) -> None:
+    """--config reads the named file and ignores the one found by walking up."""
+    (tmp_path / ".iceberg.toml").write_text('exclude = ["found"]\nmax_workers = 2\n', encoding="utf-8")
+    explicit = tmp_path / "other.toml"
+    explicit.write_text('exclude = ["explicit"]\n', encoding="utf-8")
+
+    config = _config_passed_to_api([str(tmp_path), "--config", str(explicit)])
+
+    assert config.exclude == ("explicit",)
+    assert config.max_workers == 1
+
+
+def test_main_config_option_reads_pyproject_table(tmp_path: Path) -> None:
+    """--config with a pyproject.toml reads its [tool.iceberg] table."""
+    project = tmp_path / "elsewhere"
+    project.mkdir()
+    (project / "pyproject.toml").write_text('[tool.iceberg]\nexclude = ["a"]\n', encoding="utf-8")
+
+    config = _config_passed_to_api([str(tmp_path), "--config", str(project / "pyproject.toml")])
+
+    assert config.exclude == ("a",)
+
+
+def test_main_config_option_missing_file_returns_1(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """--config with a path that does not exist is an error with exit code 1."""
+    missing = tmp_path / "missing.toml"
+
+    assert main([str(tmp_path), "--config", str(missing)]) == 1
+    assert f"Configuration file not found: {missing}" in capsys.readouterr().err
+
+
+def test_main_no_config_ignores_discovered_file(tmp_path: Path) -> None:
+    """--no-config uses the defaults even when a configuration file exists."""
+    (tmp_path / ".iceberg.toml").write_text('exclude = ["found"]\nmax_workers = 2\n', encoding="utf-8")
+
+    assert _config_passed_to_api([str(tmp_path), "--no-config"]) == Config()
+
+
+def test_main_no_config_skips_invalid_file(tmp_path: Path) -> None:
+    """--no-config does not read the discovered file, so an invalid one is not an error."""
+    (tmp_path / ".iceberg.toml").write_text("not = [valid toml", encoding="utf-8")
+
+    assert _config_passed_to_api([str(tmp_path), "--no-config"]) == Config()
+
+
+def test_main_config_and_no_config_are_mutually_exclusive(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Passing both --config and --no-config is a usage error."""
+    with pytest.raises(SystemExit) as exc_info:
+        main([str(tmp_path), "--config", "x.toml", "--no-config"])
+
+    assert exc_info.value.code == 2
+    assert "not allowed with argument" in capsys.readouterr().err
+
+
+def test_main_max_workers_overrides_file_value(tmp_path: Path) -> None:
+    """--max-workers takes precedence over max_workers in the discovered file."""
+    (tmp_path / ".iceberg.toml").write_text("max_workers = 2\n", encoding="utf-8")
+
+    assert _config_passed_to_api([str(tmp_path), "--max-workers", "3"]).max_workers == 3
+
+
+def test_main_max_workers_overrides_config_option_file(tmp_path: Path) -> None:
+    """--max-workers takes precedence over max_workers in the --config file."""
+    explicit = tmp_path / "other.toml"
+    explicit.write_text("max_workers = 2\n", encoding="utf-8")
+
+    config = _config_passed_to_api([str(tmp_path), "--config", str(explicit), "--max-workers", "4"])
+
+    assert config.max_workers == 4
+
+
+def test_main_max_workers_with_no_config(tmp_path: Path) -> None:
+    """--max-workers applies on top of the defaults when --no-config is given."""
+    (tmp_path / ".iceberg.toml").write_text("max_workers = 2\n", encoding="utf-8")
+
+    config = _config_passed_to_api([str(tmp_path), "--no-config", "--max-workers", "5"])
+
+    assert config == Config(max_workers=5)
+
+
+def test_main_without_max_workers_keeps_file_value(tmp_path: Path) -> None:
+    """Without --max-workers, max_workers comes from the configuration file."""
+    (tmp_path / ".iceberg.toml").write_text("max_workers = 2\n", encoding="utf-8")
+
+    assert _config_passed_to_api([str(tmp_path)]).max_workers == 2
+
+
+def test_main_exclude_extends_config_option_file(tmp_path: Path) -> None:
+    """--exclude adds to the exclude list from the --config file."""
+    explicit = tmp_path / "other.toml"
+    explicit.write_text('exclude = ["a"]\n', encoding="utf-8")
+
+    config = _config_passed_to_api([str(tmp_path), "--config", str(explicit), "--exclude", "b"])
+
+    assert config.exclude == ("a", "b")
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "two", "1.5"])
+def test_main_max_workers_rejects_invalid_values(
+    value: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """--max-workers accepts only integers of at least 1."""
+    with pytest.raises(SystemExit) as exc_info:
+        main([str(tmp_path), "--max-workers", value])
+
+    assert exc_info.value.code == 2
+    assert "expected a positive integer" in capsys.readouterr().err

@@ -5,7 +5,7 @@ inside ``pyproject.toml``, walking upward from the given start path. Falls back
 to built-in defaults when no configuration file is found.
 """
 
-__all__ = ["Config", "load_config"]
+__all__ = ["Config", "load_config", "load_config_file"]
 
 import re
 import tomllib
@@ -239,3 +239,28 @@ def load_config(start: Path) -> Config:
             return Config() if section is None else _build_config(section)
 
     return Config()
+
+
+def load_config_file(path: Path) -> Config:
+    """Load iceberg configuration from one named file, without searching.
+
+    A file named ``pyproject.toml`` is read from its ``[tool.iceberg]`` table
+    (the defaults apply if it has none). Any other file is read like an
+    ``.iceberg.toml``, with the keys at the top level.
+
+    Args:
+        path: Path to the configuration file.
+
+    Returns:
+        A :class:`Config` populated from the file.
+
+    Raises:
+        ConfigError: If the file does not exist or cannot be read, contains
+            invalid TOML, has unknown keys, or has type-incorrect values.
+    """
+    if not path.is_file():
+        raise ConfigError(f"Configuration file not found: {path}")
+    if path.name == "pyproject.toml":
+        section = _pyproject_section(path)
+        return Config() if section is None else _build_config(section)
+    return _build_config(_parse_toml(_read_text(path), path))

@@ -190,6 +190,21 @@ first:
 
 Unknown keys are rejected.
 
+Command-line options change this for one run:
+
+- `--config PATH` reads only `PATH` and skips the search. A file named
+  `pyproject.toml` is read from its `[tool.iceberg]` table; any other file is
+  read like an `.iceberg.toml`.
+- `--no-config` ignores all configuration files and uses the defaults. It
+  cannot be combined with `--config`.
+- `--max-workers N` overrides `max_workers`, and `--exclude` adds to `exclude`.
+  Command-line values always take precedence over the file.
+
+```bash
+iceberg src/mypkg --config ci/iceberg.toml --max-workers 4
+iceberg src/mypkg --no-config
+```
+
 ```toml
 [tool.iceberg]
 # Regex searched in each file's POSIX path relative to the analyzed directory's
