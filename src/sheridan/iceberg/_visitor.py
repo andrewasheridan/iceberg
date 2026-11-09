@@ -42,6 +42,7 @@ from sheridan.iceberg._utilities import (
     extract_all,
     infer_all,
     module_level_statements,
+    star_candidate,
 )
 
 
@@ -126,7 +127,12 @@ def visit_module(
 
     references: tuple[Reference, ...] = ()
     if explicit_all is not None:
-        references = _build_references(tree, explicit_all - seen, dotted_name.rpartition(".")[0])
+        references = _build_references(
+            tree,
+            explicit_all - seen,
+            dotted_name.rpartition(".")[0],
+            {} if known_all is None else known_all,
+        )
 
     return Module(
         name=dotted_name,
@@ -162,22 +168,41 @@ def _top_level_public_names(
     return infer_all(tree)
 
 
-def _build_references(tree: ast.Module, names: frozenset[str], package: str) -> tuple[Reference, ...]:
+def _build_references(
+    tree: ast.Module,
+    names: frozenset[str],
+    package: str,
+    known_all: Mapping[str, frozenset[str] | None],
+) -> tuple[Reference, ...]:
     """Build ``Reference`` entries for exported names with no local definition.
+
+    A star import from a module whose ``__all__`` is known binds the names in
+    that ``__all__``. Any other star-imported module (outside the analyzed
+    tree, or without ``__all__``) is recorded as the candidate source of a
+    name no import binds; ``resolve_module_references`` later resolves it when
+    the module is in the tree.
 
     Args:
         tree: Parsed module AST.
         names: Exported names that were not captured as a definition.
         package: Dotted name of the containing package, used to absolutize
             relative imports.
+        known_all: The evaluated ``__all__`` of each module in the analyzed
+            tree, by dotted name.
 
     Returns:
         One ``Reference`` per name, sorted by name.
     """
-    imports = collect_imports(tree, package)
+    imports = collect_imports(tree, package, known_all.get)
+    candidate = star_candidate(tree, package, known_all.get)
     references: list[Reference] = []
     for name in sorted(names):
-        module, attribute = imports.get(name, (None, None))
+        if name in imports:
+            module, attribute = imports[name]
+        elif candidate is not None:
+            module, attribute = candidate, name
+        else:
+            module, attribute = None, None
         references.append(Reference(name=name, module=module, attribute=attribute))
     return tuple(references)
 

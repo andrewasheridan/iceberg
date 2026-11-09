@@ -23,7 +23,7 @@ from pathlib import Path
 
 from sheridan.iceberg._exceptions import ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Reference, ResolveReport
-from sheridan.iceberg._utilities import collect_imports, extract_all, infer_all
+from sheridan.iceberg._utilities import collect_imports, extract_all, infer_all, star_candidate
 from sheridan.iceberg._visitor import visit_module
 
 # ---------------------------------------------------------------------------
@@ -105,7 +105,16 @@ def resolve_init(
     # Pass the evaluated __all__ so it is not evaluated (and reported) twice.
     local_module = visit_module(init_source, dotted_package, path, {**(known_all or {}), dotted_package: explicit_all})
 
-    all_imports = collect_imports(tree, dotted_package)
+    root_package = dotted_package.split(".")[0]
+
+    def star_exports(module_name: str) -> frozenset[str] | None:
+        # A visited module holds exactly its public names: its ``__all__``, or
+        # the names without a leading underscore when there is none.
+        sibling = sibling_modules.get(_strip_namespace_prefix(module_name, root_package, namespace_parents))
+        return None if sibling is None else _exported_names(sibling)
+
+    all_imports = collect_imports(tree, dotted_package, star_exports)
+    candidate = star_candidate(tree, dotted_package, star_exports)
     import_map = _build_import_map(all_imports, dotted_package, namespace_parents)
     public_names = _compute_public_names(tree, explicit_all, import_map)
 
@@ -127,7 +136,7 @@ def resolve_init(
 
         if obj is None:
             unresolved.append(name)
-            module_name, attribute = all_imports.get(name, (None, None))
+            module_name, attribute = all_imports.get(name, (None, None) if candidate is None else (candidate, name))
             references.append(Reference(name=name, module=module_name, attribute=attribute))
             continue
 
@@ -322,6 +331,18 @@ def _index_module(module: Module) -> dict[str, _Symbol]:
         index[asgn.name] = asgn
 
     return index
+
+
+def _exported_names(module: Module) -> frozenset[str]:
+    """List every name a visited module exports, resolved or not.
+
+    Args:
+        module: A visited (and possibly resolved) module.
+
+    Returns:
+        The names of its definitions and its references.
+    """
+    return frozenset(_index_module(module)) | {reference.name for reference in module.references}
 
 
 def _lookup_in_sibling(

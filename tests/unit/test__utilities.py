@@ -16,6 +16,7 @@ from sheridan.iceberg._utilities import (
     infer_all,
     read_source,
     resolve_relative,
+    star_candidate,
 )
 
 
@@ -73,6 +74,33 @@ def test_plain_import_aliased() -> None:
 
 def test_star_import_ignored() -> None:
     assert _imports("from os import *") == {}
+
+
+def test_star_import_binds_known_exports() -> None:
+    tree = ast.parse("from ._c import *\nfrom os import *")
+    exports = {"pkg._c": frozenset({"b", "a"})}
+    assert collect_imports(tree, "pkg", exports.get) == {"a": ("pkg._c", "a"), "b": ("pkg._c", "b")}
+
+
+def test_star_import_explicit_import_first_wins() -> None:
+    tree = ast.parse("from ._d import a\nfrom ._c import *")
+    exports = {"pkg._c": frozenset({"a"})}
+    assert collect_imports(tree, "pkg", exports.get) == {"a": ("pkg._d", "a")}
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("import os", None),
+        ("from ._c import *", None),
+        ("from os import *", "os"),
+        ("from os import *\nfrom sys import *\nfrom ._c import *", "sys"),
+        ("try:\n    from .._x import *\nexcept ImportError:\n    pass", "_x"),
+    ],
+)
+def test_star_candidate_is_last_unknown_star_module(source: str, expected: str | None) -> None:
+    exports = {"pkg._c": frozenset({"a"})}
+    assert star_candidate(ast.parse(source), "pkg", exports.get) == expected
 
 
 def test_try_except_imports_collected_first_binding_wins() -> None:

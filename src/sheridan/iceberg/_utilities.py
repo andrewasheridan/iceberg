@@ -5,12 +5,21 @@ They operate on the stdlib ``ast`` module and carry no external dependencies
 beyond the standard library.
 """
 
-__all__ = ["bound_names", "collect_imports", "extract_all", "infer_all", "read_source", "resolve_relative"]
+__all__ = [
+    "StarExports",
+    "bound_names",
+    "collect_imports",
+    "extract_all",
+    "infer_all",
+    "read_source",
+    "resolve_relative",
+    "star_candidate",
+]
 
 import ast
 import importlib.util
 import warnings
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Collection, Iterator
 from pathlib import Path
 
 from sheridan.iceberg._exceptions import SourceReadError
@@ -19,6 +28,10 @@ from sheridan.iceberg._exceptions import SourceReadError
 #: ``None`` when the module is not in the analyzed tree or its ``__all__`` is
 #: unknown.
 type AllLookup = Callable[[str], frozenset[str] | None]
+
+#: Look up the names that ``from module import *`` binds, by dotted module
+#: name. Returns ``None`` when the module is not in the analyzed tree.
+type StarExports = Callable[[str], Collection[str] | None]
 
 
 def read_source(path: Path) -> str:
@@ -327,7 +340,11 @@ def module_level_statements(body: list[ast.stmt]) -> Iterator[ast.stmt]:
                 pass
 
 
-def collect_imports(tree: ast.Module, package: str) -> dict[str, tuple[str, str | None]]:
+def collect_imports(
+    tree: ast.Module,
+    package: str,
+    star_exports: StarExports | None = None,
+) -> dict[str, tuple[str, str | None]]:
     """Map each name bound by a module-level import to where it came from.
 
     Relative imports are resolved against *package*. The first binding of a
@@ -339,11 +356,15 @@ def collect_imports(tree: ast.Module, package: str) -> dict[str, tuple[str, str 
         package: Dotted name of the package the module lives in, used as the
             anchor for relative imports. For an ``__init__.py`` this is the
             package itself; for a regular module it is the parent package.
+        star_exports: Returns the names that ``from module import *`` binds,
+            or ``None`` when the module is unknown. Without it, or when it
+            returns ``None``, star imports bind nothing.
 
     Returns:
         A mapping from local name to ``(module, attribute)``. ``attribute`` is
-        the original imported name for ``from module import attribute`` and
-        ``None`` for ``import module`` bindings. Star imports are ignored.
+        the original imported name for ``from module import attribute`` (and
+        for each name a star import binds) and ``None`` for ``import module``
+        bindings.
     """
     result: dict[str, tuple[str, str | None]] = {}
 
@@ -353,6 +374,8 @@ def collect_imports(tree: ast.Module, package: str) -> dict[str, tuple[str, str 
                 source = resolve_relative(package, module, level) if level else (module or "")
                 for alias in aliases:
                     if alias.name == "*":
+                        for name in sorted((star_exports and star_exports(source)) or ()):
+                            result.setdefault(name, (source, name))
                         continue
                     result.setdefault(alias.asname or alias.name, (source, alias.name))
 
@@ -369,3 +392,30 @@ def collect_imports(tree: ast.Module, package: str) -> dict[str, tuple[str, str 
                 pass
 
     return result
+
+
+def star_candidate(tree: ast.Module, package: str, star_exports: StarExports) -> str | None:
+    """Name the star-imported module that may provide a name iceberg cannot find.
+
+    A star import from a module outside the analyzed tree may bind any name.
+    When several do, the last one is returned, because a later import
+    rebinds the names of an earlier one.
+
+    Args:
+        tree: Parsed module AST.
+        package: Dotted name of the package the module lives in, used as the
+            anchor for relative imports (see ``collect_imports``).
+        star_exports: Returns the names that ``from module import *`` binds,
+            or ``None`` when the module is not in the analyzed tree.
+
+    Returns:
+        The absolute dotted name of the last module-level ``from module
+        import *`` whose module is not in the analyzed tree, or ``None``.
+    """
+    candidate: str | None = None
+    for node in module_level_statements(tree.body):
+        if isinstance(node, ast.ImportFrom) and any(alias.name == "*" for alias in node.names):
+            source = resolve_relative(package, node.module, node.level) if node.level else (node.module or "")
+            if star_exports(source) is None:
+                candidate = source
+    return candidate
