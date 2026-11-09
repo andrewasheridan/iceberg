@@ -26,7 +26,7 @@ def _make_function(name: str) -> Function:
 
 
 def _make_class(name: str) -> Class:
-    return Class(name=name, assignments=(), methods=(), nested_classes=())
+    return Class(name=name, bases=(), keywords=(), assignments=(), methods=(), nested_classes=())
 
 
 def _make_assignment(name: str) -> Assignment:

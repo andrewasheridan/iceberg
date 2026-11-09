@@ -200,6 +200,10 @@ class Class:
 
     Attributes:
         name: The unqualified class name.
+        bases: Unparsed base class expressions in source order, for example
+            ``("Base", "Generic[T]")``.
+        keywords: Unparsed keyword arguments of the class statement in source
+            order, for example ``("metaclass=ABCMeta",)``.
         assignments: Tuple of class-level assignments (class variables).
         methods: Tuple of methods defined directly in the class body.
         nested_classes: Tuple of classes nested inside this class.
@@ -207,6 +211,12 @@ class Class:
 
     name: str
     """Unqualified class name."""
+
+    bases: tuple[str, ...]
+    """Unparsed base class expressions in source order."""
+
+    keywords: tuple[str, ...]
+    """Unparsed keyword arguments of the class statement, such as ``metaclass=ABCMeta``, in source order."""
 
     assignments: tuple[Assignment, ...]
     """Class-level assignments (class variables) in source order."""

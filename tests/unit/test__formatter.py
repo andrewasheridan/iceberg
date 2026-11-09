@@ -62,9 +62,13 @@ def _make_class(
     assignments: tuple[Assignment, ...] = (),
     methods: tuple[Function, ...] = (),
     nested_classes: tuple[Class, ...] = (),
+    bases: tuple[str, ...] = (),
+    keywords: tuple[str, ...] = (),
 ) -> Class:
     return Class(
         name=name,
+        bases=bases,
+        keywords=keywords,
         assignments=assignments,
         methods=methods,
         nested_classes=nested_classes,
@@ -249,6 +253,36 @@ def test_format_tree_class_appears() -> None:
     pkg = _make_package(name="mylib", modules=(mod,))
     result = format_tree(pkg)
     assert "class Widget" in result
+
+
+def test_format_tree_class_shows_bases_and_keywords() -> None:
+    """A class header lists its bases, then its keyword arguments."""
+    cls = _make_class(name="Widget", bases=("Base", "Generic[T]"), keywords=("metaclass=Meta",))
+    inner = _make_class(name="Kind", bases=("Enum",))
+    outer = _make_class(name="Outer", nested_classes=(inner,))
+    mod = _make_module(name="ui", classes=(cls, outer))
+    result = format_tree(mod)
+    assert "class Widget(Base, Generic[T], metaclass=Meta)" in result
+    assert "class Kind(Enum)" in result
+    assert "class Outer\n" in result
+
+
+def test_format_tree_hoisted_class_shows_bases() -> None:
+    """A class in ``__init__`` hoisted to package level keeps its bases."""
+    cls = _make_class(name="Error", bases=("Exception",))
+    mod = _make_module(name="mylib", classes=(cls,))
+    pkg = _make_package(name="mylib", modules=(mod,))
+    assert "class Error(Exception)" in format_tree(pkg)
+
+
+def test_format_json_class_bases_and_keywords_serialised() -> None:
+    """Bases and keywords appear as lists of source strings after the name."""
+    cls = _make_class(name="Agent", bases=("Base",), keywords=("metaclass=Meta",))
+    parsed = json.loads(format_json(_make_module(name="agents", classes=(cls,))))
+    cls_data = parsed["classes"][0]
+    assert cls_data["bases"] == ["Base"]
+    assert cls_data["keywords"] == ["metaclass=Meta"]
+    assert list(cls_data)[:4] == ["node_type", "name", "bases", "keywords"]
 
 
 def test_format_tree_class_method_indented() -> None:

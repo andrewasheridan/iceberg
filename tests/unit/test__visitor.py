@@ -253,14 +253,43 @@ class Outer:
     assert "inner_method" in inner_method_names
 
 
-def test_class_model_has_no_bases_attribute() -> None:
+def test_class_without_bases_has_empty_bases_and_keywords() -> None:
     source = """
 class MyClass:
     pass
 """
-    module = _visit(source)
-    cls = module.classes[0]
-    assert not hasattr(cls, "bases")
+    cls = _visit(source).classes[0]
+    assert cls.bases == ()
+    assert cls.keywords == ()
+
+
+def test_class_bases_are_captured_as_source_in_order() -> None:
+    source = """
+class MyClass(errors.IcebergError, Generic[T], *mixins):
+    pass
+"""
+    cls = _visit(source).classes[0]
+    assert cls.bases == ("errors.IcebergError", "Generic[T]", "*mixins")
+
+
+def test_class_keywords_are_captured_as_source_in_order() -> None:
+    source = """
+class MyClass(Base, metaclass=ABCMeta, total=False, **options):
+    pass
+"""
+    cls = _visit(source).classes[0]
+    assert cls.bases == ("Base",)
+    assert cls.keywords == ("metaclass=ABCMeta", "total=False", "**options")
+
+
+def test_nested_class_bases_are_captured() -> None:
+    source = """
+class Outer:
+    class Inner(Enum):
+        A = 1
+"""
+    inner = _visit(source).classes[0].nested_classes[0]
+    assert inner.bases == ("Enum",)
 
 
 def test_class_model_has_no_decorators_attribute() -> None:
@@ -851,7 +880,9 @@ class A:
     (cls,) = _visit(source).classes
     assert [(m.name, m.returns) for m in cls.methods] == [("y", "int")]
     assert cls.assignments == (Assignment(name="LIMIT", annotation="int"),)
-    assert cls.nested_classes == (Class(name="Inner", assignments=(), methods=(), nested_classes=()),)
+    assert cls.nested_classes == (
+        Class(name="Inner", bases=(), keywords=(), assignments=(), methods=(), nested_classes=()),
+    )
 
 
 def test_class_body_try_except_definitions_captured() -> None:

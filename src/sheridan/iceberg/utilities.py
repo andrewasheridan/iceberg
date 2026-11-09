@@ -246,8 +246,8 @@ def get_class(
             extract by name or by dotted qualified name. Ignored for all other input forms.
 
     Returns:
-        A ``Class`` dataclass capturing the name, bases, and members of the
-        target class.
+        A ``Class`` dataclass capturing the name, bases, keyword arguments
+        (such as ``metaclass=``), and members of the target class.
 
     Raises:
         ParseError: When a source string or file cannot be parsed as valid

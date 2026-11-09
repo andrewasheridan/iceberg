@@ -57,9 +57,13 @@ def _make_class(
     assignments: tuple[Assignment, ...] = (),
     methods: tuple[Function, ...] = (),
     nested_classes: tuple[Class, ...] = (),
+    bases: tuple[str, ...] = (),
+    keywords: tuple[str, ...] = (),
 ) -> Class:
     return Class(
         name=name,
+        bases=bases,
+        keywords=keywords,
         assignments=assignments,
         methods=methods,
         nested_classes=nested_classes,
