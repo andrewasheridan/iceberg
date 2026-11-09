@@ -135,6 +135,20 @@ are not listed separately. A function with `typing.overload` signatures is one
 line per overload and hides the implementation signature unless you pass
 `--show-overload-implementations`.
 
+`load_json` reads the output of `iceberg --json` back into a `Package` or
+`Module`. The JSON stores package paths relative to the analyzed directory, so
+the loaded paths are relative too unless you pass `root=`. It raises
+`SnapshotError` (an `IcebergError`) for invalid JSON, a missing or unsupported
+`schema_version`, and malformed nodes:
+
+```python
+from pathlib import Path
+
+from sheridan.iceberg import load_json
+
+old = load_json(Path("api.json").read_text(encoding="utf-8"))
+```
+
 `sheridan.iceberg.utilities` provides helpers for building the same models from
 smaller inputs: `get_function`, `get_class`, `get_assignment`, `get_module`, and
 `get_package` accept source strings, AST nodes, paths, or live objects.
