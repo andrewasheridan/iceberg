@@ -103,7 +103,8 @@ def bound_names(target: ast.expr) -> Iterator[str]:
 def infer_all(tree: ast.Module) -> frozenset[str]:
     """Collect public top-level names defined in a module AST.
 
-    Traverses the top-level statements of the given ``ast.Module`` and
+    Traverses the module-level statements of the given ``ast.Module``
+    (including those inside ``if`` and ``try`` blocks) and
     extracts names that would be considered "public" by convention
     (i.e., names not starting with an underscore). The following node
     types are inspected:
@@ -127,11 +128,14 @@ def infer_all(tree: ast.Module) -> frozenset[str]:
     Notes:
         - This function does not evaluate ``__all__`` and instead infers
           public names purely by naming convention.
+        - Definitions inside module-level ``if`` / ``try`` blocks (all
+          branches) are included, e.g. ``if TYPE_CHECKING:`` blocks and
+          ``try: ... except ImportError:`` fallbacks.
         - Nested definitions (e.g., inside functions or classes) are ignored.
         - Attribute and subscript assignment targets are not included.
     """
     names: set[str] = set()
-    for node in tree.body:
+    for node in module_level_statements(tree.body):
         match node:
             case ast.FunctionDef(name=name) | ast.AsyncFunctionDef(name=name):
                 if not name.startswith("_"):
@@ -181,7 +185,7 @@ def resolve_relative(package: str, module: str | None, level: int) -> str:
     return f"{anchor}.{module}" if anchor else module
 
 
-def _module_level_statements(body: list[ast.stmt]) -> Iterator[ast.stmt]:
+def module_level_statements(body: list[ast.stmt]) -> Iterator[ast.stmt]:
     """Yield statements that execute at module import time.
 
     Descends into ``if`` / ``try`` blocks (all branches) because names bound
@@ -198,18 +202,18 @@ def _module_level_statements(body: list[ast.stmt]) -> Iterator[ast.stmt]:
         yield node
         match node:
             case ast.If(body=if_body, orelse=orelse):
-                yield from _module_level_statements(if_body)
-                yield from _module_level_statements(orelse)
+                yield from module_level_statements(if_body)
+                yield from module_level_statements(orelse)
 
             case (
                 ast.Try(body=try_body, handlers=handlers, orelse=orelse, finalbody=finalbody)
                 | ast.TryStar(body=try_body, handlers=handlers, orelse=orelse, finalbody=finalbody)
             ):
-                yield from _module_level_statements(try_body)
+                yield from module_level_statements(try_body)
                 for handler in handlers:
-                    yield from _module_level_statements(handler.body)
-                yield from _module_level_statements(orelse)
-                yield from _module_level_statements(finalbody)
+                    yield from module_level_statements(handler.body)
+                yield from module_level_statements(orelse)
+                yield from module_level_statements(finalbody)
 
             case _:
                 pass
@@ -235,7 +239,7 @@ def collect_imports(tree: ast.Module, package: str) -> dict[str, tuple[str, str 
     """
     result: dict[str, tuple[str, str | None]] = {}
 
-    for node in _module_level_statements(tree.body):
+    for node in module_level_statements(tree.body):
         match node:
             case ast.ImportFrom(module=module, names=aliases, level=level):
                 source = resolve_relative(package, module, level) if level else (module or "")
