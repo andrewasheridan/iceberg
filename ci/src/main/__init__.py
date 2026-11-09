@@ -33,7 +33,7 @@ def _uv(source: dagger.Directory) -> dagger.Container:
 
 
 def _base(source: dagger.Directory) -> dagger.Container:
-    return _uv(source).with_exec(["uv", "sync", "--locked", "--all-extras", "--dev"])
+    return _uv(source).with_exec(["uv", "sync", "--locked"])
 
 
 @object_type

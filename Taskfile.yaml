@@ -27,7 +27,7 @@ tasks:
   install:
     desc: Install all dependencies
     cmds:
-      - uv sync --all-extras --dev
+      - uv sync
 
   lint:
     desc: Run ruff linter and autofix issues
