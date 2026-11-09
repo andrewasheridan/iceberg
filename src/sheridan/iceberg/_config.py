@@ -98,7 +98,8 @@ def _build_config(table: dict[str, object]) -> Config:
     if "max_workers" in table:
         workers_value = table["max_workers"]
 
-        if not isinstance(workers_value, int):
+        # bool is a subclass of int, so `max_workers = true` would otherwise pass as 1.
+        if isinstance(workers_value, bool) or not isinstance(workers_value, int):
             raise ConfigError(f"'max_workers' must be an integer, got {type(workers_value).__name__!r}.")
 
         if workers_value < 1:

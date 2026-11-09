@@ -153,6 +153,13 @@ def test_load_config_max_workers_non_integer_raises(tmp_path: Path) -> None:
         load_config(tmp_path)
 
 
+@pytest.mark.parametrize("value", ["true", "false"])
+def test_load_config_max_workers_boolean_raises(tmp_path: Path, value: str) -> None:
+    _write(tmp_path / ".iceberg.toml", f"max_workers = {value}\n")
+    with pytest.raises(ConfigError, match="'max_workers' must be an integer, got 'bool'"):
+        load_config(tmp_path)
+
+
 def test_load_config_max_workers_float_raises(tmp_path: Path) -> None:
     _write(tmp_path / ".iceberg.toml", "max_workers = 2.5\n")
     with pytest.raises(ConfigError, match="'max_workers' must be an integer"):
