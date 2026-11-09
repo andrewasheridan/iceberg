@@ -261,14 +261,30 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
 
     try:
-        config = _resolve_config(args)
-        report = get_public_api_report(args.path, config=config, keep_going=args.keep_going)
+        return _run(args)
     except IcebergError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     except Exception as exc:
         _report_unexpected_error(exc, show_traceback=_traceback_requested(args))
         return 2
+
+
+def _run(args: argparse.Namespace) -> int:
+    """Analyze the path, then print or write the report and any diagnostics.
+
+    Args:
+        args: The parsed command-line arguments.
+
+    Returns:
+        ``0`` on success, ``1`` when the output file cannot be written or
+        ``--keep-going`` skipped a module.
+
+    Raises:
+        IcebergError: When the configuration or the analysis fails.
+    """
+    config = _resolve_config(args)
+    report = get_public_api_report(args.path, config=config, keep_going=args.keep_going)
 
     if args.json:
         output = format_json(report.api, report.diagnostics if args.keep_going else None)
