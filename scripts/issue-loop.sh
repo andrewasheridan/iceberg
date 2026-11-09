@@ -4,6 +4,7 @@
 # For each issue: pick it with scripts/next-issue.sh, run `claude -p "/next-issue N"`,
 # wait for the PR checks, wait for the auto-merge, and continue on the updated main.
 # Stops at the first blocked issue, failed check, or PR that does not merge.
+# Stops (and turns auto-merge off) when a PR changes .github/workflows/.
 #
 # Usage: scripts/issue-loop.sh [--once] [--max N]
 #
@@ -20,7 +21,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --once) max=1 ;;
     --max) max="$2"; shift ;;
-    -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,14p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
   shift
@@ -58,6 +59,12 @@ while [ "$max" -eq 0 ] || [ "$done_count" -lt "$max" ]; do
     "BLOCKED: "*) die "#$issue blocked: ${last#BLOCKED: }" ;;
     *) die "#$issue: no PR or BLOCKED line in the output (see $log)" ;;
   esac
+
+  # A PR that changes CI workflows must not merge without a person reviewing it.
+  if gh pr diff "$pr" --name-only | grep -q '^\.github/workflows/'; then
+    gh pr merge "$pr" --disable-auto || true
+    die "$pr changes .github/workflows/; auto-merge turned off, review it by hand"
+  fi
 
   say "waiting for checks on $pr"
   sleep 20  # give GitHub time to register the checks
