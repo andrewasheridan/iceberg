@@ -70,6 +70,13 @@ class _NotStaticError(Exception):
         self.reason = reason
 
 
+def _is_int_literal(node: ast.expr) -> bool:
+    """Check whether *node* is an integer literal such as ``0`` or ``-1``."""
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub | ast.UAdd):
+        node = node.operand
+    return isinstance(node, ast.Constant) and type(node.value) is int
+
+
 def extract_all(
     tree: ast.Module,
     package: str = "",
@@ -85,6 +92,8 @@ def extract_all(
     - ``__all__ = ...`` and ``__all__: list[str] = ...``
     - ``__all__ += ...``
     - ``__all__.extend(...)`` and ``__all__.append("name")``
+    - ``__all__.insert(i, "name")`` and ``__all__.remove("name")``
+    - ``__all__.sort(...)`` and ``__all__.reverse()``, which keep the names
 
     A value may be a list or tuple of string literals, a concatenation of
     values with ``+``, the current ``__all__``, or the ``__all__`` of another
@@ -178,6 +187,18 @@ def extract_all(
                             current = current + evaluate(arg)
                         case "append", [ast.Constant(value=str(s))], []:
                             current = [*current, s]
+                        case "insert", [index, ast.Constant(value=str(s))], [] if _is_int_literal(index):
+                            # Only membership matters, so the position is ignored.
+                            current = [*current, s]
+                        case "remove", [ast.Constant(value=str(s))], []:
+                            if s not in current:
+                                raise _NotStaticError(node, f"__all__.remove({s!r}) removes a missing name")
+                            current = list(current)
+                            current.remove(s)
+                        case "sort", [], keywords if all(kw.arg in {"key", "reverse"} for kw in keywords):
+                            pass  # reordering keeps the membership
+                        case "reverse", [], []:
+                            pass
                         case _:
                             raise _NotStaticError(node, f"__all__.{method}(...) is not supported")
 
