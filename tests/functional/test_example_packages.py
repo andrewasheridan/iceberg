@@ -37,12 +37,12 @@ _FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
 
 def _module_names(pkg: Package) -> set[str]:
-    """Return the set of short module names (last dotted component) at the top level."""
+    """Collect the set of short module names (last dotted component) at the top level."""
     return {m.name for m in pkg.modules}
 
 
 def _subpackage_names(pkg: Package) -> set[str]:
-    """Return the set of top-level subpackage names (last dotted component)."""
+    """Collect the set of top-level subpackage names (last dotted component)."""
     return {sp.name for sp in pkg.subpackages}
 
 

@@ -27,7 +27,7 @@ _REAL_PACKAGE_PATH = _PROJECT_ROOT / "src" / "sheridan"
 
 @pytest.fixture(scope="session")
 def real_package_path() -> Path:
-    """Return the absolute path to the iceberg source package directory."""
+    """Resolve the absolute path to the iceberg source package directory."""
     assert _REAL_PACKAGE_PATH.is_dir(), (
         f"Expected a real package at {_REAL_PACKAGE_PATH}; check that the project layout has not changed."
     )

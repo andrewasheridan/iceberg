@@ -47,7 +47,7 @@ def _all_class_names(pkg: Package) -> set[str]:
 
 
 def _find_module(pkg: Package, dotted_name: str) -> Module | None:
-    """Return the first Module whose name matches dotted_name anywhere in the trie."""
+    """Find the first Module whose name matches dotted_name anywhere in the trie."""
     for mod in _all_modules(pkg):
         if mod.name == dotted_name:
             return mod
@@ -395,7 +395,7 @@ async def fetch(url: str) -> bytes:
 
 
 def test_function_return_annotation_preserved(tmp_path: Path) -> None:
-    """Return annotations on functions survive the full pipeline."""
+    """Return-type annotations on functions survive the full pipeline."""
     src = tmp_path / "math_utils.py"
     src.write_text(
         """\

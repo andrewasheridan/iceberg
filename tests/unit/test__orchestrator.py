@@ -26,7 +26,7 @@ def _write(path: Path, text: str = "") -> Path:
 
 
 def _default_config() -> Config:
-    """Return a Config with all defaults and max_workers=1 for determinism."""
+    """Build a Config with all defaults and max_workers=1 for determinism."""
     return Config(max_workers=1)
 
 

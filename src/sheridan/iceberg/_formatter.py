@@ -160,7 +160,7 @@ def _render_lines(node: Package | Module | Class, prefix: str) -> list[str]:
 def _children(
     node: Package | Module | Class,
 ) -> list[tuple[str, Package | Module | Class | None]]:
-    """Return an ordered list of ``(label, child_node_or_None)`` pairs.
+    """List the children of *node* as ordered ``(label, child_node_or_None)`` pairs.
 
     Leaf items (assignments, functions, references) have ``None`` as the second element
     because they have no subtree to recurse into. Container items (modules,
@@ -240,7 +240,7 @@ def format_tree(api: Package | Module) -> str:
 
 
 def _sort_key(obj: Any) -> str:
-    """Return a stable sort key for a plain-Python value produced by ``_to_plain``.
+    """Compute a stable sort key for a plain-Python value produced by ``_to_plain``.
 
     Named dicts (those with a ``"name"`` key) sort by that name; everything
     else falls back to its JSON representation.
@@ -257,7 +257,7 @@ def _sort_key(obj: Any) -> str:
 
 
 def _relative_path(path: Path, root: Path | None) -> str:
-    """Return *path* as a POSIX string relative to *root*.
+    """Render *path* as a POSIX string relative to *root*.
 
     Absolute paths would make snapshots depend on where the source is checked
     out, so every path is expressed relative to the analyzed root. The root

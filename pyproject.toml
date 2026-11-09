@@ -84,7 +84,10 @@ known-first-party = ["sheridan"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
-# All the errors except D203, D204, D213, D215, D400, D401, D404, D406, D407, D408, D409, and D413.
+# The google convention turns off D203, D204, D213, D215, D400, D401, D404, D406,
+# D407, D408, D409, and D413. `extend-select` above turns D400, D401, D404, and
+# D406 back on. D401 lets "Return" through (it is imperative), so
+# tests/unit/test_docstring_style.py rejects docstrings that start with it.
 
 [tool.ruff.format]
 quote-style = "double"

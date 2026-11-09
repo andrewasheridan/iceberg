@@ -40,7 +40,7 @@ def _visit_worker(discovered: DiscoveredModule) -> Module:
 
 
 def _namespace_parents(root: Path) -> tuple[str, ...]:
-    """Return the identifier-named directories above *root*, outermost first.
+    """List the identifier-named directories above *root*, outermost first.
 
     These let ``resolve_init`` recognize absolute imports such as
     ``sheridan.iceberg._api`` when the analyzed root is ``src/sheridan/iceberg``
@@ -65,7 +65,7 @@ def _child_names_at_level(
     init_dotted_name: str,
     all_discovered: tuple[DiscoveredModule, ...],
 ) -> frozenset[str]:
-    """Return the short names of everything directly below a package.
+    """List the short names of everything directly below a package.
 
     That is every sub-module, sub-package, and namespace sub-directory
     (a directory without ``__init__.py`` that still contains modules).

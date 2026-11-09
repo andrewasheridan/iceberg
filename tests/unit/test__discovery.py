@@ -27,7 +27,7 @@ def _by_dotted(modules: tuple[DiscoveredModule, ...]) -> dict[str, DiscoveredMod
 
 
 def _default_config() -> Config:
-    """Return a Config with all defaults."""
+    """Build a Config with all defaults."""
     return Config()
 
 

@@ -55,7 +55,7 @@ _ICEBERG_SRC: Path = Path(__file__).parents[2] / "src" / "sheridan"
 
 @pytest.fixture(scope="module")
 def iceberg_package() -> Package | Module:
-    """Return the Package produced by analyzing the iceberg source tree."""
+    """Analyze the iceberg source tree into a Package."""
     assert _ICEBERG_SRC.is_dir(), (
         f"Expected iceberg source directory at {_ICEBERG_SRC}; check that the repo layout has not changed."
     )

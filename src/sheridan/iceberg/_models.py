@@ -17,7 +17,7 @@ from pathlib import Path
 
 
 def _is_public_name(name: str) -> bool:
-    """Return whether a function, class, attribute, or parameter name is public.
+    """Check whether a function, class, attribute, or parameter name is public.
 
     Names without a leading underscore are public. Dunder names such as
     ``__init__``, ``__call__`` or ``__slots__`` are public too, because they
@@ -35,7 +35,7 @@ def _is_public_name(name: str) -> bool:
 
 
 def _is_public_module_stem(stem: str) -> bool:
-    """Return whether a module or package stem is public.
+    """Check whether a module or package stem is public.
 
     ``__init__`` is public; any other stem with a leading underscore
     (including ``__main__``) is private.

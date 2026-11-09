@@ -11,7 +11,7 @@ from sheridan.iceberg._orchestrator import build_package
 
 
 def get_public_api(path: Path, *, config: Config | None = None) -> Package | Module:
-    """Return a snapshot of the public API rooted at ``path``.
+    """Snapshot the public API rooted at ``path``.
 
     Args:
         path: File or directory to snapshot.

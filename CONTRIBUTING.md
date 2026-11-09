@@ -76,6 +76,21 @@ chore: bump ruff to 0.5
 docs: add pre-commit hook example
 ```
 
+## Docstrings
+
+Docstrings follow the Google convention, and the first line uses the imperative
+mood. A docstring never starts with "Return" or "Returns": every function that
+returns a value does that. Use a verb that says how the value is made, such as
+*build*, *compute*, *find*, *collect*, *list*, *check*, *parse*, *render*,
+*resolve*, *convert*, *load* or *get*.
+
+```python
+def snapshot(path: Path) -> Package:
+    """Snapshot the public API rooted at path."""  # not "Return a snapshot of ..."
+```
+
+`tests/unit/test_docstring_style.py` enforces this in `src/` and `tests/`.
+
 ## Running checks
 
 ```bash
