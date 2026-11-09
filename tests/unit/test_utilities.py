@@ -409,9 +409,9 @@ def test_get_assignment_str_name_kwarg_selects_correct() -> None:
     assert result.annotation == "str"
 
 
-def test_get_assignment_str_name_not_found_raises_parse_error() -> None:
+def test_get_assignment_str_name_not_found_raises_not_found_error() -> None:
     source = "a = 1\nb: str = 'hi'"
-    with pytest.raises(ParseError):
+    with pytest.raises(NotFoundError, match="The source has no assignment 'missing'"):
         get_assignment(source, name="missing")
 
 
@@ -569,7 +569,7 @@ def test_get_assignment_str_without_name_returns_first_unpacked_name() -> None:
 
 
 def test_get_assignment_str_attribute_target_not_found() -> None:
-    with pytest.raises(ParseError):
+    with pytest.raises(NotFoundError):
         get_assignment("obj.attr = 1", name="attr")
 
 
