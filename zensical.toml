@@ -7,7 +7,29 @@ docs_dir = "docs"
 site_dir = "site"
 nav = [
   {"Home" = "index.md"},
+  {"Getting started" = "getting-started.md"},
+  {"Configuration" = "configuration.md"},
+  {"Output formats" = "output-formats.md"},
   {"JSON Schema" = "json-schema.md"},
+  {"Cases" = [
+    {"Overview" = "cases/index.md"},
+    {"Case 00" = "cases/case_00.md"},
+    {"Case 01" = "cases/case_01.md"},
+    {"Case 02" = "cases/case_02.md"},
+    {"Case 03" = "cases/case_03.md"},
+    {"Case 04" = "cases/case_04.md"},
+    {"Case 05" = "cases/case_05.md"},
+    {"Case 06" = "cases/case_06.md"},
+    {"Case 07" = "cases/case_07.md"},
+    {"Case 08" = "cases/case_08.md"},
+    {"Case 09" = "cases/case_09.md"},
+    {"Case 10" = "cases/case_10.md"},
+    {"Case 11" = "cases/case_11.md"},
+    {"Case 12" = "cases/case_12.md"},
+    {"Case 13" = "cases/case_13.md"},
+    {"Case 14" = "cases/case_14.md"},
+    {"Case 15" = "cases/case_15.md"},
+  ]},
   {"API Reference" = [
     {"iceberg" = "api/api.md"},
   ]},
@@ -15,6 +37,27 @@ nav = [
 
 [project.theme]
 variant = "classic"
+
+# A markdown_extensions table replaces all the Zensical defaults. Thus, this list
+# repeats the defaults that the pages use.
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.attr_list]
+[project.markdown_extensions.md_in_html]
+[project.markdown_extensions.tables]
+[project.markdown_extensions.toc]
+permalink = true
+[project.markdown_extensions.pymdownx.details]
+[project.markdown_extensions.pymdownx.highlight]
+anchor_linenums = true
+line_spans = "__span"
+pygments_lang_class = true
+[project.markdown_extensions.pymdownx.inlinehilite]
+[project.markdown_extensions.pymdownx.superfences]
+
+# docs/index.md and docs/cases/*.md include README files from outside docs/.
+# check_paths makes the build fail if an included file does not exist.
+[project.markdown_extensions.pymdownx.snippets]
+check_paths = true
 
 [project.plugins.search]
 

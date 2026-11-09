@@ -1,0 +1,1 @@
+--8<-- "cases/case_10/README.md"
