@@ -101,7 +101,8 @@ redundant-cast = "warn"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=sheridan.iceberg --cov-report=term-missing --cov-fail-under=90"
+# Coverage settings (source, threshold, missing lines) live in [tool.coverage.*].
+addopts = "--cov"
 
 [tool.coverage.run]
 source = ["src/sheridan/iceberg"]

@@ -62,7 +62,7 @@ tasks:
   test:
     desc: Run pytest with coverage
     cmds:
-      - uv run pytest --cov {{.CLI_ARGS}}
+      - uv run pytest {{.CLI_ARGS}}
 
   iceberg:
     desc: Run iceberg on itself (dogfood — show public API)
