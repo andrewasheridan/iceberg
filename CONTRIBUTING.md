@@ -114,8 +114,17 @@ task format       # ruff format (write)
 task typecheck    # pyrefly check (src/ and tests/)
 task test         # pytest --cov
 task iceberg      # iceberg src/ (dogfood — show public API)
+task api:check    # fail if the public API differs from api.txt
+task api:update   # rewrite api.txt from src/sheridan/
 task check        # all gates (read-only: lint:check, format:check, …)
 ```
+
+## Public API snapshot
+
+`api.txt` is iceberg's own tree output for `src/sheridan/`. CI (the `iceberg` gate in
+`task ci`) and `task check` fail when the current public API differs from it, and print
+the diff. If the change is intended, run `task api:update` and commit `api.txt` with
+your change, so that every API change shows up in review.
 
 ## Adding dependencies
 
