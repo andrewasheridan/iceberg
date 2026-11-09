@@ -19,7 +19,6 @@ env/
 htmlcov/
 
 # Type checking
-.mypy_cache/
 
 # Ruff
 .ruff_cache/
