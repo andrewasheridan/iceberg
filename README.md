@@ -19,7 +19,11 @@ code, and it has no runtime dependencies.
   version checks, `except ImportError:` fallbacks) count; when a name is
   defined more than once, the first definition is kept.
 - Uses `__all__` as the source of truth when present and falls back to
-  underscore-prefix inference when it is absent. Dunder class members such as
+  underscore-prefix inference when it is absent. `__all__` is evaluated
+  statically: literal lists and tuples, `+` concatenation, `+=`, `.extend()`,
+  `.append()`, and `sub.__all__` for modules inside the analyzed tree. When it
+  cannot be evaluated, iceberg emits a warning naming the file and line, then
+  falls back to inference. Dunder class members such as
   `__call__` and `__eq__` are public; `_x` and name-mangled `__x` are private.
 - Resolves re-exports through `__init__.py`, including relative imports,
   absolute imports, namespace packages, and imports inside `try` / `if` blocks.

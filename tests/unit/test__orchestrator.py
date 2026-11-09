@@ -4,6 +4,7 @@ sheridan.iceberg._api (get_public_api).
 
 import subprocess
 import sys
+import warnings
 from pathlib import Path
 
 import pytest
@@ -334,3 +335,51 @@ def test_non_identifier_root_directory_has_non_empty_name(tmp_path: Path) -> Non
 
     assert isinstance(result, Package)
     assert result.name == "my-project"
+
+
+# ---------------------------------------------------------------------------
+# __all__ built up from other modules
+# ---------------------------------------------------------------------------
+
+
+def _init_module(result: Package, name: str) -> Module:
+    return next(mod for mod in result.modules if mod.name == name)
+
+
+@pytest.mark.parametrize("max_workers", [1, 2])
+def test_init_all_extended_with_submodule_all(tmp_path: Path, max_workers: int) -> None:
+    """`__all__ += sub.__all__` uses the __all__ of a module in the analyzed tree."""
+    pkg = tmp_path / "mypkg"
+    _write(
+        pkg / "core.py",
+        "__all__ = ['run']\n__all__.append('stop')\ndef run(): ...\ndef stop(): ...\ndef hidden(): ...\n",
+    )
+    _write(
+        pkg / "__init__.py",
+        "from . import core\nfrom .core import run, stop\n"
+        "__all__ = ['VERSION']\n__all__ += core.__all__\nVERSION = '1'\n",
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = build_package(pkg, Config(max_workers=max_workers))
+
+    assert isinstance(result, Package)
+    init = _init_module(result, "mypkg")
+    assert {fn.name for fn in init.functions} == {"run", "stop"}
+    assert {a.name for a in init.assignments} == {"VERSION"}
+
+
+def test_unevaluable_all_warns_and_falls_back(tmp_path: Path) -> None:
+    """A dynamic __all__ is reported once, then underscore inference is used."""
+    pkg = tmp_path / "mypkg"
+    _write(pkg / "__init__.py", "")
+    _write(pkg / "core.py", "__all__ = ['run']\n__all__ += make()\ndef run(): ...\ndef other(): ...\n")
+
+    with pytest.warns(UserWarning, match=r"core\.py:2: cannot evaluate __all__") as record:
+        result = build_package(pkg, _default_config())
+
+    assert len(record) == 1
+    assert isinstance(result, Package)
+    core = next(mod for mod in result.modules if mod.name == "mypkg.core")
+    assert {fn.name for fn in core.functions} == {"run", "other"}

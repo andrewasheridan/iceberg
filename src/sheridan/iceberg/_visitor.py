@@ -31,6 +31,7 @@ Explicitly excluded from capture: docstrings, decorators, class bases.
 __all__ = ["visit_module"]
 
 import ast
+from collections.abc import Mapping
 from pathlib import Path
 
 from sheridan.iceberg._exceptions import ParseError
@@ -44,7 +45,12 @@ from sheridan.iceberg._utilities import (
 )
 
 
-def visit_module(source: str, dotted_name: str, path: Path | None = None) -> Module:
+def visit_module(
+    source: str,
+    dotted_name: str,
+    path: Path | None = None,
+    known_all: Mapping[str, frozenset[str] | None] | None = None,
+) -> Module:
     """Parse *source* and return the public API surface as a ``Module``.
 
     Args:
@@ -52,6 +58,10 @@ def visit_module(source: str, dotted_name: str, path: Path | None = None) -> Mod
         dotted_name: Fully-qualified module name (e.g. ``"my_pkg.core"``).
         path: The file *source* was read from. It is reported in the
             ``ParseError`` when *source* has a syntax error.
+        known_all: The evaluated ``__all__`` of each module in the analyzed
+            tree, by dotted name. When it holds *dotted_name*, that value is
+            used as is; otherwise ``__all__`` is evaluated from *source*, and
+            this mapping resolves ``__all__ += other.__all__``.
 
     Returns:
         A ``Module`` containing only the public names found in *source*.
@@ -64,7 +74,15 @@ def visit_module(source: str, dotted_name: str, path: Path | None = None) -> Mod
     except SyntaxError as exc:
         raise ParseError.from_syntax_error(exc) from exc
 
-    explicit_all = extract_all(tree)
+    if known_all is not None and dotted_name in known_all:
+        explicit_all = known_all[dotted_name]
+    else:
+        explicit_all = extract_all(
+            tree,
+            dotted_name.rpartition(".")[0],
+            None if known_all is None else known_all.get,
+            path=None if path is None else str(path),
+        )
     public = _top_level_public_names(tree, explicit_all)
 
     assignments: list[Assignment] = []

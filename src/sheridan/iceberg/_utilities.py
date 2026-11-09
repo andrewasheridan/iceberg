@@ -8,72 +8,149 @@ beyond the standard library.
 __all__ = ["bound_names", "collect_imports", "extract_all", "infer_all", "resolve_relative"]
 
 import ast
-from collections.abc import Iterator
+import warnings
+from collections.abc import Callable, Iterator
+
+#: Look up the evaluated ``__all__`` of another module by dotted name. Returns
+#: ``None`` when the module is not in the analyzed tree or its ``__all__`` is
+#: unknown.
+type AllLookup = Callable[[str], frozenset[str] | None]
 
 
-def _collect_string_elements(node: ast.expr) -> frozenset[str] | None:
-    """Extract string literals from a list or tuple AST node.
+class _NotStaticError(Exception):
+    """Signal that a statement changes ``__all__`` in a way iceberg cannot evaluate."""
 
-    Args:
-        node: An AST expression, expected to be a ``List`` or ``Tuple``
-            whose elements are all string constants.
-
-    Returns:
-        A frozen set of strings when all elements are string constants,
-        otherwise ``None``.  Returns ``None`` when *node* is not a list or
-        tuple, or when any element is not a plain string constant.
-
-    Example::
-
-        import ast
-        node = ast.parse("['foo', 'bar']", mode="eval").body
-        result = _collect_string_elements(node)
-        # result == frozenset({"foo", "bar"})
-    """
-    match node:
-        case ast.List(elts=elts) | ast.Tuple(elts=elts):
-            names: list[str] = []
-            for elt in elts:
-                match elt:
-                    case ast.Constant(value=str(s)):
-                        names.append(s)
-                    case _:
-                        return None
-            return frozenset(names)
-        case _:
-            return None
+    def __init__(self, node: ast.AST, reason: str) -> None:
+        super().__init__(reason)
+        self.lineno: int | None = getattr(node, "lineno", None)
+        self.reason = reason
 
 
-def extract_all(tree: ast.Module) -> frozenset[str] | None:
-    """Extract the literal string members of ``__all__``, or ``None``.
+def extract_all(
+    tree: ast.Module,
+    package: str = "",
+    lookup: AllLookup | None = None,
+    *,
+    path: str | None = None,
+) -> frozenset[str] | None:
+    """Evaluate ``__all__`` statically from the module-level statements.
 
-    Scans the module body for the first simple assignment to ``__all__``
-    whose RHS is a list or tuple of string constants.  Both plain
-    ``__all__ = [...]`` and annotated ``__all__: list[str] = [...]`` forms
-    are recognised.
+    Applies, in source order, every top-level statement that changes
+    ``__all__``:
+
+    - ``__all__ = ...`` and ``__all__: list[str] = ...``
+    - ``__all__ += ...``
+    - ``__all__.extend(...)`` and ``__all__.append("name")``
+
+    A value may be a list or tuple of string literals, a concatenation of
+    values with ``+``, the current ``__all__``, or the ``__all__`` of another
+    module in the analyzed tree (``sub.__all__`` after ``from . import sub``,
+    or a name bound by ``from .sub import __all__ as sub_all``). Other modules
+    are looked up with *lookup*.
+
+    When a statement cannot be evaluated, a ``UserWarning`` names the file and
+    line, and the function returns ``None`` so the caller falls back to
+    underscore inference.
 
     Args:
         tree: Parsed module AST.
+        package: Dotted name of the package the module lives in, used to
+            resolve relative imports of other modules.
+        lookup: Returns the ``__all__`` of another module by dotted name, or
+            ``None`` when it is unknown.
+        path: The file *tree* was parsed from, used in the warning.
 
     Returns:
-        A frozen set of string names when ``__all__`` is found and its value
-        is a list or tuple of string literals, otherwise ``None``.
+        The names in ``__all__``, or ``None`` when ``__all__`` is absent or
+        cannot be evaluated statically.
     """
-    for node in tree.body:
+    current: list[str] | None = None
+    imports: dict[str, tuple[str, str | None]] | None = None
+
+    def imported(name: str) -> tuple[str, str | None] | None:
+        nonlocal imports
+        if imports is None:
+            imports = collect_imports(tree, package)
+        return imports.get(name)
+
+    def other_all(node: ast.expr, name: str) -> list[str]:
+        source = imported(name)
+        if source is None:
+            raise _NotStaticError(node, f"{name!r} is not an imported module")
+        module, attribute = source
+        # ``import pkg.sub as sub`` and ``from .sub import __all__`` name the
+        # module itself; ``from . import sub`` names a submodule of ``pkg``.
+        target = module if attribute in {None, "__all__"} else f"{module}.{attribute}"
+        found = lookup(target) if lookup is not None else None
+        if found is None:
+            raise _NotStaticError(node, f"the __all__ of {target!r} is not known")
+        return sorted(found)
+
+    def evaluate(node: ast.expr) -> list[str]:
         match node:
-            case ast.Assign(targets=[ast.Name(id="__all__")], value=value):
-                return _collect_string_elements(value)
-
-            case ast.AnnAssign(
-                target=ast.Name(id="__all__"),
-                value=value,
-            ) if value is not None:
-                return _collect_string_elements(value)
-
+            case ast.List(elts=elts) | ast.Tuple(elts=elts):
+                names: list[str] = []
+                for elt in elts:
+                    match elt:
+                        case ast.Constant(value=str(s)):
+                            names.append(s)
+                        case _:
+                            raise _NotStaticError(elt, "an element is not a string literal")
+                return names
+            case ast.BinOp(left=left, op=ast.Add(), right=right):
+                return evaluate(left) + evaluate(right)
+            case ast.Name(id="__all__"):
+                if current is None:
+                    raise _NotStaticError(node, "__all__ is used before it is assigned")
+                return list(current)
+            case ast.Attribute(value=ast.Name(id=name), attr="__all__"):
+                return other_all(node, name)
+            case ast.Name(id=name) if (imported(name) or ("", None))[1] == "__all__":
+                return other_all(node, name)
             case _:
-                pass
+                raise _NotStaticError(node, "the value is not a literal list or tuple")
 
-    return None
+    try:
+        for node in tree.body:
+            match node:
+                case ast.Assign(targets=[ast.Name(id="__all__")], value=value):
+                    current = evaluate(value)
+
+                case ast.AnnAssign(target=ast.Name(id="__all__"), value=value) if value is not None:
+                    current = evaluate(value)
+
+                case ast.AugAssign(target=ast.Name(id="__all__"), op=op, value=value):
+                    if current is None:
+                        raise _NotStaticError(node, "__all__ is changed before it is assigned")
+                    if not isinstance(op, ast.Add):
+                        raise _NotStaticError(node, "only += is supported")
+                    current = current + evaluate(value)
+
+                case ast.Expr(value=ast.Call(func=ast.Attribute(value=ast.Name(id="__all__"), attr=method)) as call):
+                    if current is None:
+                        raise _NotStaticError(node, "__all__ is changed before it is assigned")
+                    match method, call.args, call.keywords:
+                        case "extend", [arg], []:
+                            current = current + evaluate(arg)
+                        case "append", [ast.Constant(value=str(s))], []:
+                            current = [*current, s]
+                        case _:
+                            raise _NotStaticError(node, f"__all__.{method}(...) is not supported")
+
+                case _:
+                    pass
+    except _NotStaticError as exc:
+        location = ":".join(str(part) for part in (path, exc.lineno) if part is not None)
+        prefix = f"{location}: " if location else ""
+        warnings.warn(
+            f"{prefix}cannot evaluate __all__ statically ({exc.reason}); "
+            "falling back to names without a leading underscore",
+            UserWarning,
+            stacklevel=2,
+        )
+        return None
+
+    return None if current is None else frozenset(current)
 
 
 def bound_names(target: ast.expr) -> Iterator[str]:
