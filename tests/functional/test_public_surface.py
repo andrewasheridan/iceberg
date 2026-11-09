@@ -36,6 +36,8 @@ def test_all_equals_expected_names() -> None:
         "ConfigError",
         "Reference",
         "SourceReadError",
+        "SnapshotError",
+        "load_json",
         "utilities",
     }
     assert set(iceberg.__all__) == expected
@@ -56,6 +58,8 @@ def test_all_equals_expected_names() -> None:
         "ParseError",
         "ConfigError",
         "SourceReadError",
+        "SnapshotError",
+        "load_json",
     ],
 )
 def test_all_names_are_accessible_as_attributes(name: str) -> None:

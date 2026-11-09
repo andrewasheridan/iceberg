@@ -4,7 +4,7 @@ All exceptions raised by iceberg are subclasses of ``IcebergError``, allowing
 callers to catch the entire family with a single clause when desired.
 """
 
-__all__ = ["ConfigError", "IcebergError", "InvalidPathError", "ParseError", "SourceReadError"]
+__all__ = ["ConfigError", "IcebergError", "InvalidPathError", "ParseError", "SnapshotError", "SourceReadError"]
 
 
 class IcebergError(Exception):
@@ -108,4 +108,13 @@ class ConfigError(IcebergError):
     Triggered by a malformed ``.iceberg.toml`` or ``[tool.iceberg]`` table
     inside ``pyproject.toml``, including invalid TOML syntax and
     type-incorrect field values.
+    """
+
+
+class SnapshotError(IcebergError):
+    """Raised when JSON cannot be loaded back into iceberg models.
+
+    Triggered by text that is not valid JSON, a ``schema_version`` that is
+    missing or not supported by this version of iceberg, and nodes with a
+    missing field, a field of the wrong type, or an unexpected ``node_type``.
     """

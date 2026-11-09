@@ -38,6 +38,8 @@ EXPECTED_PUBLIC_NAMES: frozenset[str] = frozenset(
         "ConfigError",
         "Reference",
         "SourceReadError",
+        "SnapshotError",
+        "load_json",
     }
 )
 
