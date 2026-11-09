@@ -13,6 +13,7 @@ from typing import Any, overload
 from sheridan.iceberg._api import get_public_api
 from sheridan.iceberg._exceptions import InvalidPathError, ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Package
+from sheridan.iceberg._utilities import read_source
 from sheridan.iceberg._visitor import _build_assignment, _build_class, _build_function, _build_type_alias, visit_module
 
 
@@ -83,7 +84,7 @@ def get_function(
         case Path():
             if name is None:
                 raise TypeError("name is required when passing a Path")
-            src = source_or_node_or_path_or_func.read_text(encoding="utf-8")
+            src = read_source(source_or_node_or_path_or_func)
             try:
                 tree = ast.parse(src, filename=str(source_or_node_or_path_or_func))
             except SyntaxError as exc:
@@ -165,7 +166,7 @@ def get_class(
         case Path():
             if name is None:
                 raise TypeError("name is required when passing a Path")
-            src = source_or_node_or_path_or_cls.read_text(encoding="utf-8")
+            src = read_source(source_or_node_or_path_or_cls)
             try:
                 tree = ast.parse(src, filename=str(source_or_node_or_path_or_cls))
             except SyntaxError as exc:
@@ -270,7 +271,7 @@ def get_assignment(
         case Path():
             if name is None:
                 raise TypeError("name is required when passing a Path")
-            src = source_or_node_or_path.read_text(encoding="utf-8")
+            src = read_source(source_or_node_or_path)
             try:
                 tree = ast.parse(src, filename=str(source_or_node_or_path))
             except SyntaxError as exc:
@@ -349,7 +350,7 @@ def get_module(
             return visit_module(src, dotted)
 
         case Path():
-            text = source_or_path_or_mod.read_text(encoding="utf-8")
+            text = read_source(source_or_path_or_mod)
             dotted = name or source_or_path_or_mod.stem
             return visit_module(text, dotted)
 

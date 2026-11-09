@@ -19,7 +19,7 @@ from sheridan.iceberg._config import Config
 from sheridan.iceberg._discovery import discover
 from sheridan.iceberg._init_resolver import resolve_init
 from sheridan.iceberg._models import DiscoveredModule, Module, Package
-from sheridan.iceberg._utilities import extract_all
+from sheridan.iceberg._utilities import extract_all, read_source
 from sheridan.iceberg._visitor import visit_module
 
 
@@ -41,7 +41,7 @@ def _visit_worker(
     Returns:
         A ``Module`` capturing the public API surface of the source file.
     """
-    source = discovered.source_path.read_text(encoding="utf-8")
+    source = read_source(discovered.source_path)
     return visit_module(source, discovered.dotted_name, discovered.source_path, known_all)
 
 
@@ -71,7 +71,7 @@ def _evaluate_all(discovered: Sequence[DiscoveredModule]) -> dict[str, frozenset
         dm = by_name.get(name)
         if dm is None or name in in_progress:
             return None
-        source = dm.source_path.read_text(encoding="utf-8")
+        source = read_source(dm.source_path)
         if "__all__" not in source:
             result[name] = None
             return None
@@ -299,7 +299,7 @@ def build_package(root: Path, config: Config) -> Package | Module:
         *root* is a single file, the bare ``Module`` is returned directly.
     """
     if root.is_file():
-        source = root.read_text(encoding="utf-8")
+        source = read_source(root)
         return visit_module(source, root.stem, root)
 
     # 1. Discover all Python source files under root.
@@ -336,7 +336,7 @@ def build_package(root: Path, config: Config) -> Package | Module:
     namespace_parents = _namespace_parents(root)
 
     for init_module in sorted_inits:
-        source = init_module.source_path.read_text(encoding="utf-8")
+        source = read_source(init_module.source_path)
         child_names = _child_names_at_level(init_module.dotted_name, all_discovered)
 
         package_all_map[init_module.dotted_name] = known_all.get(init_module.dotted_name)

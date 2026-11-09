@@ -7,6 +7,7 @@ from sheridan.iceberg._exceptions import (
     IcebergError,
     InvalidPathError,
     ParseError,
+    SourceReadError,
 )
 
 # ---------------------------------------------------------------------------
@@ -28,6 +29,16 @@ def test_parse_error_is_subclass_of_iceberg_error() -> None:
 
 def test_config_error_is_subclass_of_iceberg_error() -> None:
     assert issubclass(ConfigError, IcebergError)
+
+
+def test_source_read_error_is_subclass_of_iceberg_error() -> None:
+    assert issubclass(SourceReadError, IcebergError)
+
+
+def test_source_read_error_includes_path() -> None:
+    err = SourceReadError("cannot read file", path="pkg/mod.py")
+    assert (err.message, err.path) == ("cannot read file", "pkg/mod.py")
+    assert str(err) == "pkg/mod.py: cannot read file"
 
 
 # ---------------------------------------------------------------------------
@@ -62,11 +73,11 @@ def test_config_error_can_be_raised_and_caught() -> None:
 
 @pytest.mark.parametrize(
     "exc_class",
-    [InvalidPathError, ParseError, ConfigError],
+    [InvalidPathError, ParseError, ConfigError, SourceReadError],
 )
 def test_subclass_caught_as_iceberg_error(exc_class: type) -> None:
     with pytest.raises(IcebergError):
-        raise exc_class("caught as base")
+        raise exc_class("caught as base", **({"path": "p.py"} if exc_class is SourceReadError else {}))
 
 
 # ---------------------------------------------------------------------------
