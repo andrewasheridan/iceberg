@@ -67,6 +67,10 @@ loop take one:
 2. Check its `type:` and `priority:` labels.
 3. Remove `needs triage`.
 
+`scripts/sync-labels.sh` defines the labels (`type:`, `priority:`, `epic`,
+`needs triage`, `blocked`, `breaking change`, `automated`) and deletes the GitHub
+default labels they replace. Edit the script to change a label, then run it.
+
 ## Commit format
 
 This repo uses [Commitizen](https://commitizen-tools.github.io/commitizen/) to
