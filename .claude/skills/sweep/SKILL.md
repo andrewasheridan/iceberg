@@ -1,14 +1,14 @@
 ---
 name: sweep
-description: Review the codebase and file up to N new GitHub issues (labeled "needs triage") for bugs, cleanups and gaps in tests or docs. Never changes code. Use when asked to "run a sweep" or "/sweep [max] [since-sha]"; scripts/issue-loop.sh runs it headless.
+description: Review the codebase and file up to N new GitHub issues (labeled "needs triage") for bugs, cleanups and gaps in tests or docs. Never changes code. Use when asked to "run a sweep" or "/sweep [max] [since-sha]"; a local loop may run it headless.
 argument-hint: "[max issues] [since sha]"
 ---
 
 # /sweep — find problems, file issues, change nothing
 
 A sweep reviews the codebase and files new issues for the maintainer to triage. It
-**never** edits, commits, pushes or opens a PR. This skill also runs headless from
-`scripts/issue-loop.sh`, so never stop to ask a question: if you cannot continue, end
+**never** edits, commits, pushes or opens a PR. This skill may also run headless from a
+local loop, so never stop to ask a question: if you cannot continue, end
 with a `BLOCKED:` line (see "Final line").
 
 ## Arguments
@@ -90,8 +90,8 @@ gh issue create --title "<title>" --body-file "$body" \
   --label "priority: <high|medium|low>"
 ```
 
-Every issue **must** have `needs triage`. `scripts/next-issue.sh` skips issues with
-that label, so the loop does not fix its own findings until the maintainer has
+Every issue **must** have `needs triage`. The issue loop skips issues with that
+label, so it does not fix its own findings until the maintainer has
 reviewed them and removed the label. The `priority:` label is only a suggestion.
 
 ## Final line
@@ -106,4 +106,4 @@ BLOCKED: <one-line reason>
 ```
 
 For example `SWEEP: 2 issues filed #140 #141` or `SWEEP: 0 issues filed`.
-`scripts/issue-loop.sh` reads this line to decide what to do next.
+A headless loop reads this line to decide what to do next.

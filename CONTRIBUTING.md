@@ -45,15 +45,8 @@ CONTAINER_RUNTIME=docker task ci
 
 ## Issue loop and triage
 
-`scripts/issue-loop.sh` works the issue backlog with headless Claude Code sessions:
-`/next-issue` turns one issue into an auto-merging PR. Run
-`scripts/issue-loop.sh --help` for the options.
-
-The loop also runs **sweeps** (`/sweep`): a session that reviews the code and files
-new issues, but changes no code. A sweep runs after every `SWEEP_EVERY` merged issues
-(default 5) and once when the backlog is empty. `--sweep` runs only a sweep;
-`--no-sweep` turns sweeps off. One sweep files at most `SWEEP_MAX_ISSUES` issues
-(default 3).
+`/sweep` reviews the code and files new issues, but changes no code. The maintainer
+works the backlog with a local issue loop that is not tracked in this repo.
 
 Every issue a sweep files has the `needs triage` label and the line "Found by an
 automated sweep." The loop never works on an issue with `needs triage`. To let the
