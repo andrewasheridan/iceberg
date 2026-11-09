@@ -19,6 +19,7 @@ __all__ = ["ResolveReport", "resolve_init"]
 import ast
 import dataclasses
 from collections.abc import Mapping
+from pathlib import Path
 
 from sheridan.iceberg._exceptions import ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Reference, ResolveReport
@@ -37,6 +38,7 @@ def resolve_init(
     subpackage_names: frozenset[str],
     *,
     namespace_parents: tuple[str, ...] = (),
+    path: Path | None = None,
 ) -> tuple[Module, ResolveReport]:
     """Resolve an ``__init__.py`` source into a ``Module`` with re-exports attached.
 
@@ -67,6 +69,8 @@ def resolve_init(
             ``src/sheridan/iceberg``). Absolute imports spelled with a trailing
             run of these as a prefix (``from sheridan.iceberg._api import x``)
             are treated as intra-package imports.
+        path: The file *init_source* was read from. It is reported in the
+            ``ParseError`` when *init_source* has a syntax error.
 
     Returns:
         A two-tuple of ``(module, report)`` where *module* is the resolved
@@ -77,13 +81,13 @@ def resolve_init(
         ParseError: When *init_source* cannot be parsed as valid Python.
     """
     try:
-        tree = ast.parse(init_source, feature_version=(3, 14))
+        tree = ast.parse(init_source, filename="<unknown>" if path is None else str(path), feature_version=(3, 14))
     except SyntaxError as exc:
-        raise ParseError(str(exc)) from exc
+        raise ParseError.from_syntax_error(exc) from exc
 
     # Use visit_module for locally-defined names; it also handles __all__
     # extraction and the public-name filter internally.
-    local_module = visit_module(init_source, dotted_package)
+    local_module = visit_module(init_source, dotted_package, path)
 
     explicit_all = extract_all(tree)
     all_imports = collect_imports(tree, dotted_package)

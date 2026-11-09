@@ -1,5 +1,7 @@
 """Tests for the AST visitor module sheridan.iceberg._visitor."""
 
+from pathlib import Path
+
 import pytest
 
 from sheridan.iceberg._exceptions import ParseError
@@ -813,3 +815,19 @@ def test_private_definitions_in_if_block_excluded_without_all() -> None:
 def test_definitions_inside_functions_not_captured() -> None:
     module = _visit("def outer():\n    if True:\n        def inner():\n            pass\n")
     assert [f.name for f in module.functions] == ["outer"]
+
+
+def test_syntax_error_reports_path_line_and_column() -> None:
+    with pytest.raises(ParseError) as info:
+        visit_module("x = 1\ndef f(:\n", "pkg.mod", Path("src/pkg/mod.py"))
+    assert info.value.path == "src/pkg/mod.py"
+    assert info.value.lineno == 2
+    assert info.value.offset is not None
+    assert str(info.value).startswith(f"src/pkg/mod.py:2:{info.value.offset}: ")
+
+
+def test_syntax_error_without_path_has_no_path() -> None:
+    with pytest.raises(ParseError) as info:
+        visit_module("def f(:\n", "pkg.mod")
+    assert info.value.path is None
+    assert info.value.lineno == 1

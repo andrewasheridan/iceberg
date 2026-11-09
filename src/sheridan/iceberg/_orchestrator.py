@@ -36,7 +36,7 @@ def _visit_worker(discovered: DiscoveredModule) -> Module:
         A ``Module`` capturing the public API surface of the source file.
     """
     source = discovered.source_path.read_text(encoding="utf-8")
-    return visit_module(source, discovered.dotted_name)
+    return visit_module(source, discovered.dotted_name, discovered.source_path)
 
 
 def _namespace_parents(root: Path) -> tuple[str, ...]:
@@ -247,7 +247,7 @@ def build_package(root: Path, config: Config) -> Package | Module:
     """
     if root.is_file():
         source = root.read_text(encoding="utf-8")
-        return visit_module(source, root.stem)
+        return visit_module(source, root.stem, root)
 
     # 1. Discover all Python source files under root.
     all_discovered = discover(root, config)
@@ -298,6 +298,7 @@ def build_package(root: Path, config: Config) -> Package | Module:
             module_map,
             child_names,
             namespace_parents=namespace_parents,
+            path=init_module.source_path,
         )
         module_map[init_module.dotted_name] = module
 
