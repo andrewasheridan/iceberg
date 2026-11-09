@@ -383,3 +383,38 @@ def test_unevaluable_all_warns_and_falls_back(tmp_path: Path) -> None:
     assert isinstance(result, Package)
     core = next(mod for mod in result.modules if mod.name == "mypkg.core")
     assert {fn.name for fn in core.functions} == {"run", "other"}
+
+
+# ---------------------------------------------------------------------------
+# Re-export chains through regular modules
+# ---------------------------------------------------------------------------
+
+
+def test_reexport_chain_through_regular_modules_resolved(tmp_path: Path) -> None:
+    """pkg re-exports X from _a, which re-exports it from _b, which defines it."""
+    pkg = tmp_path / "pkg"
+    _write(pkg / "__init__.py", 'from ._a import X\n__all__ = ["X"]\n')
+    _write(pkg / "_a.py", 'from ._b import X\n__all__ = ["X"]\n')
+    _write(pkg / "_b.py", "class X:\n    pass\n")
+
+    result = build_package(pkg, _default_config())
+
+    assert isinstance(result, Package)
+    (init,) = result.modules
+    assert [cls.name for cls in init.classes] == ["X"]
+    assert init.references == ()
+
+
+def test_reexport_cycle_through_regular_modules_left_unresolved(tmp_path: Path) -> None:
+    """A two-module import cycle terminates and leaves X as a Reference."""
+    pkg = tmp_path / "pkg"
+    _write(pkg / "__init__.py", 'from ._a import X\n__all__ = ["X"]\n')
+    _write(pkg / "_a.py", 'from ._b import X\n__all__ = ["X"]\n')
+    _write(pkg / "_b.py", 'from ._a import X\n__all__ = ["X"]\n')
+
+    result = build_package(pkg, _default_config())
+
+    assert isinstance(result, Package)
+    (init,) = result.modules
+    assert init.classes == ()
+    assert [ref.name for ref in init.references] == ["X"]

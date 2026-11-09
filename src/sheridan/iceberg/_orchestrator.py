@@ -17,7 +17,7 @@ from pathlib import Path
 
 from sheridan.iceberg._config import Config
 from sheridan.iceberg._discovery import discover
-from sheridan.iceberg._init_resolver import resolve_init
+from sheridan.iceberg._init_resolver import resolve_init, resolve_module_references
 from sheridan.iceberg._models import DiscoveredModule, Module, Package
 from sheridan.iceberg._utilities import extract_all, read_source
 from sheridan.iceberg._visitor import visit_module
@@ -286,7 +286,7 @@ def build_package(root: Path, config: Config) -> Package | Module:
     1. Discover all Python modules under *root*.
     2. Partition into non-init and init modules.
     3. Visit non-init modules, in a ``ProcessPoolExecutor`` when
-       ``config.max_workers > 1``.
+       ``config.max_workers > 1``, then resolve their re-exports of each other.
     4. Serially resolve each ``__init__.py`` against the accumulated map.
     5. Fold the completed map into a ``Package`` trie.
 
@@ -325,6 +325,11 @@ def build_package(root: Path, config: Config) -> Package | Module:
         dm.dotted_name: module for dm, module in zip(non_init_modules, visited_modules, strict=True)
     }
 
+    # Follow re-export chains between regular modules (``_a`` re-exporting
+    # ``X`` from ``_b``), so an init that imports from ``_a`` finds ``X``.
+    namespace_parents = _namespace_parents(root)
+    module_map = resolve_module_references(module_map, namespace_parents=namespace_parents)
+
     # 4. Resolve __init__.py files serially, deepest first, so each
     #    sub-package init is in module_map before its parent init tries to
     #    resolve imports from it.
@@ -333,7 +338,6 @@ def build_package(root: Path, config: Config) -> Package | Module:
     # Track the __all__ for each package so _build_trie can filter modules and
     # subpackages accordingly.  A value of None means __all__ was absent.
     package_all_map: dict[str, frozenset[str] | None] = {}
-    namespace_parents = _namespace_parents(root)
 
     for init_module in sorted_inits:
         source = read_source(init_module.source_path)
