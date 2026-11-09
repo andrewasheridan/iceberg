@@ -28,7 +28,7 @@ Changelog = "https://github.com/andrewasheridan/iceberg/blob/main/CHANGELOG.md"
 [project.optional-dependencies]
 dev = [
     "ruff>=0.15.10",
-    "mypy>=1.20.0",
+    "pyrefly>=1.4.1",
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "commitizen>=4.13.10",
@@ -93,14 +93,20 @@ convention = "google"
 quote-style = "double"
 indent-style = "space"
 
-[tool.mypy]
-python_version = "3.14"
-strict = true
-warn_return_any = true
-warn_unused_configs = true
-mypy_path = "src"
-namespace_packages = true
-explicit_package_bases = true
+[tool.pyrefly]
+search-path = ["src"]
+python-version = "3.14.0"
+preset = "strict"
+check-unannotated-defs = true
+infer-return-types = "never"
+
+[tool.pyrefly.errors]
+implicit-any = "error"
+no-any-return = "error"
+method-assign = "error"
+unannotated-return = "error"
+implicit-any-parameter = "error"
+redundant-cast = "warn"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

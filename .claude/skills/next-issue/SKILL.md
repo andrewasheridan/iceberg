@@ -62,7 +62,7 @@ git switch -c <type>/<N>-<short-slug>
 - Update the docs, the case READMEs and the golden tests when behavior that users can
   see changes.
 - Do not edit `CHANGELOG.md`. The release process generates it.
-- Run mypy on `src/` only (`task typecheck`) until #95 is done.
+- Run pyrefly on `src/` only (`task typecheck`) until #95 is done.
 - After you change dependencies, run `uv lock`.
 
 ## 4. Check

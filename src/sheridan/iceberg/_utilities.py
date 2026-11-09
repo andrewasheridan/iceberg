@@ -374,7 +374,8 @@ def collect_imports(
                 source = resolve_relative(package, module, level) if level else (module or "")
                 for alias in aliases:
                     if alias.name == "*":
-                        for name in sorted((star_exports and star_exports(source)) or ()):
+                        exported = star_exports(source) if star_exports else None
+                        for name in sorted(exported or ()):
                             result.setdefault(name, (source, name))
                         continue
                     result.setdefault(alias.asname or alias.name, (source, alias.name))

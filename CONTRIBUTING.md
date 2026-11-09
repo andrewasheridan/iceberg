@@ -98,7 +98,7 @@ task lint:check   # ruff check (read-only)
 task lint         # ruff check --fix (autofix)
 task format:check # ruff format --check (read-only)
 task format       # ruff format (write)
-task typecheck    # mypy --strict
+task typecheck    # pyrefly check
 task test         # pytest --cov
 task iceberg      # iceberg src/ (dogfood — show public API)
 task check        # all gates (read-only: lint:check, format:check, …)
