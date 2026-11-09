@@ -14,8 +14,9 @@ import pytest
 
 from sheridan.iceberg._api import get_public_api
 from sheridan.iceberg._config import Config
-from sheridan.iceberg._models import Function, Module, Package, Reference
-from sheridan.iceberg._orchestrator import build_package
+from sheridan.iceberg._exceptions import ParseError, SourceReadError
+from sheridan.iceberg._models import Diagnostic, Function, Module, Package, Reference
+from sheridan.iceberg._orchestrator import build_package, unresolved_name_warnings
 
 
 def _write(path: Path, text: str = "") -> Path:
@@ -470,3 +471,98 @@ def test_each_file_is_parsed_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     if max_workers == 1:
         expected |= {"_c.py": 1, "sub/_b.py": 1}
     assert parsed == expected
+
+
+class TestKeepGoing:
+    """With an ``errors`` list, modules that fail are skipped and recorded."""
+
+    @pytest.mark.parametrize("max_workers", [1, 2])
+    def test_syntax_error_module_is_skipped(self, tmp_path: Path, max_workers: int) -> None:
+        _write(tmp_path / "pkg" / "__init__.py")
+        _write(tmp_path / "pkg" / "good.py", "def ok() -> None: ...\n")
+        bad = _write(tmp_path / "pkg" / "bad.py", "x = 1\nprint 'py2'\n")
+        errors: list[Diagnostic] = []
+
+        result = build_package(tmp_path / "pkg", Config(max_workers=max_workers), errors=errors)
+
+        assert isinstance(result, Package)
+        assert _all_module_names(result) == {"pkg", "pkg.good"}
+        assert len(errors) == 1
+        error = errors[0]
+        assert (error.severity, error.module, error.path, error.lineno) == ("error", "pkg.bad", bad, 2)
+        assert str(bad) not in error.message
+
+    def test_without_errors_list_syntax_error_raises(self, tmp_path: Path) -> None:
+        _write(tmp_path / "pkg" / "__init__.py")
+        _write(tmp_path / "pkg" / "bad.py", "print 'py2'\n")
+
+        with pytest.raises(ParseError):
+            build_package(tmp_path / "pkg", _default_config())
+
+    def test_unreadable_module_is_skipped_once(self, tmp_path: Path) -> None:
+        _write(tmp_path / "pkg" / "__init__.py")
+        bad = tmp_path / "pkg" / "bad.py"
+        bad.write_bytes(b"\xff\n")
+        errors: list[Diagnostic] = []
+
+        build_package(tmp_path / "pkg", _default_config(), errors=errors)
+
+        assert [(error.module, error.path, error.lineno) for error in errors] == [("pkg.bad", bad, None)]
+        assert errors[0].message.startswith("cannot decode file")
+
+    def test_without_errors_list_unreadable_module_raises(self, tmp_path: Path) -> None:
+        _write(tmp_path / "pkg" / "__init__.py")
+        (tmp_path / "pkg" / "bad.py").write_bytes(b"\xff\n")
+
+        with pytest.raises(SourceReadError):
+            build_package(tmp_path / "pkg", _default_config(), errors=None)
+
+    def test_broken_init_is_skipped(self, tmp_path: Path) -> None:
+        _write(tmp_path / "pkg" / "__init__.py")
+        _write(tmp_path / "pkg" / "sub" / "__init__.py", "def (:\n")
+        _write(tmp_path / "pkg" / "sub" / "mod.py", "def f() -> None: ...\n")
+        errors: list[Diagnostic] = []
+
+        result = build_package(tmp_path / "pkg", _default_config(), errors=errors)
+
+        assert isinstance(result, Package)
+        assert "pkg.sub.mod" in _all_module_names(result)
+        assert [error.module for error in errors] == ["pkg.sub"]
+
+    def test_errors_are_sorted_by_module(self, tmp_path: Path) -> None:
+        _write(tmp_path / "pkg" / "__init__.py", "def (:\n")
+        _write(tmp_path / "pkg" / "b.py", "def (:\n")
+        _write(tmp_path / "pkg" / "a.py", "def (:\n")
+        errors: list[Diagnostic] = []
+
+        build_package(tmp_path / "pkg", _default_config(), errors=errors)
+
+        assert [error.module for error in errors] == ["pkg", "pkg.a", "pkg.b"]
+
+
+class TestUnresolvedNameWarnings:
+    """Only references with no binding import are reported."""
+
+    def test_package_warnings_point_at_each_module(self, tmp_path: Path) -> None:
+        init = _write(tmp_path / "pkg" / "__init__.py", '__all__ = ["sqrt", "lazy", "sub"]\nfrom math import sqrt\n')
+        mod = _write(tmp_path / "pkg" / "sub" / "mod.py", '__all__ = ["ghost"]\n')
+        _write(tmp_path / "pkg" / "sub" / "__init__.py")
+        api = build_package(tmp_path / "pkg", _default_config())
+
+        warnings_found = unresolved_name_warnings(api, tmp_path / "pkg")
+
+        assert [(w.severity, w.module, w.path, w.message) for w in warnings_found] == [
+            ("warning", "pkg", init, "'lazy' is exported but never bound"),
+            ("warning", "pkg.sub.mod", mod, "'ghost' is exported but never bound"),
+        ]
+
+    def test_single_module_uses_given_path(self, tmp_path: Path) -> None:
+        path = _write(tmp_path / "solo.py", '__all__ = ["ghost"]\n')
+        api = build_package(path, _default_config())
+
+        assert [(w.module, w.path) for w in unresolved_name_warnings(api, path)] == [("solo", path)]
+
+    def test_no_references_no_warnings(self, tmp_path: Path) -> None:
+        _write(tmp_path / "pkg" / "__init__.py", "def f() -> None: ...\n")
+
+        assert unresolved_name_warnings(build_package(tmp_path / "pkg", _default_config()), tmp_path / "pkg") == []

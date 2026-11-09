@@ -9,10 +9,10 @@ from collections.abc import Sequence
 from importlib.metadata import version
 from pathlib import Path
 
-from sheridan.iceberg._api import get_public_api
+from sheridan.iceberg._api import get_public_api_report
 from sheridan.iceberg._config import Config, load_config, load_config_file
 from sheridan.iceberg._exceptions import IcebergError
-from sheridan.iceberg._formatter import format_json, format_tree
+from sheridan.iceberg._formatter import format_diagnostic, format_json, format_tree
 
 
 def _positive_int(value: str) -> int:
@@ -69,14 +69,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the iceberg CLI.
 
     Parses *argv* (or ``sys.argv[1:]`` when *argv* is ``None``), resolves the
-    public API of the given path, and writes the result to stdout.
+    public API of the given path, and writes the result to stdout. With
+    ``--keep-going``, diagnostics go to stderr (and into the JSON output).
 
     Args:
         argv: Argument list to parse.  Defaults to ``sys.argv[1:]``.
 
     Returns:
         An integer exit code: ``0`` on success, ``1`` on a known
-        ``IcebergError``, ``2`` on any unexpected exception.
+        ``IcebergError`` or when ``--keep-going`` skipped a module, ``2`` on
+        any unexpected exception.
     """
     parser = argparse.ArgumentParser(
         prog="iceberg",
@@ -141,11 +143,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Number of worker processes used to parse modules. Overrides 'max_workers' from the configuration file.",
     )
 
+    parser.add_argument(
+        "--keep-going",
+        action="store_true",
+        default=False,
+        help=(
+            "Skip modules that cannot be read or parsed instead of stopping. Errors and "
+            "unresolved names are printed to stderr, and the exit code is 1 if any module was skipped."
+        ),
+    )
+
     args = parser.parse_args(argv)
 
     try:
         config = _resolve_config(args)
-        package = get_public_api(args.path, config=config)
+        report = get_public_api_report(args.path, config=config, keep_going=args.keep_going)
     except IcebergError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -154,8 +166,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     if args.json:
-        output = format_json(package)
+        output = format_json(report.api, report.diagnostics if args.keep_going else None)
     else:
-        output = format_tree(package, show_overload_implementation=args.show_overload_implementations)
+        output = format_tree(report.api, show_overload_implementation=args.show_overload_implementations)
     print(output)
-    return 0
+    if not args.keep_going:
+        return 0
+    for diagnostic in report.diagnostics:
+        print(format_diagnostic(diagnostic), file=sys.stderr)
+    return 1 if report.has_errors else 0

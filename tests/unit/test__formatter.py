@@ -7,10 +7,11 @@ from typing import Any
 
 import pytest
 
-from sheridan.iceberg._formatter import JSON_SCHEMA_VERSION, format_json, format_tree
+from sheridan.iceberg._formatter import JSON_SCHEMA_VERSION, format_diagnostic, format_json, format_tree
 from sheridan.iceberg._models import (
     Assignment,
     Class,
+    Diagnostic,
     Function,
     FunctionKind,
     Module,
@@ -880,3 +881,46 @@ def test_format_json_parameters_have_no_node_type() -> None:
     fn = _make_function(name="f", positional_parameters=(_make_parameter(),))
     parsed = json.loads(format_json(_make_module(name="m", functions=(fn,))))
     assert "node_type" not in parsed["functions"][0]["positional_parameters"][0]
+
+
+class TestDiagnostics:
+    """``format_diagnostic`` and the ``diagnostics`` key of ``format_json``."""
+
+    def test_format_diagnostic_with_line(self) -> None:
+        diagnostic = Diagnostic(
+            severity="error", module="pkg.bad", path=Path("/src/pkg/bad.py"), message="invalid syntax", lineno=3
+        )
+
+        assert format_diagnostic(diagnostic) == "/src/pkg/bad.py:3: error: invalid syntax"
+
+    def test_format_diagnostic_without_line(self) -> None:
+        diagnostic = Diagnostic(
+            severity="warning",
+            module="pkg",
+            path=Path("/src/pkg/__init__.py"),
+            message="'x' is exported but never bound",
+        )
+
+        assert format_diagnostic(diagnostic) == "/src/pkg/__init__.py: warning: 'x' is exported but never bound"
+
+    def test_format_json_leaves_out_diagnostics_by_default(self) -> None:
+        module = Module(name="m", assignments=(), classes=(), functions=())
+
+        assert "diagnostics" not in json.loads(format_json(module))
+
+    def test_format_json_includes_diagnostics_relative_to_root(self) -> None:
+        root = Path("/src/pkg")
+        package = Package(name="pkg", path=root, modules=(), subpackages=())
+        diagnostic = Diagnostic(severity="error", module="pkg.bad", path=root / "bad.py", message="boom", lineno=1)
+
+        document = json.loads(format_json(package, (diagnostic,)))
+
+        assert list(document)[-1] == "diagnostics"
+        assert document["diagnostics"] == [
+            {"severity": "error", "module": "pkg.bad", "path": "bad.py", "message": "boom", "lineno": 1}
+        ]
+
+    def test_format_json_includes_empty_diagnostics(self) -> None:
+        module = Module(name="m", assignments=(), classes=(), functions=())
+
+        assert json.loads(format_json(module, ()))["diagnostics"] == []

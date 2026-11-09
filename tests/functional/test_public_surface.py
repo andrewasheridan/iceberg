@@ -23,6 +23,9 @@ def test_all_equals_expected_names() -> None:
 
     expected: set[str] = {
         "get_public_api",
+        "get_public_api_report",
+        "Diagnostic",
+        "Report",
         "Package",
         "Module",
         "Class",
@@ -47,6 +50,9 @@ def test_all_equals_expected_names() -> None:
     "name",
     [
         "get_public_api",
+        "get_public_api_report",
+        "Diagnostic",
+        "Report",
         "Package",
         "Module",
         "Class",

@@ -47,6 +47,7 @@ pip install sheridan-iceberg
 iceberg src/mypkg            # tree output
 iceberg src/mypkg --json     # machine-readable output
 iceberg src/mypkg --show-overload-implementations  # also show @overload implementations
+iceberg src/mypkg --keep-going  # skip files that cannot be read or parsed
 iceberg --version            # print the installed version
 python -m sheridan.iceberg src/mypkg
 ```
@@ -60,6 +61,24 @@ Exit codes: `0` on success, `1` for iceberg errors (missing path, invalid
 config, unreadable or unparseable source), `2` for unexpected errors. Source files
 are decoded the way Python decodes them: UTF-8 unless a PEP 263 encoding
 declaration such as `# -*- coding: latin-1 -*-` says otherwise.
+
+### Keep going past bad files
+
+By default, one file that cannot be read or parsed (for example a vendored
+Python 2 module) stops the run. With `--keep-going`, iceberg skips that module,
+prints the API of everything else, and writes one diagnostic per line to
+stderr: an `error` for each skipped module, then a `warning` for each exported
+name that no import binds (the names the tree marks `(unresolved)`):
+
+```text
+/src/mypkg/vendored.py:2: error: Missing parentheses in call to 'print'. Did you mean print(...)?
+/src/mypkg/__init__.py: warning: 'lazy_thing' is exported but never bound
+```
+
+The exit code is `1` when a module was skipped and `0` when there are only
+warnings. With `--json`, the diagnostics are also in a top-level `diagnostics`
+list, with paths relative to the analyzed directory. A single `.py` file that
+cannot be parsed is still an error, since there is nothing else to report.
 
 ### Example output
 
@@ -142,6 +161,13 @@ are not listed separately. A function with `typing.overload` signatures is one
 `Function` whose `overloads` tuple holds those signatures. The tree shows one
 line per overload and hides the implementation signature unless you pass
 `--show-overload-implementations`.
+
+`get_public_api_report(path, keep_going=True)` is the programmatic form of
+`--keep-going`. It returns a `Report` whose `api` is the `Package` or `Module`
+and whose `diagnostics` is a tuple of `Diagnostic` objects (`severity`,
+`module`, `path`, `message` and `lineno`). `Report.has_errors` is `True` when a
+module was skipped. Without `keep_going`, it raises on the first bad file like
+`get_public_api`, but still lists the unresolved-name warnings.
 
 `load_json` reads the output of `iceberg --json` back into a `Package` or
 `Module`. The JSON stores package paths relative to the analyzed directory, so

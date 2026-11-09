@@ -1,6 +1,6 @@
 """Tree and JSON formatters for iceberg public API snapshots."""
 
-__all__ = ["format_json", "format_tree"]
+__all__ = ["format_diagnostic", "format_json", "format_tree"]
 
 import dataclasses
 import json
@@ -10,6 +10,7 @@ from typing import Any
 from sheridan.iceberg._models import (
     Assignment,
     Class,
+    Diagnostic,
     Function,
     Module,
     Package,
@@ -389,7 +390,20 @@ def _to_plain(obj: Any, root: Path | None = None) -> Any:
             return obj
 
 
-def format_json(api: Package | Module) -> str:
+def format_diagnostic(diagnostic: Diagnostic) -> str:
+    """Render *diagnostic* as one ``path:line: severity: message`` line.
+
+    Args:
+        diagnostic: The diagnostic to render.
+
+    Returns:
+        The line, with ``:line`` left out when the line is not known.
+    """
+    location = str(diagnostic.path) if diagnostic.lineno is None else f"{diagnostic.path}:{diagnostic.lineno}"
+    return f"{location}: {diagnostic.severity}: {diagnostic.message}"
+
+
+def format_json(api: Package | Module, diagnostics: tuple[Diagnostic, ...] | None = None) -> str:
     """Render *api* as deterministic, indented JSON.
 
     The top-level object starts with ``schema_version`` (see
@@ -402,11 +416,18 @@ def format_json(api: Package | Module) -> str:
     package directory (the root itself is ``"."``), so the same source in two
     different directories gives byte-identical output.
 
+    When *diagnostics* is given, they follow the API under a top-level
+    ``diagnostics`` key, with paths relative to the root package directory too.
+
     Args:
         api: The root package or module to serialize.
+        diagnostics: Diagnostics to include, or ``None`` to leave the key out.
 
     Returns:
         A JSON string with two-space indentation and keys in a fixed order.
     """
     root = api.path if isinstance(api, Package) else None
-    return json.dumps({"schema_version": JSON_SCHEMA_VERSION, **_to_plain(api, root)}, indent=2)
+    output = {"schema_version": JSON_SCHEMA_VERSION, **_to_plain(api, root)}
+    if diagnostics is not None:
+        output["diagnostics"] = _to_plain(diagnostics, root)
+    return json.dumps(output, indent=2)
