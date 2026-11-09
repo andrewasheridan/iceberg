@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "iceberg JSON output",
+  "description": "The output of `iceberg --json`, schema_version 2: one package or module object with a top-level schema_version.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 2
+    }
+  },
+  "required": ["schema_version"],
+  "oneOf": [
+    {"$ref": "#/$defs/packageFields"},
+    {"$ref": "#/$defs/moduleFields"}
+  ],
+  "unevaluatedProperties": false,
+  "$defs": {
+    "optionalString": {
+      "type": ["string", "null"]
+    },
+    "stringList": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "packageFields": {
+      "type": "object",
+      "properties": {
+        "node_type": {"const": "package"},
+        "name": {"type": "string", "description": "Fully-qualified dotted package name."},
+        "path": {
+          "type": "string",
+          "description": "POSIX path of the package directory relative to the analyzed root; the root itself is \".\"."
+        },
+        "modules": {"type": "array", "items": {"$ref": "#/$defs/module"}},
+        "subpackages": {"type": "array", "items": {"$ref": "#/$defs/package"}}
+      },
+      "required": ["node_type", "name", "path", "modules", "subpackages"]
+    },
+    "package": {
+      "$ref": "#/$defs/packageFields",
+      "unevaluatedProperties": false
+    },
+    "moduleFields": {
+      "type": "object",
+      "properties": {
+        "node_type": {"const": "module"},
+        "name": {"type": "string", "description": "Fully-qualified dotted module name."},
+        "assignments": {"type": "array", "items": {"$ref": "#/$defs/assignment"}},
+        "classes": {"type": "array", "items": {"$ref": "#/$defs/class"}},
+        "functions": {"type": "array", "items": {"$ref": "#/$defs/function"}},
+        "references": {"type": "array", "items": {"$ref": "#/$defs/reference"}}
+      },
+      "required": ["node_type", "name", "assignments", "classes", "functions", "references"]
+    },
+    "module": {
+      "$ref": "#/$defs/moduleFields",
+      "unevaluatedProperties": false
+    },
+    "class": {
+      "type": "object",
+      "properties": {
+        "node_type": {"const": "class"},
+        "name": {"type": "string"},
+        "bases": {"$ref": "#/$defs/stringList", "description": "Base class expressions as source strings, in source order."},
+        "keywords": {
+          "$ref": "#/$defs/stringList",
+          "description": "Keyword arguments of the class statement, such as \"metaclass=ABCMeta\", in source order."
+        },
+        "assignments": {"type": "array", "items": {"$ref": "#/$defs/assignment"}},
+        "methods": {"type": "array", "items": {"$ref": "#/$defs/function"}},
+        "nested_classes": {"type": "array", "items": {"$ref": "#/$defs/class"}}
+      },
+      "required": ["node_type", "name", "bases", "keywords", "assignments", "methods", "nested_classes"],
+      "additionalProperties": false
+    },
+    "function": {
+      "type": "object",
+      "properties": {
+        "node_type": {"const": "function"},
+        "name": {"type": "string"},
+        "positional_parameters": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/parameter"},
+          "description": "Positional-only and positional-or-keyword parameters, in source order."
+        },
+        "keyword_parameters": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/parameter"},
+          "description": "Keyword-only parameters, sorted by name."
+        },
+        "var_positional": {"oneOf": [{"$ref": "#/$defs/parameter"}, {"type": "null"}]},
+        "var_keyword": {"oneOf": [{"$ref": "#/$defs/parameter"}, {"type": "null"}]},
+        "returns": {"$ref": "#/$defs/optionalString"},
+        "is_async": {"type": "boolean"},
+        "kind": {"enum": ["function", "method", "classmethod", "staticmethod", "property"]},
+        "decorators": {
+          "$ref": "#/$defs/stringList",
+          "description": "Decorator expressions without the leading @, in source order."
+        },
+        "overloads": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/function"},
+          "description": "typing.overload signatures in source order; each has an empty overloads list."
+        }
+      },
+      "required": [
+        "node_type",
+        "name",
+        "positional_parameters",
+        "keyword_parameters",
+        "var_positional",
+        "var_keyword",
+        "returns",
+        "is_async",
+        "kind",
+        "decorators",
+        "overloads"
+      ],
+      "additionalProperties": false
+    },
+    "parameter": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"},
+        "annotation": {"$ref": "#/$defs/optionalString"},
+        "default": {"$ref": "#/$defs/optionalString"}
+      },
+      "required": ["name", "annotation", "default"],
+      "additionalProperties": false
+    },
+    "assignment": {
+      "type": "object",
+      "properties": {
+        "node_type": {"const": "assignment"},
+        "name": {"type": "string"},
+        "annotation": {"$ref": "#/$defs/optionalString"}
+      },
+      "required": ["node_type", "name", "annotation"],
+      "additionalProperties": false
+    },
+    "reference": {
+      "type": "object",
+      "properties": {
+        "node_type": {"const": "reference"},
+        "name": {"type": "string"},
+        "module": {
+          "$ref": "#/$defs/optionalString",
+          "description": "Module the name was imported from, or null when no import binds it."
+        },
+        "attribute": {
+          "$ref": "#/$defs/optionalString",
+          "description": "Original attribute name for from-imports, otherwise null."
+        }
+      },
+      "required": ["node_type", "name", "module", "attribute"],
+      "additionalProperties": false
+    }
+  }
+}

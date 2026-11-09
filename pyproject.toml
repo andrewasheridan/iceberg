@@ -140,6 +140,7 @@ update_changelog_on_bump = true
 dev = [
     "bandit[toml]>=1.9.4",
     "commitizen>=4.13.10",
+    "jsonschema>=4.26.0",
     "mkdocstrings[python]>=1.0.3",
     "prek>=0.5.10",
     "pyrefly>=1.4.1",
