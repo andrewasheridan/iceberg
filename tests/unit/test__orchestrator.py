@@ -2,10 +2,13 @@
 sheridan.iceberg._api (get_public_api).
 """
 
+import ast
 import subprocess
 import sys
 import warnings
+from collections import Counter
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -440,3 +443,30 @@ def test_init_star_import_from_outside_tree_is_candidate(tmp_path: Path) -> None
     init = _init_module(result, "pkg")
     assert [fn.name for fn in init.functions] == ["f"]
     assert init.references == (Reference(name="join", module="os.path", attribute="join"),)
+
+
+@pytest.mark.parametrize("max_workers", [1, 2])
+def test_each_file_is_parsed_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, max_workers: int) -> None:
+    pkg = tmp_path / "pkg"
+    _write(pkg / "__init__.py", "from ._a import A\nfrom .sub import B\n__all__ = ['A', 'B']\n")
+    _write(pkg / "_a.py", "__all__ = ['A']\nclass A: ...\n")
+    _write(pkg / "_c.py", "def c() -> None: ...\n")
+    _write(pkg / "sub" / "__init__.py", "from ._b import B\n")
+    _write(pkg / "sub" / "_b.py", "class B: ...\n")
+    parsed: Counter[str] = Counter()
+    real_parse = ast.parse
+
+    def spy(source: str, filename: str = "<unknown>", *args: Any, **kwargs: Any) -> Any:
+        # Parses of other files, or without a filename, are counted under that name.
+        path = Path(filename)
+        parsed[path.relative_to(pkg).as_posix() if path.is_relative_to(pkg) else filename] += 1
+        return real_parse(source, filename, *args, **kwargs)
+
+    monkeypatch.setattr(ast, "parse", spy)
+    # Worker processes do not see the patch, so with workers only the files
+    # parsed in this process are counted.
+    _build_dir(pkg, Config(max_workers=max_workers))
+    expected = {"__init__.py": 1, "_a.py": 1, "sub/__init__.py": 1}
+    if max_workers == 1:
+        expected |= {"_c.py": 1, "sub/_b.py": 1}
+    assert parsed == expected
