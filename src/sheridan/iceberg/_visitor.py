@@ -12,6 +12,10 @@ Top-level means module level: definitions inside module-level ``if`` and
 captured. When a name is defined more than once, the first definition in
 source order is kept.
 
+Class bodies follow the same rule: methods, nested classes and class
+variables inside ``if`` and ``try`` blocks of a class body (every branch)
+are captured, and the first definition of a member name is kept.
+
 Names listed in ``__all__`` that are not defined in the module itself (for
 example re-exports of imported names) are captured as ``Reference`` entries so
 they are never silently dropped.
@@ -459,8 +463,10 @@ def _build_class(node: ast.ClassDef) -> Class:
     """Build a ``Class`` model from a class definition node.
 
     Recurses into nested class definitions. Extracts methods and class-level
-    assignments, skipping property setters, getters and deleters, and groups
-    ``@overload`` signatures with their implementation. Does **not**
+    assignments, including those inside ``if`` and ``try`` blocks of the class
+    body, skipping property setters, getters and deleters, and groups
+    ``@overload`` signatures with their implementation. When a name is defined
+    more than once, only the first definition is kept. Does **not**
     read ``node.bases``, ``node.decorator_list``, or any docstring.
 
     Args:
@@ -473,33 +479,43 @@ def _build_class(node: ast.ClassDef) -> Class:
     assignments: list[Assignment] = []
     methods: list[Function] = []
     nested_classes: list[Class] = []
-    overloads, grouped = _group_overloads(node.body)
+    # As in ``visit_module``: ``if``/``try`` branches are read, and the first
+    # definition of a name wins.
+    seen: set[str] = set()
+    statements = list(module_level_statements(node.body))
+    overloads, grouped = _group_overloads(statements)
 
-    for child in node.body:
+    def keep(name: str, *, is_public: bool) -> bool:
+        if not is_public or name in seen:
+            return False
+        seen.add(name)
+        return True
+
+    for child in statements:
         match child:
             case (ast.FunctionDef() | ast.AsyncFunctionDef()) as fn_child:
                 if fn_child in grouped or _is_property_accessor(fn_child):
                     continue
                 fn = _build_function(fn_child, in_class=True, overloads=overloads.get(fn_child, ()))
-                if fn.is_public:
+                if keep(fn.name, is_public=fn.is_public):
                     methods.append(fn)
 
             case ast.ClassDef() as cls_child:
                 nested = _build_class(cls_child)
-                if nested.is_public:
+                if keep(nested.name, is_public=nested.is_public):
                     nested_classes.append(nested)
 
             case ast.Assign() as assign_child:
-                assignments.extend(a for a in _build_assignments(assign_child) if a.is_public)
+                assignments.extend(a for a in _build_assignments(assign_child) if keep(a.name, is_public=a.is_public))
 
             case ast.AnnAssign() as ann_child:
                 result = _build_assignment(ann_child)
-                if result is not None and result.is_public:
+                if result is not None and keep(result.name, is_public=result.is_public):
                     assignments.append(result)
 
             case ast.TypeAlias() as alias_child:
                 alias = _build_type_alias(alias_child)
-                if alias.is_public:
+                if keep(alias.name, is_public=alias.is_public):
                     assignments.append(alias)
 
             case _:

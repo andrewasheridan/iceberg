@@ -911,6 +911,69 @@ def test_definitions_inside_functions_not_captured() -> None:
     assert [f.name for f in module.functions] == ["outer"]
 
 
+def test_class_body_if_else_branches_keep_first_definition() -> None:
+    source = """
+import sys
+
+class A:
+    if sys.version_info >= (3, 12):
+        def y(self) -> int: ...
+        LIMIT: int = 1
+        class Inner:
+            pass
+    else:
+        def y(self) -> str: ...
+        LIMIT = 2
+        class Inner:
+            x = 1
+"""
+    (cls,) = _visit(source).classes
+    assert [(m.name, m.returns) for m in cls.methods] == [("y", "int")]
+    assert cls.assignments == (Assignment(name="LIMIT", annotation="int"),)
+    assert cls.nested_classes == (Class(name="Inner", assignments=(), methods=(), nested_classes=()),)
+
+
+def test_class_body_try_except_definitions_captured() -> None:
+    source = """
+class A:
+    try:
+        import numpy
+        def to_array(self): ...
+    except ImportError:
+        HAS_NUMPY = False
+        class Fallback:
+            pass
+    else:
+        HAS_NUMPY = True
+"""
+    (cls,) = _visit(source).classes
+    assert [m.name for m in cls.methods] == ["to_array"]
+    assert cls.assignments == (Assignment(name="HAS_NUMPY", annotation=None),)
+    assert [c.name for c in cls.nested_classes] == ["Fallback"]
+
+
+def test_class_body_private_definitions_in_if_block_excluded() -> None:
+    module = _visit("class A:\n    if True:\n        def _hidden(self): ...\n        def shown(self): ...\n")
+    assert [m.name for m in module.classes[0].methods] == ["shown"]
+
+
+def test_class_body_overloads_in_branch_group_with_later_implementation() -> None:
+    source = """
+from typing import TYPE_CHECKING, overload
+
+class C:
+    if TYPE_CHECKING:
+        @overload
+        def f(self, x: int) -> int: ...
+        @overload
+        def f(self, x: str) -> str: ...
+    def f(self, x): ...
+"""
+    (method,) = _visit(source).classes[0].methods
+    assert method.name == "f"
+    assert [o.returns for o in method.overloads] == ["int", "str"]
+
+
 def test_syntax_error_reports_path_line_and_column() -> None:
     with pytest.raises(ParseError) as info:
         visit_module("x = 1\ndef f(:\n", "pkg.mod", Path("src/pkg/mod.py"))
