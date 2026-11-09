@@ -17,35 +17,41 @@ from pathlib import Path
 
 from sheridan.iceberg._config import Config
 from sheridan.iceberg._discovery import discover
+from sheridan.iceberg._exceptions import ParseError
 from sheridan.iceberg._init_resolver import resolve_init, resolve_module_references
 from sheridan.iceberg._models import DiscoveredModule, Module, Package
-from sheridan.iceberg._utilities import extract_all, read_source
+from sheridan.iceberg._utilities import extract_all, parse_source, read_source
 from sheridan.iceberg._visitor import visit_module
 
 
 def _visit_worker(
     discovered: DiscoveredModule,
+    tree: ast.Module | None = None,
     known_all: Mapping[str, frozenset[str] | None] | None = None,
 ) -> Module:
     """Read source from disk and return a parsed ``Module``.
 
-    Runs in a worker process. Any IO must happen here — not in the
-    parent — so the filesystem walk and AST parse stages are
-    actually parallel.
+    Runs in a worker process when ``Config.max_workers`` is greater than 1.
+    Files that the parent has not parsed already are parsed here, not in
+    the parent, so that stage runs in parallel.
 
     Args:
         discovered: Metadata about the module to visit, including its path
             and dotted name.
+        tree: The module's AST, when the parent has already parsed it.
         known_all: The evaluated ``__all__`` of each module, by dotted name.
 
     Returns:
         A ``Module`` capturing the public API surface of the source file.
     """
     source = read_source(discovered.source_path)
-    return visit_module(source, discovered.dotted_name, discovered.source_path, known_all)
+    return visit_module(source, discovered.dotted_name, discovered.source_path, known_all, tree=tree)
 
 
-def _evaluate_all(discovered: Sequence[DiscoveredModule]) -> dict[str, frozenset[str] | None]:
+def _evaluate_all(
+    discovered: Sequence[DiscoveredModule],
+    trees: dict[str, ast.Module],
+) -> dict[str, frozenset[str] | None]:
     """Evaluate the ``__all__`` of every discovered module.
 
     A module may extend its ``__all__`` with another module's
@@ -56,6 +62,8 @@ def _evaluate_all(discovered: Sequence[DiscoveredModule]) -> dict[str, frozenset
 
     Args:
         discovered: Every module found under the analyzed root.
+        trees: Filled with the AST of each file parsed here, by dotted name,
+            so later stages do not parse it again.
 
     Returns:
         A mapping from dotted module name to its ``__all__``, or ``None`` when
@@ -76,9 +84,10 @@ def _evaluate_all(discovered: Sequence[DiscoveredModule]) -> dict[str, frozenset
             result[name] = None
             return None
         try:
-            tree = ast.parse(source, feature_version=(3, 14))
-        except SyntaxError:
+            tree = parse_source(source, dm.source_path)
+        except ParseError:
             return None
+        trees[name] = tree
         package = name if dm.is_init else name.rpartition(".")[0]
         in_progress.add(name)
         try:
@@ -307,7 +316,8 @@ def build_package(root: Path, config: Config) -> Package | Module:
 
     # 2. Evaluate every __all__ once, so `__all__ += sub.__all__` can see
     #    other modules, then partition into regular modules and __init__.py files.
-    known_all = _evaluate_all(all_discovered)
+    trees: dict[str, ast.Module] = {}
+    known_all = _evaluate_all(all_discovered, trees)
     non_init_modules = [dm for dm in all_discovered if not dm.is_init]
     init_modules = [dm for dm in all_discovered if dm.is_init]
 
@@ -317,9 +327,15 @@ def build_package(root: Path, config: Config) -> Package | Module:
     visited_modules: list[Module]
     if config.max_workers > 1:
         with ProcessPoolExecutor(max_workers=config.max_workers) as executor:
-            visited_modules = list(executor.map(partial(_visit_worker, known_all=known_all), non_init_modules))
+            visited_modules = list(
+                executor.map(
+                    partial(_visit_worker, known_all=known_all),
+                    non_init_modules,
+                    [trees.get(dm.dotted_name) for dm in non_init_modules],
+                )
+            )
     else:
-        visited_modules = [_visit_worker(dm, known_all) for dm in non_init_modules]
+        visited_modules = [_visit_worker(dm, trees.get(dm.dotted_name), known_all) for dm in non_init_modules]
 
     module_map: dict[str, Module] = {
         dm.dotted_name: module for dm, module in zip(non_init_modules, visited_modules, strict=True)
@@ -340,6 +356,7 @@ def build_package(root: Path, config: Config) -> Package | Module:
     package_all_map: dict[str, frozenset[str] | None] = {}
 
     for init_module in sorted_inits:
+        tree = trees.get(init_module.dotted_name)
         source = read_source(init_module.source_path)
         child_names = _child_names_at_level(init_module.dotted_name, all_discovered)
 
@@ -353,6 +370,7 @@ def build_package(root: Path, config: Config) -> Package | Module:
             namespace_parents=namespace_parents,
             path=init_module.source_path,
             known_all=known_all,
+            tree=tree,
         )
         module_map[init_module.dotted_name] = module
 

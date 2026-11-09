@@ -5,15 +5,17 @@ import os
 import sys
 import warnings
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-from sheridan.iceberg._exceptions import SourceReadError
+from sheridan.iceberg._exceptions import ParseError, SourceReadError
 from sheridan.iceberg._utilities import (
     bound_names,
     collect_imports,
     extract_all,
     infer_all,
+    parse_source,
     read_source,
     resolve_relative,
     star_candidate,
@@ -322,3 +324,34 @@ def test_read_source_unreadable_file(tmp_path: Path) -> None:
     finally:
         path.chmod(0o644)
     assert info.value.path == str(path)
+
+
+class TestParseSource:
+    def test_returns_module(self) -> None:
+        tree = parse_source("x = 1\n")
+        assert isinstance(tree.body[0], ast.Assign)
+
+    def test_uses_the_running_interpreter_grammar(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # A pinned ``feature_version`` rejects syntax newer than the pin on a
+        # later interpreter.
+        calls: list[dict[str, Any]] = []
+        real_parse = ast.parse
+
+        def spy(*args: Any, **kwargs: Any) -> ast.Module:
+            calls.append(kwargs)
+            return real_parse(*args, **kwargs)
+
+        monkeypatch.setattr(ast, "parse", spy)
+        parse_source("x = 1\n", "mod.py")
+        assert calls == [{"filename": "mod.py"}]
+
+    def test_syntax_error_raises_parse_error_with_path(self) -> None:
+        with pytest.raises(ParseError) as info:
+            parse_source("def (:\n", Path("bad.py"))
+        assert info.value.path == "bad.py"
+        assert info.value.lineno == 1
+
+    def test_syntax_error_without_path_has_no_path(self) -> None:
+        with pytest.raises(ParseError) as info:
+            parse_source("def (:\n")
+        assert info.value.path is None

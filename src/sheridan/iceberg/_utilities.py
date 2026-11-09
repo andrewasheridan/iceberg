@@ -11,6 +11,7 @@ __all__ = [
     "collect_imports",
     "extract_all",
     "infer_all",
+    "parse_source",
     "read_source",
     "resolve_relative",
     "star_candidate",
@@ -22,7 +23,7 @@ import warnings
 from collections.abc import Callable, Collection, Iterator
 from pathlib import Path
 
-from sheridan.iceberg._exceptions import SourceReadError
+from sheridan.iceberg._exceptions import ParseError, SourceReadError
 
 #: Look up the evaluated ``__all__`` of another module by dotted name. Returns
 #: ``None`` when the module is not in the analyzed tree or its ``__all__`` is
@@ -59,6 +60,28 @@ def read_source(path: Path) -> str:
     except (SyntaxError, UnicodeDecodeError, LookupError) as exc:
         reason = exc.msg if isinstance(exc, SyntaxError) else str(exc)
         raise SourceReadError(f"cannot decode file: {reason}", path=str(path)) from exc
+
+
+def parse_source(source: str, path: Path | str | None = None) -> ast.Module:
+    """Parse Python source into a module AST.
+
+    The grammar is the running interpreter's, so any syntax it accepts is
+    accepted here.
+
+    Args:
+        source: Raw Python source text.
+        path: The file *source* was read from, reported in the error.
+
+    Returns:
+        The parsed module.
+
+    Raises:
+        ParseError: When *source* is not valid Python.
+    """
+    try:
+        return ast.parse(source, filename="<unknown>" if path is None else str(path))
+    except SyntaxError as exc:
+        raise ParseError.from_syntax_error(exc) from exc
 
 
 class _NotStaticError(Exception):

@@ -58,6 +58,7 @@ from sheridan.iceberg._utilities import (
     extract_all,
     infer_all,
     module_level_statements,
+    parse_source,
     star_candidate,
 )
 
@@ -67,6 +68,8 @@ def visit_module(
     dotted_name: str,
     path: Path | None = None,
     known_all: Mapping[str, frozenset[str] | None] | None = None,
+    *,
+    tree: ast.Module | None = None,
 ) -> Module:
     """Parse *source* and return the public API surface as a ``Module``.
 
@@ -79,6 +82,8 @@ def visit_module(
             tree, by dotted name. When it holds *dotted_name*, that value is
             used as is; otherwise ``__all__`` is evaluated from *source*, and
             this mapping resolves ``__all__ += other.__all__``.
+        tree: *source* already parsed, so the caller can parse each file
+            once. *source* is not parsed again when it is given.
 
     Returns:
         A ``Module`` containing only the public names found in *source*.
@@ -86,10 +91,8 @@ def visit_module(
     Raises:
         ParseError: When *source* cannot be parsed as valid Python.
     """
-    try:
-        tree = ast.parse(source, filename="<unknown>" if path is None else str(path), feature_version=(3, 14))
-    except SyntaxError as exc:
-        raise ParseError.from_syntax_error(exc) from exc
+    if tree is None:
+        tree = parse_source(source, path)
 
     if known_all is not None and dotted_name in known_all:
         explicit_all = known_all[dotted_name]

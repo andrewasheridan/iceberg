@@ -21,9 +21,8 @@ import dataclasses
 from collections.abc import Callable, Mapping
 from pathlib import Path
 
-from sheridan.iceberg._exceptions import ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Reference, ResolveReport
-from sheridan.iceberg._utilities import collect_imports, extract_all, infer_all, star_candidate
+from sheridan.iceberg._utilities import collect_imports, extract_all, infer_all, parse_source, star_candidate
 from sheridan.iceberg._visitor import visit_module
 
 
@@ -36,6 +35,7 @@ def resolve_init(
     namespace_parents: tuple[str, ...] = (),
     path: Path | None = None,
     known_all: Mapping[str, frozenset[str] | None] | None = None,
+    tree: ast.Module | None = None,
 ) -> tuple[Module, ResolveReport]:
     """Resolve an ``__init__.py`` source into a ``Module`` with re-exports attached.
 
@@ -73,6 +73,8 @@ def resolve_init(
             is used as is; otherwise ``__all__`` is evaluated from
             *init_source*, and this mapping resolves
             ``__all__ += sub.__all__``.
+        tree: *init_source* already parsed, so the caller can parse each
+            file once. *init_source* is not parsed again when it is given.
 
     Returns:
         A two-tuple of ``(module, report)`` where *module* is the resolved
@@ -82,10 +84,8 @@ def resolve_init(
     Raises:
         ParseError: When *init_source* cannot be parsed as valid Python.
     """
-    try:
-        tree = ast.parse(init_source, filename="<unknown>" if path is None else str(path), feature_version=(3, 14))
-    except SyntaxError as exc:
-        raise ParseError.from_syntax_error(exc) from exc
+    if tree is None:
+        tree = parse_source(init_source, path)
 
     if known_all is not None and dotted_package in known_all:
         explicit_all = known_all[dotted_package]
@@ -99,7 +99,9 @@ def resolve_init(
 
     # Use visit_module for locally-defined names and the public-name filter.
     # Pass the evaluated __all__ so it is not evaluated (and reported) twice.
-    local_module = visit_module(init_source, dotted_package, path, {**(known_all or {}), dotted_package: explicit_all})
+    local_module = visit_module(
+        init_source, dotted_package, path, {**(known_all or {}), dotted_package: explicit_all}, tree=tree
+    )
 
     root_package = dotted_package.split(".")[0]
 

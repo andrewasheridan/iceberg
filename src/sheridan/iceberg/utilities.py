@@ -13,7 +13,7 @@ from typing import Any, overload
 from sheridan.iceberg._api import get_public_api
 from sheridan.iceberg._exceptions import InvalidPathError, ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Package
-from sheridan.iceberg._utilities import module_level_statements, read_source
+from sheridan.iceberg._utilities import module_level_statements, parse_source, read_source
 from sheridan.iceberg._visitor import (
     _build_assignment,
     _build_assignments,
@@ -186,10 +186,7 @@ def get_function(
 
         case str():
             src = textwrap.dedent(source_or_node_or_path_or_func)
-            try:
-                tree = ast.parse(src)
-            except SyntaxError as exc:
-                raise ParseError.from_syntax_error(exc) from exc
+            tree = parse_source(src)
             for node in ast.walk(tree):
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     return _build_function(node)
@@ -199,10 +196,7 @@ def get_function(
             if name is None:
                 raise TypeError("name is required when passing a Path")
             src = read_source(source_or_node_or_path_or_func)
-            try:
-                tree = ast.parse(src, filename=str(source_or_node_or_path_or_func))
-            except SyntaxError as exc:
-                raise ParseError.from_syntax_error(exc) from exc
+            tree = parse_source(src, source_or_node_or_path_or_func)
             func_node = _find_definition(tree, name, (ast.FunctionDef, ast.AsyncFunctionDef))
             if isinstance(func_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 return _build_function(func_node)
@@ -271,10 +265,7 @@ def get_class(
 
         case str():
             src = textwrap.dedent(source_or_node_or_path_or_cls)
-            try:
-                tree = ast.parse(src)
-            except SyntaxError as exc:
-                raise ParseError.from_syntax_error(exc) from exc
+            tree = parse_source(src)
             for node in ast.walk(tree):
                 if isinstance(node, ast.ClassDef):
                     return _build_class(node)
@@ -284,10 +275,7 @@ def get_class(
             if name is None:
                 raise TypeError("name is required when passing a Path")
             src = read_source(source_or_node_or_path_or_cls)
-            try:
-                tree = ast.parse(src, filename=str(source_or_node_or_path_or_cls))
-            except SyntaxError as exc:
-                raise ParseError.from_syntax_error(exc) from exc
+            tree = parse_source(src, source_or_node_or_path_or_cls)
             class_node = _find_definition(tree, name, ast.ClassDef)
             if isinstance(class_node, ast.ClassDef):
                 return _build_class(class_node)
@@ -361,10 +349,7 @@ def get_assignment(
 
         case str():
             src = textwrap.dedent(source_or_node_or_path)
-            try:
-                tree = ast.parse(src)
-            except SyntaxError as exc:
-                raise ParseError.from_syntax_error(exc) from exc
+            tree = parse_source(src)
             found = _find_assignment(tree, name)
             if found is not None:
                 return found
@@ -376,10 +361,7 @@ def get_assignment(
             if name is None:
                 raise TypeError("name is required when passing a Path")
             src = read_source(source_or_node_or_path)
-            try:
-                tree = ast.parse(src, filename=str(source_or_node_or_path))
-            except SyntaxError as exc:
-                raise ParseError.from_syntax_error(exc) from exc
+            tree = parse_source(src, source_or_node_or_path)
             found = _find_assignment(tree, name)
             if found is not None:
                 return found
