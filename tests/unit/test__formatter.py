@@ -1,4 +1,4 @@
-"""Tests for sheridan.iceberg._formatter (format_tree and format_json)."""
+"""Test sheridan.iceberg._formatter (format_tree and format_json)."""
 
 import dataclasses
 import json
@@ -105,7 +105,7 @@ def _make_package(
 
 
 def test_format_tree_empty_package() -> None:
-    """An empty package should render just its header line with no children."""
+    """An empty package must render only its header line, without children."""
     pkg = _make_package(name="mylib")
     result = format_tree(pkg)
 
@@ -113,7 +113,7 @@ def test_format_tree_empty_package() -> None:
 
 
 def test_format_tree_single_empty_module() -> None:
-    """A package with one empty module renders the module as the sole child."""
+    """A package with one empty module renders the module as the only child."""
     mod = _make_module(name="utils")
     pkg = _make_package(name="mylib", modules=(mod,))
     result = format_tree(pkg)
@@ -123,7 +123,7 @@ def test_format_tree_single_empty_module() -> None:
 
 
 def test_format_tree_two_modules_branch_and_last() -> None:
-    """Two modules: first gets ├── and last gets └──."""
+    """Two modules: the first gets ├── and the last gets └──."""
     mod_a = _make_module(name="alpha")
     mod_b = _make_module(name="beta")
     pkg = _make_package(name="mylib", modules=(mod_a, mod_b))
@@ -146,7 +146,7 @@ def test_format_tree_module_with_assignment_annotation() -> None:
 
 
 def test_format_tree_module_with_bare_assignment() -> None:
-    """An assignment with no annotation renders as just the name."""
+    """An assignment without an annotation renders as only the name."""
     a = Assignment(name="SENTINEL", annotation=None)
     mod = _make_module(name="core", assignments=(a,))
     pkg = _make_package(name="mylib", modules=(mod,))
@@ -156,7 +156,7 @@ def test_format_tree_module_with_bare_assignment() -> None:
 
 
 def test_format_tree_function_no_params() -> None:
-    """A bare function with no params renders as ``name()``."""
+    """A bare function without parameters renders as ``name()``."""
     fn = _make_function(name="do_thing")
     mod = _make_module(name="ops", functions=(fn,))
     pkg = _make_package(name="mylib", modules=(mod,))
@@ -176,7 +176,7 @@ def test_format_tree_function_with_return() -> None:
 
 
 def test_format_tree_async_function() -> None:
-    """An async function is prefixed with ``async def``."""
+    """An async function gets the prefix ``async def``."""
     fn = _make_function(name="fetch", is_async=True, returns="str")
     mod = _make_module(name="net", functions=(fn,))
     pkg = _make_package(name="mylib", modules=(mod,))
@@ -190,7 +190,7 @@ def test_format_tree_async_function() -> None:
     [("int", "property p: int"), (None, "property p")],
 )
 def test_format_tree_property(returns: str | None, expected: str) -> None:
-    """A property renders as the attribute callers read, not as a call."""
+    """A property renders as the attribute that callers read, not as a call."""
     self_param = _make_parameter(name="self", annotation=None)
     fn = _make_function(name="p", positional_parameters=(self_param,), returns=returns, kind="property")
     mod = _make_module(name="ops", functions=(fn,))
@@ -202,7 +202,7 @@ def test_format_tree_property(returns: str | None, expected: str) -> None:
 
 @pytest.mark.parametrize("kind", ["classmethod", "staticmethod"])
 def test_format_tree_classmethod_and_staticmethod_are_prefixed(kind: FunctionKind) -> None:
-    """Classmethods and staticmethods are prefixed with their kind."""
+    """Classmethods and staticmethods get their kind as a prefix."""
     fn = _make_function(name="build", returns="None", kind=kind)
     mod = _make_module(name="ops", functions=(fn,))
 
@@ -210,7 +210,7 @@ def test_format_tree_classmethod_and_staticmethod_are_prefixed(kind: FunctionKin
 
 
 def test_format_tree_method_has_no_prefix() -> None:
-    """A plain method renders like a function."""
+    """A plain method renders in the same way as a function."""
     fn = _make_function(name="run", kind="method")
     mod = _make_module(name="ops", functions=(fn,))
 
@@ -218,7 +218,7 @@ def test_format_tree_method_has_no_prefix() -> None:
 
 
 def test_format_tree_function_positional_params() -> None:
-    """Positional parameters appear in declaration order."""
+    """Positional parameters are in the order of their declaration."""
     p1 = _make_parameter(name="a", annotation="int")
     p2 = _make_parameter(name="b", annotation="str", default="'hi'")
     fn = _make_function(name="greet", positional_parameters=(p1, p2))
@@ -252,7 +252,7 @@ def test_format_tree_function_var_keyword() -> None:
 
 
 def test_format_tree_function_keyword_only_separator() -> None:
-    """Keyword-only params without *args get a bare ``*`` separator."""
+    """Keyword-only parameters without *args get a bare ``*`` separator."""
     kw = _make_parameter(name="verbose", annotation="bool", default="False")
     fn = _make_function(name="run", keyword_parameters=frozenset({kw}))
     mod = _make_module(name="ops", functions=(fn,))
@@ -263,7 +263,7 @@ def test_format_tree_function_keyword_only_separator() -> None:
 
 
 def test_format_tree_class_appears() -> None:
-    """A class node appears with ``class`` prefix and its name."""
+    """A class node shows the ``class`` prefix and its name."""
     cls = _make_class(name="Widget")
     mod = _make_module(name="ui", classes=(cls,))
     pkg = _make_package(name="mylib", modules=(mod,))
@@ -286,7 +286,7 @@ def test_format_tree_class_shows_bases_and_keywords() -> None:
 
 
 def test_format_tree_hoisted_class_shows_bases() -> None:
-    """A class in ``__init__`` hoisted to package level keeps its bases."""
+    """A class in ``__init__`` that moves up to the package level keeps its bases."""
     cls = _make_class(name="Error", bases=("Exception",))
     mod = _make_module(name="mylib", classes=(cls,))
     pkg = _make_package(name="mylib", modules=(mod,))
@@ -295,7 +295,7 @@ def test_format_tree_hoisted_class_shows_bases() -> None:
 
 
 def test_format_json_class_bases_and_keywords_serialised() -> None:
-    """Bases and keywords appear as lists of source strings after the name."""
+    """Bases and keywords are lists of source strings after the name."""
     cls = _make_class(name="Agent", bases=("Base",), keywords=("metaclass=Meta",))
     parsed = json.loads(format_json(_make_module(name="agents", classes=(cls,))))
     cls_data = parsed["classes"][0]
@@ -306,7 +306,7 @@ def test_format_json_class_bases_and_keywords_serialised() -> None:
 
 
 def test_format_tree_class_method_indented() -> None:
-    """A method inside a class is indented under the class node."""
+    """A method in a class has an indent below the class node."""
     method = _make_function(name="render", returns="str")
     cls = _make_class(name="Widget", methods=(method,))
     mod = _make_module(name="ui", classes=(cls,))
@@ -320,7 +320,7 @@ def test_format_tree_class_method_indented() -> None:
 
 
 def test_format_tree_nested_class() -> None:
-    """A nested class appears under its parent class."""
+    """A nested class is below its parent class."""
     inner = _make_class(name="Inner")
     outer = _make_class(name="Outer", nested_classes=(inner,))
     mod = _make_module(name="stuff", classes=(outer,))
@@ -336,7 +336,7 @@ def test_format_tree_nested_class() -> None:
 
 
 def test_format_tree_subpackage() -> None:
-    """A subpackage appears with ``package`` prefix."""
+    """A subpackage shows the ``package`` prefix."""
     subpkg = _make_package(name="sub", path=Path("/fake/sub"))
     pkg = _make_package(name="mylib", subpackages=(subpkg,))
     result = format_tree(pkg)
@@ -345,7 +345,7 @@ def test_format_tree_subpackage() -> None:
 
 
 def test_format_tree_golden_string() -> None:
-    """Full golden-string check for a small but realistic package."""
+    """Do a full golden-string check for a small but realistic package."""
     # Build: mylib
     #   module core
     #     VERSION: str
@@ -381,7 +381,7 @@ def test_format_tree_golden_string() -> None:
 
 
 def test_format_json_returns_valid_json() -> None:
-    """format_json must return a string parseable by json.loads."""
+    """format_json must return a string that json.loads can parse."""
     pkg = _make_package(name="mylib")
     output = format_json(pkg)
     parsed = json.loads(output)
@@ -409,7 +409,7 @@ def test_format_json_name_value() -> None:
 
 
 def test_format_json_path_is_string() -> None:
-    """The ``path`` field must be serialised as a plain string, not a mapping."""
+    """The ``path`` field must be a plain string in the JSON, not a mapping."""
     pkg = _make_package(name="mylib", path=Path("/some/path"))
     parsed = json.loads(format_json(pkg))
 
@@ -417,7 +417,7 @@ def test_format_json_path_is_string() -> None:
 
 
 def test_format_json_root_path_is_dot() -> None:
-    """The root package path is rendered as ``"."``, not as an absolute path."""
+    """The path of the root package renders as ``"."``, not as an absolute path."""
     pkg = _make_package(name="mylib", path=Path("/some/path"))
     parsed = json.loads(format_json(pkg))
 
@@ -434,7 +434,7 @@ def test_format_json_subpackage_path_is_relative_to_root() -> None:
 
 
 def test_format_json_stable_across_two_calls() -> None:
-    """Two calls with identical input must produce identical output."""
+    """Two calls with the same input must give the same output."""
     fn = _make_function(
         name="go",
         keyword_parameters=frozenset(
@@ -451,7 +451,7 @@ def test_format_json_stable_across_two_calls() -> None:
 
 
 def test_format_json_modules_is_list() -> None:
-    """``modules`` must serialise as a JSON array."""
+    """``modules`` must be a JSON array."""
     mod = _make_module(name="utils")
     pkg = _make_package(name="mylib", modules=(mod,))
     parsed = json.loads(format_json(pkg))
@@ -465,14 +465,14 @@ def test_format_json_indented_two_spaces() -> None:
     mod = _make_module(name="utils")
     pkg = _make_package(name="mylib", modules=(mod,))
     output = format_json(pkg)
-    # The second line should start with two spaces (top-level key indentation)
+    # The second line must start with two spaces (the indent of top-level keys)
     second_line = output.splitlines()[1]
     assert second_line.startswith("  ")
     assert not second_line.startswith("   ")
 
 
 def test_format_json_frozenset_keyword_params_sorted() -> None:
-    """keyword_parameters (frozenset) must appear sorted by name in JSON."""
+    """In the JSON, keyword_parameters (frozenset) must be sorted by name."""
     kw_z = _make_parameter(name="zebra", annotation="str")
     kw_a = _make_parameter(name="aardvark", annotation="int")
     kw_m = _make_parameter(name="marmot", annotation="float")
@@ -492,8 +492,8 @@ def test_format_json_frozenset_keyword_params_sorted() -> None:
 
 
 def test_format_json_frozenset_order_independent_of_construction_order() -> None:
-    """Two Functions built with keyword params in different frozenset iteration
-    orders must produce identical JSON."""
+    """Two Functions with keyword parameters in different frozenset iteration
+    orders must give the same JSON."""
     kw_a = _make_parameter(name="alpha", annotation="int")
     kw_b = _make_parameter(name="beta", annotation="str")
     kw_c = _make_parameter(name="gamma", annotation="float")
@@ -516,9 +516,9 @@ def test_format_json_frozenset_order_independent_of_construction_order() -> None
 
 
 def test_format_json_frozenset_same_name_params_stable() -> None:
-    """When two keyword params share the same name the output is still deterministic
-    (same params, same JSON on every call).  The sort key is name-only per the spec;
-    we simply verify stability rather than a particular annotation order."""
+    """If two keyword parameters have the same name, the output is still deterministic
+    (the same parameters give the same JSON for each call). The specification sorts
+    only by name. Thus, the test examines only the stability, not an annotation order."""
     kw_int = Parameter(name="val", annotation="int", default=None)
     kw_str = Parameter(name="val", annotation="str", default=None)
 
@@ -529,10 +529,10 @@ def test_format_json_frozenset_same_name_params_stable() -> None:
     mod = _make_module(name="core", functions=(fn,))
     pkg = _make_package(name="mylib", modules=(mod,))
 
-    # Two calls must produce identical output (stable sort, no hash randomness).
+    # Two calls must give the same output (stable sort, no hash randomness).
     assert format_json(pkg) == format_json(pkg)
 
-    # Both parameter dicts must appear in the list.
+    # The list must include the two parameter dicts.
     parsed = json.loads(format_json(pkg))
     kw_list: list[dict[str, Any]] = parsed["modules"][0]["functions"][0]["keyword_parameters"]
 
@@ -543,7 +543,7 @@ def test_format_json_frozenset_same_name_params_stable() -> None:
 
 
 def test_format_tree_empty_package_no_newline() -> None:
-    """An empty package must not trail with a newline."""
+    """The output for an empty package must not end with a newline."""
     pkg = _make_package(name="empty")
     result = format_tree(pkg)
 
@@ -559,7 +559,7 @@ def test_format_tree_package_header() -> None:
 
 
 def test_format_json_empty_package() -> None:
-    """An empty package serialises with empty lists for modules and subpackages."""
+    """The JSON of an empty package has empty lists for modules and subpackages."""
     pkg = _make_package(name="empty", path=Path("/e"))
     parsed = json.loads(format_json(pkg))
 
@@ -568,7 +568,7 @@ def test_format_json_empty_package() -> None:
 
 
 def test_format_tree_single_module_single_function() -> None:
-    """A package with exactly one module containing one function."""
+    """A package with exactly one module that contains one function."""
     fn = _make_function(name="hello", returns="None")
     mod = _make_module(name="greetings", functions=(fn,))
     pkg = _make_package(name="mylib", modules=(mod,))
@@ -579,7 +579,7 @@ def test_format_tree_single_module_single_function() -> None:
 
 
 def test_format_json_single_module_single_function() -> None:
-    """A package with one module and one function round-trips correctly."""
+    """A package with one module and one function makes a correct round trip."""
     fn = _make_function(name="hello", returns="None")
     mod = _make_module(name="greetings", functions=(fn,))
     pkg = _make_package(name="mylib", modules=(mod,))
@@ -591,7 +591,7 @@ def test_format_json_single_module_single_function() -> None:
 
 
 def test_format_json_class_methods_serialised() -> None:
-    """Methods inside a class appear in the JSON output."""
+    """The JSON output includes the methods in a class."""
     method = _make_function(name="act", returns="bool")
     cls = _make_class(name="Agent", methods=(method,))
     mod = _make_module(name="agents", classes=(cls,))
@@ -604,7 +604,7 @@ def test_format_json_class_methods_serialised() -> None:
 
 
 def test_format_json_nested_class_serialised() -> None:
-    """Nested classes appear under the parent class in JSON."""
+    """In the JSON, nested classes are below the parent class."""
     inner = _make_class(name="Inner")
     outer = _make_class(name="Outer", nested_classes=(inner,))
     mod = _make_module(name="nesting", classes=(outer,))
@@ -626,7 +626,7 @@ def test_format_tree_assignment_label_variants(
     annotation: str | None,
     expected_label: str,
 ) -> None:
-    """Parametrised: both rendering paths for Assignment labels."""
+    """Parametrized: the two render paths for Assignment labels."""
     a = Assignment(name="CONST", annotation=annotation)
     mod = _make_module(name="m", assignments=(a,))
     pkg = _make_package(name="p", modules=(mod,))
@@ -650,7 +650,7 @@ def test_format_tree_parameter_rendering(
     default: str | None,
     expected_param_str: str,
 ) -> None:
-    """Parametrised: parameter strings render correctly in function signatures."""
+    """Parametrized: parameter strings render correctly in function signatures."""
     p = Parameter(name=name, annotation=annotation, default=default)
     fn = _make_function(name="f", positional_parameters=(p,))
     mod = _make_module(name="m", functions=(fn,))
@@ -661,9 +661,9 @@ def test_format_tree_parameter_rendering(
 
 
 def test_format_tree_init_module_hoisted_no_intermediate_node() -> None:
-    """A Package whose only module is the init module (module.name == package.name)
-    must NOT produce an intermediate ``module <name>`` node — its contents are
-    hoisted directly to the package level.
+    """A Package with only the init module (module.name == package.name) must NOT
+    give an intermediate ``module <name>`` node. Its contents move up directly to
+    the package level.
     """
     fn = _make_function(name="do_work", returns="None")
     init_mod = _make_module(name="mylib", functions=(fn,))  # name matches package
@@ -672,17 +672,17 @@ def test_format_tree_init_module_hoisted_no_intermediate_node() -> None:
     result = format_tree(pkg)
     lines = result.splitlines()
 
-    # The spurious intermediate node must be absent.
+    # The output must not have the unnecessary intermediate node.
     assert not any("module mylib" in line for line in lines), (
         "init module was not hoisted; found unexpected 'module mylib' node"
     )
-    # The function must appear directly as a child of the package header.
+    # The function must be a direct child of the package header.
     assert any("do_work()" in line for line in lines), "hoisted function not found in output"
 
 
 def test_format_tree_init_module_hoisted_class_and_assignment() -> None:
-    """Classes and assignments from the init module are also hoisted, each
-    appearing at the package level without an intermediate module node.
+    """Classes and assignments from the init module also move up. Each one is at
+    the package level, without an intermediate module node.
     """
     a = _make_assignment(name="VERSION", annotation="str")
     cls = _make_class(name="Client")
@@ -698,8 +698,8 @@ def test_format_tree_init_module_hoisted_class_and_assignment() -> None:
 
 
 def test_format_tree_non_init_module_still_has_module_node() -> None:
-    """A module whose name does NOT match the package name must still render
-    as a ``module <name>`` child — the hoisting logic must not swallow it.
+    """A module with a name that does NOT match the package name must still render
+    as a ``module <name>`` child. The logic that moves items up must not remove it.
     """
     fn = _make_function(name="helper")
     non_init = _make_module(name="utils", functions=(fn,))
@@ -712,9 +712,9 @@ def test_format_tree_non_init_module_still_has_module_node() -> None:
 
 
 def test_format_tree_mixed_init_and_non_init_modules() -> None:
-    """A Package with both an init module (hoisted) and a regular submodule
-    renders the init contents at package level while the submodule still
-    appears as ``module <name>``.
+    """A Package with an init module (moved up) and a regular submodule renders
+    the init contents at the package level. The submodule still shows as
+    ``module <name>``.
     """
     init_fn = _make_function(name="top_level_func")
     init_mod = _make_module(name="mylib", functions=(init_fn,))
@@ -775,7 +775,7 @@ def test_format_json_includes_references() -> None:
 
 
 def test_format_json_path_outside_root_is_not_absolute() -> None:
-    """A path outside the root package directory is reduced to its final component."""
+    """A path outside the root package directory becomes only its last component."""
     sub = _make_package(name="mylib.sub", path=Path("/elsewhere/sub"))
     pkg = _make_package(name="mylib", path=Path("/some/path"), subpackages=(sub,))
     parsed = json.loads(format_json(pkg))
@@ -930,7 +930,7 @@ def test_format_json_parameters_have_no_node_type() -> None:
 
 
 class TestDiagnostics:
-    """``format_diagnostic`` and the ``diagnostics`` key of ``format_json``."""
+    """Test ``format_diagnostic`` and the ``diagnostics`` key of ``format_json``."""
 
     def test_format_diagnostic_with_line(self) -> None:
         diagnostic = Diagnostic(

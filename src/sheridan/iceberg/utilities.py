@@ -1,4 +1,4 @@
-"""Public utilities for inspecting Python API surfaces."""
+"""Provide public utilities that inspect the API of Python code."""
 
 __all__ = ["get_assignment", "get_class", "get_function", "get_module", "get_package"]
 
@@ -28,7 +28,7 @@ def _read(source: str | Path) -> str:
     """Dedent a source string, or read the text of the file at a ``Path``.
 
     Raises:
-        InvalidPathError: When a ``Path`` cannot be read.
+        InvalidPathError: If the function cannot read a ``Path``.
     """
     if isinstance(source, Path):
         return read_source(source)
@@ -37,30 +37,30 @@ def _read(source: str | Path) -> str:
 
 
 def _parse(source: str | Path) -> ast.Module:
-    """Parse a source string or the file at a ``Path``, as read by ``_read``.
+    """Parse a source string or the file at a ``Path``, as ``_read`` reads it.
 
     Raises:
-        ParseError: When the source is not valid Python.
-        InvalidPathError: When a ``Path`` cannot be read.
+        ParseError: If the source is not valid Python.
+        InvalidPathError: If the function cannot read a ``Path``.
     """
     path = source if isinstance(source, Path) else None
     return parse_source(_read(source), path)
 
 
 def _required_name(name: str | None) -> str:
-    """Check that *name* is given, as a ``Path`` input needs it to select a definition.
+    """Check that the caller gave *name*. A ``Path`` input needs it to select a definition.
 
     Raises:
-        TypeError: When *name* is ``None``.
+        TypeError: If *name* is ``None``.
     """
     if name is None:
-        raise TypeError("name is required when passing a Path")
+        raise TypeError("give name when you give a Path")
 
     return name
 
 
 def _get_source(obj: object) -> str:
-    """Look up the source of *obj* with ``inspect.getsource``.
+    """Find the source of *obj* with ``inspect.getsource``.
 
     Args:
         obj: A function or class object.
@@ -69,28 +69,29 @@ def _get_source(obj: object) -> str:
         The source code of *obj*.
 
     Raises:
-        InvalidPathError: When *obj* is a lambda, or when its source cannot be
-            located (builtins, C extension types, objects defined in a REPL or
-            by ``exec``).
+        InvalidPathError: If *obj* is a lambda, or if the function cannot find
+            its source (builtins, C extension types, objects that a REPL or
+            ``exec`` defined).
     """
     if getattr(obj, "__name__", None) == "<lambda>":
-        raise InvalidPathError(f"Cannot build a Function from a lambda: {obj!r}; pass a def function instead")
+        raise InvalidPathError(f"Cannot build a Function from a lambda: {obj!r}. Give a def function.")
 
     try:
         return inspect.getsource(obj)  # type: ignore[arg-type]
     except (OSError, TypeError) as exc:
-        raise InvalidPathError(f"Cannot locate source for {obj!r}: {exc}") from exc
+        raise InvalidPathError(f"Cannot find the source of {obj!r}: {exc}") from exc
 
 
 _DefNode = ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
 
 
 def _scope_definitions(body: list[ast.stmt]) -> Iterator[_DefNode]:
-    """Yield the definitions that belong to the scope whose statements are *body*.
+    """Yield the definitions in the scope that has the statements *body*.
 
-    Definitions inside compound statements that do not open a new scope
-    (``if``, ``try``, ``with``, ``for``, ``while``, ``match``) are included, in
-    source order. Bodies of functions and classes are not entered.
+    The function includes, in source order, the definitions in compound
+    statements that do not open a new scope (``if``, ``try``, ``with``,
+    ``for``, ``while``, ``match``). It does not go into the bodies of
+    functions and classes.
     """
     for stmt in body:
         if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -108,12 +109,12 @@ def _scope_definitions(body: list[ast.stmt]) -> Iterator[_DefNode]:
 
 
 def _find_definition(tree: ast.Module, name: str, kind: type[_DefNode] | tuple[type[_DefNode], ...]) -> _DefNode | None:
-    """Find the definition of *kind* called *name* in *tree*.
+    """Find the definition of *kind* with the name *name* in *tree*.
 
-    A dotted *name* (``Outer.Inner.method``) is resolved one part at a time,
-    each part in the scope of the definition before it. A plain *name* is
-    looked up among the module-level definitions first; when none matches, the
-    first nested definition with that name is returned.
+    The function resolves a dotted *name* (``Outer.Inner.method``) one part at
+    a time. It finds each part in the scope of the definition before it. For a
+    plain *name*, it first searches the module-level definitions. If none
+    matches, it gives the first nested definition with that name.
     """
     *parents, leaf = name.split(".")
 
@@ -142,17 +143,18 @@ def _find_definition(tree: ast.Module, name: str, kind: type[_DefNode] | tuple[t
 def _find_assignment(tree: ast.Module, name: str | None) -> Assignment | None:
     """Find the first module-level assignment that binds *name* in *tree*.
 
-    Module-level ``if`` / ``try`` blocks are searched, as in ``get_module``.
-    Every name an ``Assign`` binds counts, including each target of a chained
-    assignment (``a = b = 1``) and each name in tuple, list, or starred
-    unpacking. The first definition of *name* wins.
+    The function searches the module-level ``if`` and ``try`` blocks, as
+    ``get_module`` does. It uses each name that an ``Assign`` binds. This
+    includes each target of a chained assignment (``a = b = 1``) and each name
+    in tuple, list or starred unpacking. The first definition of *name* has
+    priority.
 
     Args:
-        tree: Parsed module AST.
-        name: The name to look for, or ``None`` for the first assignment.
+        tree: The parsed module AST.
+        name: The name to find, or ``None`` for the first assignment.
 
     Returns:
-        The matching ``Assignment``, or ``None`` when no assignment binds *name*.
+        The ``Assignment`` that binds *name*, or ``None`` if there is no such assignment.
     """
     for node in module_level_statements(tree.body):
         candidates: list[Assignment]
@@ -192,45 +194,44 @@ def get_function(
     *,
     name: str | None = None,
 ) -> Function:
-    """Build a ``Function`` model from one of four accepted input forms.
+    """Build a ``Function`` model from one of four input forms.
 
-    Accepted forms:
+    The function accepts these forms:
 
-    - **Raw source string**: A string containing a ``def`` or ``async def``
-      statement. The source is dedented before parsing; the first function
-      definition found is returned.
+    - **Raw source string**: A string that contains a ``def`` or ``async def``
+      statement. The function dedents the source before it parses it. It gives
+      the first function definition that it finds.
     - **AST node**: An ``ast.FunctionDef`` or ``ast.AsyncFunctionDef`` node
-      that has already been parsed by the caller.
-    - **Path + name**: A ``pathlib.Path`` pointing to a ``.py`` file together
-      with the keyword argument ``name`` identifying which function to extract.
-      Module-level functions are searched first; a dotted name such as
-      ``"MyClass.method"`` selects a function nested in a class or function.
-    - **Callable**: Any callable object whose source can be retrieved via
-      ``inspect.getsource``; the source is forwarded to the string dispatch
-      branch.
+      that the caller parsed.
+    - **Path + name**: A ``pathlib.Path`` to a ``.py`` file, together with the
+      keyword argument ``name``. ``name`` identifies the function to extract.
+      The function searches the module-level functions first. A dotted name
+      such as ``"MyClass.method"`` selects a function in a class or function.
+    - **Callable**: A callable object with a source that
+      ``inspect.getsource`` can get. The function sends the source to the
+      branch for strings.
 
     Args:
-        source_or_node_or_path_or_func: One of: a raw Python source string,
-            an ``ast.FunctionDef`` / ``ast.AsyncFunctionDef`` node, a
-            ``pathlib.Path`` to a source file, or any callable.
-        name: Required when passing a ``Path``; identifies the function to
-            extract by name or by dotted qualified name. Ignored for all other input forms.
+        source_or_node_or_path_or_func: A raw Python source string, an
+            ``ast.FunctionDef`` / ``ast.AsyncFunctionDef`` node, a
+            ``pathlib.Path`` to a source file, or a callable.
+        name: Necessary if you give a ``Path``. It identifies the function to
+            extract by name or by dotted qualified name. The other input forms ignore it.
 
     Returns:
-        A ``Function`` dataclass capturing the name, parameters, return
-        annotation, async flag, kind, decorators, and overloads of the
-        target function.
+        A ``Function`` dataclass with the name, the parameters, the return
+        annotation, the async flag, the kind, the decorators and the overloads
+        of the target function.
 
     Raises:
-        ParseError: When a source string or file cannot be parsed as valid
-            Python, or when no function definition is found in the provided
-            source string.
-        NotFoundError: When a ``Path`` is provided but no function with the
-            given ``name`` is found in that file.
-        InvalidPathError: When a callable is a lambda, or when the source of
-            a callable cannot be located (builtins, functions defined in a
-            REPL or by ``exec``).
-        TypeError: When a ``Path`` is provided without supplying ``name``.
+        ParseError: If a source string or file is not valid Python, or if the
+            source string has no function definition.
+        NotFoundError: If you give a ``Path``, but the file has no function
+            with the given ``name``.
+        InvalidPathError: If a callable is a lambda, or if the function cannot
+            find the source of a callable (builtins, functions that a REPL or
+            ``exec`` defined).
+        TypeError: If you give a ``Path`` without ``name``.
     """
     match source_or_node_or_path_or_func:
         case ast.FunctionDef() | ast.AsyncFunctionDef():
@@ -241,7 +242,7 @@ def get_function(
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     return build_function(node)
 
-            raise ParseError("No function definition found in source")
+            raise ParseError("The source has no function definition")
 
         case Path():
             tree = _parse(source_or_node_or_path_or_func)
@@ -249,7 +250,7 @@ def get_function(
             if isinstance(func_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 return build_function(func_node)
 
-            raise NotFoundError(f"No function {name!r} found in {source_or_node_or_path_or_func}")
+            raise NotFoundError(f"{source_or_node_or_path_or_func} has no function {name!r}")
 
         case _:
             return get_function(_get_source(source_or_node_or_path_or_func))
@@ -270,44 +271,41 @@ def get_class(
     *,
     name: str | None = None,
 ) -> Class:
-    """Build a ``Class`` model from one of four accepted input forms.
+    """Build a ``Class`` model from one of four input forms.
 
-    Accepted forms:
+    The function accepts these forms:
 
-    - **Raw source string**: A string containing a ``class`` statement. The
-      source is dedented before parsing; the first class definition found is
-      returned.
-    - **AST node**: An ``ast.ClassDef`` node that has already been parsed by
-      the caller.
-    - **Path + name**: A ``pathlib.Path`` pointing to a ``.py`` file together
-      with the keyword argument ``name`` identifying which class to extract.
-      Module-level classes are searched first; a dotted name such as
+    - **Raw source string**: A string that contains a ``class`` statement. The
+      function dedents the source before it parses it. It gives the first
+      class definition that it finds.
+    - **AST node**: An ``ast.ClassDef`` node that the caller parsed.
+    - **Path + name**: A ``pathlib.Path`` to a ``.py`` file, together with the
+      keyword argument ``name``. ``name`` identifies the class to extract. The
+      function searches the module-level classes first. A dotted name such as
       ``"Outer.Inner"`` selects a nested class.
-    - **type**: Any class object whose source can be retrieved via
-      ``inspect.getsource``; the source is forwarded to the string dispatch
-      branch.
+    - **type**: A class object with a source that ``inspect.getsource`` can
+      get. The function sends the source to the branch for strings.
 
     Args:
-        source_or_node_or_path_or_cls: One of: a raw Python source string,
-            an ``ast.ClassDef`` node, a ``pathlib.Path`` to a source file,
-            or any class object.
-        name: Required when passing a ``Path``; identifies the class to
-            extract by name or by dotted qualified name. Ignored for all other input forms.
+        source_or_node_or_path_or_cls: A raw Python source string, an
+            ``ast.ClassDef`` node, a ``pathlib.Path`` to a source file, or a
+            class object.
+        name: Necessary if you give a ``Path``. It identifies the class to
+            extract by name or by dotted qualified name. The other input forms ignore it.
 
     Returns:
-        A ``Class`` dataclass capturing the name, bases, keyword arguments
-        (such as ``metaclass=``), and members of the target class.
+        A ``Class`` dataclass with the name, the bases, the keyword arguments
+        (such as ``metaclass=``) and the members of the target class.
 
     Raises:
-        ParseError: When a source string or file cannot be parsed as valid
-            Python, or when no class definition is found in the provided
-            source string.
-        NotFoundError: When a ``Path`` is provided but no class with the
-            given ``name`` is found in that file.
-        InvalidPathError: When the source of a class object cannot be
-            located (C extension types, classes defined in a REPL or by
-            ``exec``).
-        TypeError: When a ``Path`` is provided without supplying ``name``.
+        ParseError: If a source string or file is not valid Python, or if the
+            source string has no class definition.
+        NotFoundError: If you give a ``Path``, but the file has no class with
+            the given ``name``.
+        InvalidPathError: If the function cannot find the source of a class
+            object (C extension types, classes that a REPL or ``exec``
+            defined).
+        TypeError: If you give a ``Path`` without ``name``.
     """
     match source_or_node_or_path_or_cls:
         case ast.ClassDef():
@@ -318,7 +316,7 @@ def get_class(
                 if isinstance(node, ast.ClassDef):
                     return build_class(node)
 
-            raise ParseError("No class definition found in source")
+            raise ParseError("The source has no class definition")
 
         case Path():
             tree = _parse(source_or_node_or_path_or_cls)
@@ -326,7 +324,7 @@ def get_class(
             if isinstance(class_node, ast.ClassDef):
                 return build_class(class_node)
 
-            raise NotFoundError(f"No class {name!r} found in {source_or_node_or_path_or_cls}")
+            raise NotFoundError(f"{source_or_node_or_path_or_cls} has no class {name!r}")
 
         case _:
             return get_class(_get_source(source_or_node_or_path_or_cls))
@@ -345,44 +343,44 @@ def get_assignment(
     *,
     name: str | None = None,
 ) -> Assignment:
-    """Build an ``Assignment`` model from one of three accepted input forms.
+    """Build an ``Assignment`` model from one of three input forms.
 
-    Accepted forms:
+    The function accepts these forms:
 
-    - **Raw source string**: A string containing an assignment statement. The
-      source is dedented before parsing; the first matching assignment is
-      returned. Pass ``name`` to select a specific assignment by target name.
-    - **AST node**: An ``ast.Assign``, ``ast.AnnAssign``, or ``ast.TypeAlias``
-      node that has already been parsed by the caller.
-    - **Path + name**: A ``pathlib.Path`` pointing to a ``.py`` file together
-      with the keyword argument ``name`` identifying which assignment to
-      extract.
+    - **Raw source string**: A string that contains an assignment statement.
+      The function dedents the source before it parses it. It gives the first
+      assignment that matches. To select an assignment by target name, give ``name``.
+    - **AST node**: An ``ast.Assign``, ``ast.AnnAssign`` or ``ast.TypeAlias``
+      node that the caller parsed.
+    - **Path + name**: A ``pathlib.Path`` to a ``.py`` file, together with the
+      keyword argument ``name``. ``name`` identifies the assignment to extract.
 
-    For the string and path forms, module-level ``if`` / ``try`` blocks are
-    searched, and every name an assignment binds can be selected, including
-    each target of a chained assignment (``a = b = 1``) and each name in tuple,
-    list, or starred unpacking (``c, *rest = ...``). When several assignments
-    bind the same name, the first one is returned, as in ``get_module``.
+    For the string and path forms, the function searches the module-level
+    ``if`` and ``try`` blocks. You can select each name that an assignment
+    binds. This includes each target of a chained assignment (``a = b = 1``)
+    and each name in tuple, list or starred unpacking (``c, *rest = ...``). If
+    many assignments bind the same name, the function gives the first one, as
+    ``get_module`` does.
 
     Args:
-        source_or_node_or_path: One of: a raw Python source string, an
+        source_or_node_or_path: A raw Python source string, an
             ``ast.Assign`` / ``ast.AnnAssign`` / ``ast.TypeAlias`` node, or a
             ``pathlib.Path`` to a source file.
-        name: When passing a ``Path``, required; identifies the assignment to
-            extract by target name. When passing a source string, optionally
-            filters to the assignment with the given target name.
+        name: Necessary if you give a ``Path``. It identifies the assignment
+            to extract by target name. If you give a source string, it is
+            optional. It then selects the assignment with the given target name.
 
     Returns:
-        An ``Assignment`` dataclass capturing the target name and annotation
-        of the assignment.
+        An ``Assignment`` dataclass with the target name and the annotation of
+        the assignment.
 
     Raises:
-        ParseError: When a source string or file cannot be parsed as valid
-            Python, when the target of an AST node is non-simple, or when no
-            matching assignment is found in the provided source.
-        NotFoundError: When a ``Path`` is provided but no assignment with
-            the given ``name`` is found in that file.
-        TypeError: When a ``Path`` is provided without supplying ``name``.
+        ParseError: If a source string or file is not valid Python, if the
+            target of an AST node is not a simple name, or if no assignment in the
+            source matches.
+        NotFoundError: If you give a ``Path``, but the file has no assignment
+            with the given ``name``.
+        TypeError: If you give a ``Path`` without ``name``.
     """
     match source_or_node_or_path:
         case ast.TypeAlias():
@@ -391,7 +389,7 @@ def get_assignment(
         case ast.Assign() | ast.AnnAssign():
             result = build_assignment(source_or_node_or_path)
             if result is None:
-                raise ParseError("Assignment has a non-simple target")
+                raise ParseError("The target of the assignment is not a simple name")
 
             return result
 
@@ -401,16 +399,16 @@ def get_assignment(
                 return found
 
             if name is not None:
-                raise ParseError(f"No assignment {name!r} found in source")
+                raise ParseError(f"The source has no assignment {name!r}")
 
-            raise ParseError("No assignment found in source")
+            raise ParseError("The source has no assignment")
 
         case Path():
             found = _find_assignment(_parse(source_or_node_or_path), _required_name(name))
             if found is not None:
                 return found
 
-            raise NotFoundError(f"No assignment {name!r} found in {source_or_node_or_path}")
+            raise NotFoundError(f"{source_or_node_or_path} has no assignment {name!r}")
 
 
 @overload
@@ -426,35 +424,33 @@ def get_module(
     *,
     name: str | None = None,
 ) -> Module:
-    """Build a ``Module`` model from one of three accepted input forms.
+    """Build a ``Module`` model from one of three input forms.
 
-    Accepted forms:
+    The function accepts these forms:
 
-    - **Raw source string**: A string containing a Python module body. The
-      source is dedented before parsing. Pass ``name`` to set the dotted
-      module name; defaults to ``"<module>"``.
-    - **Path**: A ``pathlib.Path`` pointing to a ``.py`` file. Pass ``name``
-      to override the dotted module name; defaults to the file stem.
-    - **ModuleType**: A live ``types.ModuleType`` object whose source file is
-      located via ``inspect.getsourcefile``; the dotted name defaults to
-      ``mod.__name__``.
+    - **Raw source string**: A string that contains the body of a Python
+      module. The function dedents the source before it parses it. To set the
+      dotted module name, give ``name``. The default is ``"<module>"``.
+    - **Path**: A ``pathlib.Path`` to a ``.py`` file. To set a different
+      dotted module name, give ``name``. The default is the file stem.
+    - **ModuleType**: A live ``types.ModuleType`` object. The function finds
+      its source file with ``inspect.getsourcefile``. The default dotted name
+      is ``mod.__name__``.
 
     Args:
-        source_or_path_or_mod: One of: a raw Python source string, a
-            ``pathlib.Path`` to a source file, or a ``types.ModuleType``
-            object.
-        name: Overrides the dotted module name used when building the
-            ``Module`` model. Optional for all input forms.
+        source_or_path_or_mod: A raw Python source string, a ``pathlib.Path``
+            to a source file, or a ``types.ModuleType`` object.
+        name: The dotted module name for the ``Module`` model. It replaces the
+            default name. It is optional for all input forms.
 
     Returns:
-        A ``Module`` dataclass capturing the name and public API of the
-        target module.
+        A ``Module`` dataclass with the name and the public API of the target
+        module.
 
     Raises:
-        ParseError: When a source string or file cannot be parsed as valid
-            Python.
-        InvalidPathError: When a ``ModuleType`` is provided but its source
-            file cannot be located (for example, a builtin module).
+        ParseError: If a source string or file is not valid Python.
+        InvalidPathError: If you give a ``ModuleType``, but the function cannot
+            find its source file (for example, a builtin module).
     """
     match source_or_path_or_mod:
         case str():
@@ -471,7 +467,7 @@ def get_module(
                 sf = None
 
             if sf is None:
-                raise InvalidPathError(f"Cannot locate source for module {source_or_path_or_mod!r}")
+                raise InvalidPathError(f"Cannot find the source of module {source_or_path_or_mod!r}")
 
             return get_module(Path(sf), name=name or source_or_path_or_mod.__name__)
 
@@ -487,32 +483,32 @@ def get_package(mod: types.ModuleType, /) -> Package: ...
 def get_package(
     path_or_mod: Path | str | types.ModuleType,
 ) -> Package:
-    """Build a ``Package`` model from one of three accepted input forms.
+    """Build a ``Package`` model from one of three input forms.
 
-    Accepted forms:
+    The function accepts these forms:
 
-    - **Path**: A ``pathlib.Path`` pointing to a package directory (one
-      containing an ``__init__.py``). The public API is built by walking
-      the directory.
-    - **str**: A string file-system path; converted to ``pathlib.Path`` and
-      forwarded to the ``Path`` dispatch branch.
-    - **ModuleType**: A live package object; the package directory is read
-      from its ``__path__``. A plain module (no ``__path__``) is rejected,
-      and so is a namespace package with more than one portion.
+    - **Path**: A ``pathlib.Path`` to a package directory (a directory that
+      contains an ``__init__.py``). The function walks through the directory
+      to build the public API.
+    - **str**: A string filesystem path. The function converts it to a
+      ``pathlib.Path`` and sends it to the branch for ``Path``.
+    - **ModuleType**: A live package object. The function reads the package
+      directory from its ``__path__``. The function does not accept a plain
+      module (no ``__path__``) or a namespace package with more than one
+      portion.
 
     Args:
-        path_or_mod: One of: a ``pathlib.Path`` to a package directory, a
-            string path to a package directory, or a package object.
+        path_or_mod: A ``pathlib.Path`` to a package directory, a string path
+            to a package directory, or a package object.
 
     Returns:
-        A ``Package`` dataclass capturing the name and public API of the
-        target package.
+        A ``Package`` dataclass with the name and the public API of the target
+        package.
 
     Raises:
-        InvalidPathError: When the resolved path points to a module rather
-            than a package, when a ``ModuleType`` is a plain module rather
-            than a package, or when it is a namespace package with more
-            than one portion.
+        InvalidPathError: If the resolved path points to a module and not to a
+            package, if a ``ModuleType`` is a plain module and not a package,
+            or if it is a namespace package with more than one portion.
     """
     match path_or_mod:
         case str():
@@ -523,29 +519,28 @@ def get_package(
             if isinstance(result, Package):
                 return result
 
-            raise InvalidPathError(f"{path_or_mod} points to a module, not a package — use get_module() instead")
+            raise InvalidPathError(f"{path_or_mod} points to a module, not a package. Use get_module().")
 
         case _:
             return get_package(_package_dir(path_or_mod))
 
 
 def _package_dir(mod: types.ModuleType) -> Path:
-    """Find the directory of the package *mod*, read from its ``__path__``.
+    """Find the directory of the package *mod* from its ``__path__``.
 
     Raises:
-        InvalidPathError: When *mod* is not a package (it has no
-            ``__path__``), or when it is a namespace package with more
-            than one portion.
+        InvalidPathError: If *mod* is not a package (it has no ``__path__``),
+            or if it is a namespace package with more than one portion.
     """
     search_path = getattr(mod, "__path__", None)
     if search_path is None:
-        raise InvalidPathError(f"{mod.__name__} is a module, not a package — use get_module() instead")
+        raise InvalidPathError(f"{mod.__name__} is a module, not a package. Use get_module().")
 
     portions = list(dict.fromkeys(search_path))
     if len(portions) != 1:
         raise InvalidPathError(
             f"{mod.__name__} is a namespace package with {len(portions)} portions "
-            f"({', '.join(portions)}); pass the path of one portion to get_package() instead"
+            f"({', '.join(portions)}). Give the path of one portion to get_package()."
         )
 
     return Path(portions[0])

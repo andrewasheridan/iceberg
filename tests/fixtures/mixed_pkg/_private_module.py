@@ -1,7 +1,7 @@
-"""Private module within mixed_pkg — not part of the public API."""
+"""A private module in mixed_pkg. It is not part of the public API."""
 
 
 class _PrivateThing:
-    """An internal class that should not appear in generated output."""
+    """An internal class. The output must not show it."""
 
     pass

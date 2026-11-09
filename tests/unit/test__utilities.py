@@ -1,4 +1,4 @@
-"""Tests for sheridan.iceberg._utilities."""
+"""Test sheridan.iceberg._utilities."""
 
 import ast
 import os
@@ -445,8 +445,8 @@ class TestParseSource:
         assert isinstance(tree.body[0], ast.Assign)
 
     def test_uses_the_running_interpreter_grammar(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        # A pinned ``feature_version`` rejects syntax newer than the pin on a
-        # later interpreter.
+        # On a later interpreter, a pinned ``feature_version`` does not accept syntax
+        # that is newer than the pinned version.
         calls: list[dict[str, Any]] = []
         real_parse = ast.parse
 

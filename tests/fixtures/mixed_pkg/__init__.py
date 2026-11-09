@@ -1,4 +1,4 @@
-"""Mixed package fixture with public and private modules."""
+"""A mixed package fixture with public and private modules."""
 
 from mixed_pkg.public_module import PublicThing
 

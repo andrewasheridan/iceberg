@@ -1,4 +1,4 @@
-"""Tests for sheridan.iceberg._orchestrator (build_package) and
+"""Test sheridan.iceberg._orchestrator (build_package) and
 sheridan.iceberg._api (get_public_api).
 """
 
@@ -20,19 +20,19 @@ from sheridan.iceberg._orchestrator import build_package, unresolved_name_warnin
 
 
 def _write(path: Path, text: str = "") -> Path:
-    """Write *text* to *path*, creating parents as needed."""
+    """Write *text* to *path*. Make the parent directories if necessary."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     return path
 
 
 def _default_config() -> Config:
-    """Build a Config with all defaults and max_workers=1 for determinism."""
+    """Build a Config with all the default values and max_workers=1, so that the result is deterministic."""
     return Config(max_workers=1)
 
 
 def _build_dir(path: Path, config: Config) -> Package:
-    """Build a package directory, narrowing the ``Package | Module`` result."""
+    """Build a package directory, and narrow the ``Package | Module`` result."""
     result = build_package(path, config)
 
     assert isinstance(result, Package)
@@ -40,7 +40,7 @@ def _build_dir(path: Path, config: Config) -> Package:
 
 
 def _all_module_names(pkg: Package) -> set[str]:
-    """Recursively collect all Module.name values from a Package trie."""
+    """Collect all the Module.name values of a Package trie recursively."""
     names: set[str] = {m.name for m in pkg.modules}
     for sub in pkg.subpackages:
         names |= _all_module_names(sub)
@@ -49,7 +49,7 @@ def _all_module_names(pkg: Package) -> set[str]:
 
 
 def test_single_file_returns_module(tmp_path: Path) -> None:
-    """A single .py file produces a bare Module (not a Package) with name == stem."""
+    """One .py file gives a bare Module (not a Package) with name == stem."""
     py_file = _write(
         tmp_path / "mymodule.py",
         "def greet() -> str:\n    return 'hello'\n",
@@ -63,7 +63,7 @@ def test_single_file_returns_module(tmp_path: Path) -> None:
 
 
 def test_single_file_module_has_correct_name(tmp_path: Path) -> None:
-    """A single .py file returns a Module whose name equals the file stem."""
+    """One .py file gives a Module with a name that is the same as the file stem."""
     py_file = _write(tmp_path / "utils.py", "CONSTANT = 42\n")
     config = _default_config()
 
@@ -74,7 +74,7 @@ def test_single_file_module_has_correct_name(tmp_path: Path) -> None:
 
 
 def test_flat_package_modules_populated(tmp_path: Path) -> None:
-    """Flat __init__.py + 2 siblings → Package.modules is non-empty."""
+    """A flat __init__.py and 2 siblings → Package.modules is not empty."""
     pkg = tmp_path / "mypkg"
     _write(pkg / "__init__.py", "")
     _write(pkg / "alpha.py", "def alpha() -> int:\n    return 1\n")
@@ -85,14 +85,14 @@ def test_flat_package_modules_populated(tmp_path: Path) -> None:
 
     assert isinstance(result, Package)
     assert result.name == "mypkg"
-    # The trie must have modules at the root level (init + siblings both placed here)
+    # The trie must have modules at the root level (the init and the siblings are there)
     all_names = _all_module_names(result)
     assert "mypkg.alpha" in all_names
     assert "mypkg.beta" in all_names
 
 
 def test_flat_package_subpackages_empty(tmp_path: Path) -> None:
-    """A flat package has no sub-packages."""
+    """A flat package has no subpackages."""
     pkg = tmp_path / "mypkg"
     _write(pkg / "__init__.py", "")
     _write(pkg / "mod_a.py", "X = 1\n")
@@ -105,7 +105,7 @@ def test_flat_package_subpackages_empty(tmp_path: Path) -> None:
 
 
 def test_nested_package_three_levels_deep(tmp_path: Path) -> None:
-    """root → root.sub → root.sub.leaf: trie depth is 3 (root.sub.sub present)."""
+    """root → root.sub → root.sub.leaf: the trie depth is 3 (root.sub.sub is there)."""
     pkg = tmp_path / "root"
     _write(pkg / "__init__.py", "")
     _write(pkg / "sub" / "__init__.py", "")
@@ -116,17 +116,17 @@ def test_nested_package_three_levels_deep(tmp_path: Path) -> None:
 
     # Root Package
     assert result.name == "root"
-    # One sub-package at depth 1
+    # One subpackage at depth 1
     assert len(result.subpackages) == 1
     sub = result.subpackages[0]
     assert sub.name == "root.sub"
-    # leaf module must appear in sub's modules
+    # The modules of sub must include the leaf module
     sub_module_names = {m.name for m in sub.modules}
     assert "root.sub.leaf" in sub_module_names
 
 
 def test_nested_trie_root_subpackage_name(tmp_path: Path) -> None:
-    """The sub-Package inside the trie carries the fully-qualified name."""
+    """The sub-Package in the trie has the fully qualified name."""
     pkg = tmp_path / "mypkg"
     _write(pkg / "__init__.py", "")
     _write(pkg / "inner" / "__init__.py", "")
@@ -140,8 +140,8 @@ def test_nested_trie_root_subpackage_name(tmp_path: Path) -> None:
 
 
 def test_init_reexport_function_appears_in_init_module(tmp_path: Path) -> None:
-    """When __init__.py does `from .sibling import fn`, the resolved Module
-    for the init entry must contain fn in its functions tuple."""
+    """If __init__.py contains `from .sibling import fn`, the resolved Module of
+    the init must contain fn in its functions tuple."""
     pkg = tmp_path / "mypkg"
     _write(
         pkg / "sibling.py",
@@ -155,7 +155,7 @@ def test_init_reexport_function_appears_in_init_module(tmp_path: Path) -> None:
 
     result = _build_dir(pkg, config)
 
-    # Locate the init Module (named "mypkg")
+    # Find the init Module (with the name "mypkg")
     init_module: Module | None = None
     for mod in result.modules:
         if mod.name == "mypkg":
@@ -168,7 +168,7 @@ def test_init_reexport_function_appears_in_init_module(tmp_path: Path) -> None:
 
 
 def test_init_reexport_function_is_correct_type(tmp_path: Path) -> None:
-    """The re-exported symbol must be a Function instance, not just a name."""
+    """The re-exported symbol must be a Function instance, not only a name."""
     pkg = tmp_path / "mypkg"
     _write(
         pkg / "util.py",
@@ -188,12 +188,12 @@ def test_init_reexport_function_is_correct_type(tmp_path: Path) -> None:
 
 
 def test_explicit_config_bypasses_file_discovery(tmp_path: Path) -> None:
-    """When config= is supplied to get_public_api, no .iceberg.toml is sought."""
+    """If get_public_api gets config=, it does not look for an .iceberg.toml."""
     pkg = tmp_path / "pkg"
     _write(pkg / "__init__.py", "")
     _write(pkg / "mod.py", "VALUE = 1\n")
 
-    # Plant a broken .iceberg.toml that would fail if read
+    # Put a broken .iceberg.toml here. A read of this file causes an error.
     (tmp_path / ".iceberg.toml").write_text(
         "unknown_key = true\n",
         encoding="utf-8",
@@ -201,8 +201,8 @@ def test_explicit_config_bypasses_file_discovery(tmp_path: Path) -> None:
 
     explicit_config = Config(max_workers=1)
 
-    # Should NOT raise ConfigError even though .iceberg.toml is invalid,
-    # because config= is explicit and load_config is never called.
+    # Must NOT raise ConfigError, although .iceberg.toml is not valid. config= is
+    # explicit, so the code never calls load_config.
     result = get_public_api(pkg, config=explicit_config)
 
     assert isinstance(result, Package)
@@ -210,7 +210,7 @@ def test_explicit_config_bypasses_file_discovery(tmp_path: Path) -> None:
 
 
 def test_explicit_config_max_workers_respected(tmp_path: Path) -> None:
-    """Config(max_workers=1) is accepted and the result is still a valid Package."""
+    """get_public_api accepts Config(max_workers=1), and the result is still a valid Package."""
     pkg = tmp_path / "pkg"
     _write(pkg / "__init__.py", "")
     _write(pkg / "a.py", "def f() -> None: ...\n")
@@ -228,7 +228,7 @@ def test_explicit_config_max_workers_respected(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("module_count", [8, 10])
 def test_many_modules_all_appear_in_result(tmp_path: Path, module_count: int) -> None:
-    """With ≥8 non-init .py modules, every module appears in the Package trie."""
+    """With 8 or more .py modules that are not init modules, the Package trie includes each module."""
     pkg = tmp_path / "bigpkg"
     _write(pkg / "__init__.py", "")
 
@@ -247,7 +247,7 @@ def test_many_modules_all_appear_in_result(tmp_path: Path, module_count: int) ->
 
 
 def test_eight_modules_parallel_path(tmp_path: Path) -> None:
-    """8-module package with max_workers > 1 exercises the process pool path."""
+    """A package with 8 modules and max_workers > 1 runs the code path of the process pool."""
     pkg = tmp_path / "parallel_pkg"
     _write(pkg / "__init__.py", "")
 
@@ -267,8 +267,8 @@ def test_eight_modules_parallel_path(tmp_path: Path) -> None:
 def test_default_config_safe_in_unguarded_script(tmp_path: Path) -> None:
     """A plain script with no ``if __name__ == "__main__":`` guard must work.
 
-    Worker processes re-import ``__main__`` under the spawn / forkserver start
-    methods, so a process pool here would crash with BrokenProcessPool.
+    With the spawn and forkserver start methods, worker processes import
+    ``__main__`` again. Thus, a process pool here crashes with BrokenProcessPool.
     """
     pkg = tmp_path / "pkg"
     _write(pkg / "__init__.py", "")
@@ -287,7 +287,7 @@ def test_default_config_safe_in_unguarded_script(tmp_path: Path) -> None:
 
 
 def test_hyphenated_directory_does_not_create_phantom_root(tmp_path: Path) -> None:
-    """A hyphenated subdirectory does not add a second root or an empty root name."""
+    """A subdirectory with a hyphen in its name does not add a second root or an empty root name."""
     pkg = tmp_path / "pkg"
     _write(pkg / "__init__.py")
     _write(pkg / "core.py", "def f() -> None: ...\n")
@@ -342,7 +342,7 @@ def test_init_all_extended_with_submodule_all(tmp_path: Path, max_workers: int) 
 
 
 def test_unevaluable_all_warns_and_falls_back(tmp_path: Path) -> None:
-    """A dynamic __all__ is reported once, then underscore inference is used."""
+    """iceberg reports a dynamic __all__ one time. Then it uses the underscore rule."""
     pkg = tmp_path / "mypkg"
     _write(pkg / "__init__.py", "")
     _write(pkg / "core.py", "__all__ = ['run']\n__all__ += make()\ndef run(): ...\ndef other(): ...\n")
@@ -374,7 +374,7 @@ def test_reexport_chain_through_regular_modules_resolved(tmp_path: Path) -> None
 
 
 def test_reexport_cycle_through_regular_modules_left_unresolved(tmp_path: Path) -> None:
-    """A two-module import cycle terminates and leaves X as a Reference."""
+    """An import cycle of two modules stops, and X stays a Reference."""
     pkg = tmp_path / "pkg"
     _write(pkg / "__init__.py", 'from ._a import X\n__all__ = ["X"]\n')
     _write(pkg / "_a.py", 'from ._b import X\n__all__ = ["X"]\n')
@@ -414,7 +414,7 @@ def test_init_star_import_from_tree_resolved(tmp_path: Path, c_source: str) -> N
 
 
 def test_init_star_import_without_all_exports_star_names(tmp_path: Path) -> None:
-    """An init without __all__ re-exports the public names a star import binds."""
+    """An init without __all__ re-exports the public names that a star import binds."""
     pkg = tmp_path / "pkg"
     _write(pkg / "__init__.py", "from ._c import *\n")
     _write(pkg / "_c.py", '__all__ = ["f"]\ndef f(): ...\ndef g(): ...\n')
@@ -426,7 +426,7 @@ def test_init_star_import_without_all_exports_star_names(tmp_path: Path) -> None
 
 
 def test_regular_module_star_import_from_tree_resolved(tmp_path: Path) -> None:
-    """A star import in a regular module resolves, so an init importing from it finds X."""
+    """iceberg resolves a star import in a regular module. Thus, an init that imports from it finds X."""
     pkg = tmp_path / "pkg"
     _write(pkg / "__init__.py", 'from ._a import X\n__all__ = ["X"]\n')
     _write(pkg / "_a.py", 'from ._b import *\n__all__ = ["X"]\n')
@@ -442,7 +442,7 @@ def test_regular_module_star_import_from_tree_resolved(tmp_path: Path) -> None:
 
 
 def test_init_star_import_from_outside_tree_is_candidate(tmp_path: Path) -> None:
-    """A star import from outside the tree stays unresolved, naming the module."""
+    """A star import from outside the tree stays unresolved, and the reference names the module."""
     pkg = tmp_path / "pkg"
     _write(pkg / "__init__.py", 'from os.path import *\nfrom ._c import *\n__all__ = ["join", "f"]\n')
     _write(pkg / "_c.py", "def f(): ...\n")
@@ -468,14 +468,14 @@ def test_each_file_is_parsed_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     real_parse = ast.parse
 
     def spy(source: str, filename: str = "<unknown>", *args: Any, **kwargs: Any) -> Any:
-        # Parses of other files, or without a filename, are counted under that name.
+        # The counter puts the parses of other files, or parses without a filename, under that name.
         path = Path(filename)
         parsed[path.relative_to(pkg).as_posix() if path.is_relative_to(pkg) else filename] += 1
         return real_parse(source, filename, *args, **kwargs)
 
     monkeypatch.setattr(ast, "parse", spy)
-    # Worker processes do not see the patch, so with workers only the files
-    # parsed in this process are counted.
+    # Worker processes do not see the patch. Thus, with workers, the counter
+    # counts only the files that this process parses.
     _build_dir(pkg, Config(max_workers=max_workers))
     expected = {"__init__.py": 1, "_a.py": 1, "sub/__init__.py": 1}
     if max_workers == 1:
@@ -485,7 +485,7 @@ def test_each_file_is_parsed_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 
 
 class TestKeepGoing:
-    """With an ``errors`` list, modules that fail are skipped and recorded."""
+    """With an ``errors`` list, iceberg skips and records the modules that fail."""
 
     @pytest.mark.parametrize("max_workers", [1, 2])
     def test_syntax_error_module_is_skipped(self, tmp_path: Path, max_workers: int) -> None:
@@ -553,7 +553,7 @@ class TestKeepGoing:
 
 
 class TestUnresolvedNameWarnings:
-    """Only references with no binding import are reported."""
+    """iceberg reports only the references that no import binds."""
 
     def test_package_warnings_point_at_each_module(self, tmp_path: Path) -> None:
         init = _write(tmp_path / "pkg" / "__init__.py", '__all__ = ["sqrt", "lazy", "sub"]\nfrom math import sqrt\n')

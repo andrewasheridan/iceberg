@@ -1,4 +1,4 @@
-"""Public entry points for iceberg."""
+"""Provide the public entry points of iceberg."""
 
 __all__ = ["get_public_api", "get_public_api_report"]
 
@@ -11,48 +11,49 @@ from sheridan.iceberg._orchestrator import build_package, unresolved_name_warnin
 
 
 def get_public_api(path: Path, *, config: Config | None = None) -> Package | Module:
-    """Snapshot the public API rooted at ``path``.
+    """Snapshot the public API at ``path``.
 
     Args:
-        path: File or directory to snapshot.
-        config: Optional explicit configuration; when omitted, walks
-            up from ``path`` looking for ``.iceberg.toml`` /
-            ``pyproject.toml``.
+        path: The file or directory to snapshot.
+        config: An optional explicit configuration. If you do not give it,
+            the function looks for ``.iceberg.toml`` or ``pyproject.toml`` in
+            ``path`` and its parent directories.
 
     Returns:
-        A ``Package`` describing the public API surface rooted at ``path``.
+        A ``Package`` that describes the public API at ``path``.
 
     Raises:
-        InvalidPathError: If ``path`` does not exist, or is a file that
+        InvalidPathError: If ``path`` does not exist, or if it is a file that
             does not end in ``.py``.
     """
     return get_public_api_report(path, config=config).api
 
 
 def get_public_api_report(path: Path, *, config: Config | None = None, keep_going: bool = False) -> Report:
-    """Snapshot the public API rooted at ``path`` and report the problems found.
+    """Snapshot the public API at ``path`` and report the problems that the analysis finds.
 
     Args:
-        path: File or directory to snapshot.
-        config: Optional explicit configuration; when omitted, walks
-            up from ``path`` looking for ``.iceberg.toml`` /
-            ``pyproject.toml``.
-        keep_going: Skip modules under a directory that cannot be read or
-            parsed, and report each one as an ``"error"`` diagnostic, instead
-            of raising on the first one.
+        path: The file or directory to snapshot.
+        config: An optional explicit configuration. If you do not give it,
+            the function looks for ``.iceberg.toml`` or ``pyproject.toml`` in
+            ``path`` and its parent directories.
+        keep_going: If True, skip each module in a directory that the
+            function cannot read or parse, and report it as an ``"error"``
+            diagnostic. If False, raise an exception at the first bad module.
 
     Returns:
-        A ``Report`` holding the API (a ``Package``, or a ``Module`` for a
-        single file) and its diagnostics: errors for skipped modules, then a
-        warning for each exported name that no import binds.
+        A ``Report`` that holds the API and its diagnostics. The API is a
+        ``Package``, or a ``Module`` for one file. The diagnostics are errors
+        for the skipped modules, then a warning for each exported name that no
+        import binds.
 
     Raises:
-        InvalidPathError: If ``path`` does not exist, or is a file that
+        InvalidPathError: If ``path`` does not exist, or if it is a file that
             does not end in ``.py``.
-        ParseError: If a module cannot be parsed, unless *keep_going* is set
-            and ``path`` is a directory.
-        SourceReadError: If a module cannot be read, unless *keep_going* is
-            set and ``path`` is a directory.
+        ParseError: If the function cannot parse a module. This does not
+            occur if *keep_going* is True and ``path`` is a directory.
+        SourceReadError: If the function cannot read a module. This does not
+            occur if *keep_going* is True and ``path`` is a directory.
     """
     path = Path(path).resolve()
 
@@ -60,7 +61,7 @@ def get_public_api_report(path: Path, *, config: Config | None = None, keep_goin
         raise InvalidPathError(f"path does not exist: {path}")
 
     if path.is_file() and path.suffix != ".py":
-        raise InvalidPathError(f"not a .py file: {path} (expected a .py file or a Python package directory)")
+        raise InvalidPathError(f"not a .py file: {path} (give a .py file or a Python package directory)")
 
     effective_config = config or load_config(path)
     errors: list[Diagnostic] | None = [] if keep_going else None

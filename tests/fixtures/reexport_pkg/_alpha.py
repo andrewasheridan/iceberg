@@ -1,9 +1,9 @@
-"""Internal module defining Alpha."""
+"""An internal module that defines Alpha."""
 
 __all__ = ["Alpha"]
 
 
 class Alpha:
-    """First re-exported class."""
+    """The first re-exported class."""
 
     pass

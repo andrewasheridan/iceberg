@@ -1,4 +1,4 @@
-"""Iceberg: inspect and snapshot the public API surface of a Python package."""
+"""Iceberg: inspect the public API of a Python package and make a snapshot of it."""
 
 __all__ = [
     "Assignment",

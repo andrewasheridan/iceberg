@@ -1,9 +1,10 @@
 """Golden tests for the examples in the main README and every ``cases/*/README.md``.
 
-Each ``console`` block holds one ``$ iceberg ...`` command followed by its
-expected output. The command is run from the project root through the CLI's
-``main`` and its stdout must match the documented output exactly, so the docs
-and the code cannot drift apart without a failed test.
+Each ``console`` block holds one ``$ iceberg ...`` command, then its expected
+output. The test runs the command from the project root through the ``main``
+function of the CLI. Its stdout must be exactly the same as the output in the
+documentation. Thus, a difference between the docs and the code makes a test
+fail.
 """
 
 import re
@@ -60,7 +61,7 @@ _EXAMPLES = _collect()
 
 
 def test_every_readme_has_an_example() -> None:
-    """Each README must contribute at least one example, so a renamed block fence cannot skip a case silently."""
+    """Each README must have one or more examples. Thus, a renamed block fence cannot skip a case silently."""
     documented = {example.readme for example in _EXAMPLES}
     missing = [str(readme.relative_to(_PROJECT_ROOT)) for readme in _READMES if readme not in documented]
 

@@ -1,7 +1,7 @@
-"""Exception hierarchy for the iceberg package.
+"""Define the exception hierarchy of the iceberg package.
 
-All exceptions raised by iceberg are subclasses of ``IcebergError``, allowing
-callers to catch the entire family with a single clause when desired.
+All the exceptions that iceberg raises are subclasses of ``IcebergError``. Thus,
+callers can catch all of them with one ``except`` clause.
 """
 
 __all__ = [
@@ -16,43 +16,43 @@ __all__ = [
 
 
 class IcebergError(Exception):
-    """Base class for all iceberg exceptions.
+    """The base class for all iceberg exceptions.
 
-    Catch this to handle any error raised by the iceberg package without
-    needing to enumerate each subclass.
+    Catch this class to handle all the errors that the iceberg package raises.
+    Then you do not have to list each subclass.
     """
 
 
 class InvalidPathError(IcebergError):
-    """Raised when a supplied path does not exist or is not a valid target.
+    """The error for a path that does not exist or is not a valid target.
 
-    A valid target is either a ``.py`` file or a Python package directory.
-    Any other path, or a path that does not exist on the filesystem, triggers
-    this exception.
+    A valid target is a ``.py`` file or a Python package directory. iceberg
+    raises this exception for all other paths, and for a path that does not
+    exist on the filesystem.
     """
 
 
 class NotFoundError(IcebergError, LookupError):
-    """Raised when a lookup by name finds nothing in a valid source.
+    """The error for a search by name that finds nothing in a valid source.
 
-    The source itself is fine, so this is distinct from ``InvalidPathError``.
-    It is also a ``LookupError``, so callers that already catch that keep
-    working.
+    The source is correct. Thus, this error is different from
+    ``InvalidPathError``. It is also a ``LookupError``. Thus, callers that
+    catch ``LookupError`` continue to work.
     """
 
 
 class ParseError(IcebergError):
-    """Raised when a source file cannot be parsed as valid Python.
+    """The error for a source file that is not valid Python.
 
-    Wraps syntax errors or any other condition that prevents the AST from
-    being constructed from a source file. When the location of the problem is
-    known, ``str()`` prefixes the message with ``path:lineno:offset:``.
+    This error wraps syntax errors, and all other conditions that stop the
+    construction of the AST from a source file. If the location of the problem
+    is known, ``str()`` puts ``path:lineno:offset:`` before the message.
 
     Attributes:
-        message: The bare error message, without location.
-        path: The file that failed to parse, or ``None`` when not known.
-        lineno: The 1-based line of the error, or ``None`` when not known.
-        offset: The 1-based column of the error, or ``None`` when not known.
+        message: The bare error message, without the location.
+        path: The file that iceberg cannot parse, or ``None`` if it is not known.
+        lineno: The 1-based line of the error, or ``None`` if it is not known.
+        offset: The 1-based column of the error, or ``None`` if it is not known.
     """
 
     def __init__(
@@ -67,7 +67,7 @@ class ParseError(IcebergError):
 
         Args:
             message: The bare error message.
-            path: The file that failed to parse.
+            path: The file that iceberg cannot parse.
             lineno: The 1-based line of the error.
             offset: The 1-based column of the error.
         """
@@ -87,12 +87,13 @@ class ParseError(IcebergError):
         """Build a ``ParseError`` from the location data in *exc*.
 
         Args:
-            exc: The ``SyntaxError`` raised by ``ast.parse`` or ``compile``.
-                A filename of ``"<unknown>"`` (the ``ast.parse`` default) is
-                treated as no path.
+            exc: The ``SyntaxError`` from ``ast.parse`` or ``compile``. The
+                method ignores the filename ``"<unknown>"`` (the default of
+                ``ast.parse``) and uses no path.
 
         Returns:
-            A ``ParseError`` carrying the message, path, line and column of *exc*.
+            A ``ParseError`` with the message, the path, the line and the column
+            of *exc*.
         """
         path = exc.filename if exc.filename and exc.filename != "<unknown>" else None
 
@@ -100,16 +101,20 @@ class ParseError(IcebergError):
 
 
 class SourceReadError(IcebergError):
-    """Raised when a source file cannot be read or decoded.
+    """The error for a source file that iceberg cannot read or decode.
 
-    Covers files that cannot be opened (missing, broken symlink, no
-    permission) and files whose bytes do not match their encoding: UTF-8 by
-    default, or the encoding named in a PEP 263 declaration. ``str()``
-    prefixes the message with ``path:``.
+    This error is for these files:
+
+    - Files that iceberg cannot open: a missing file, a broken symlink, or a
+      file without read permission.
+    - Files with bytes that do not agree with their encoding. The encoding is
+      UTF-8, or the encoding that a PEP 263 declaration gives.
+
+    ``str()`` puts ``path:`` before the message.
 
     Attributes:
         message: The bare error message, without the path.
-        path: The file that could not be read.
+        path: The file that iceberg cannot read.
     """
 
     def __init__(self, message: str, *, path: str) -> None:
@@ -117,7 +122,7 @@ class SourceReadError(IcebergError):
 
         Args:
             message: The bare error message.
-            path: The file that could not be read.
+            path: The file that iceberg cannot read.
         """
         self.message = message
         self.path = path
@@ -126,18 +131,22 @@ class SourceReadError(IcebergError):
 
 
 class ConfigError(IcebergError):
-    """Raised when iceberg configuration is malformed or contains bad values.
+    """The error for an iceberg configuration that has an incorrect structure or bad values.
 
-    Triggered by a malformed ``.iceberg.toml`` or ``[tool.iceberg]`` table
-    inside ``pyproject.toml``, including invalid TOML syntax and
-    type-incorrect field values.
+    iceberg raises this error for an incorrect ``.iceberg.toml`` file or
+    ``[tool.iceberg]`` table in ``pyproject.toml``. Examples are TOML syntax
+    errors and field values of the wrong type.
     """
 
 
 class SnapshotError(IcebergError):
-    """Raised when JSON cannot be loaded back into iceberg models.
+    """The error for JSON that iceberg cannot load back into its models.
 
-    Triggered by text that is not valid JSON, a ``schema_version`` that is
-    missing or not supported by this version of iceberg, and nodes with a
-    missing field, a field of the wrong type, or an unexpected ``node_type``.
+    iceberg raises this error for these problems:
+
+    - The text is not valid JSON.
+    - The ``schema_version`` is missing, or this version of iceberg does not
+      support it.
+    - A node has a missing field, a field of the wrong type, or an unexpected
+      ``node_type``.
     """

@@ -1,17 +1,17 @@
-"""Resolver for ``__init__.py`` re-export declarations.
+"""Resolve the re-exports in ``__init__.py`` files.
 
-``visit_module`` (in ``_visitor.py``) treats an init file as a plain module and
-captures only locally-defined names.  This module runs on top of that to
-resolve ``from .sibling import X`` style re-exports so the returned ``Module``
-contains the actual ``Function`` / ``Class`` / ``Assignment`` objects from the
-sibling module rather than nothing at all.
+``visit_module`` (in ``_visitor.py``) uses an init file as a plain module. It
+collects only the names that the file defines. This module adds to that. It
+resolves re-exports such as ``from .sibling import X``. Thus, the ``Module``
+that it gives has the real ``Function``, ``Class`` and ``Assignment`` objects
+from the sibling module.
 
-Architectural split
--------------------
-Subpackage visibility (whether a sub-package appears in the parent's public
-surface) is the orchestrator's responsibility.  This resolver returns only the init module's
-own ``Module``; it never synthesises placeholder entries for subpackages.
-Callers must assemble ``Package.subpackages`` separately.
+Division of work
+----------------
+The orchestrator decides if a subpackage is part of the public API of its
+parent. This resolver gives only the ``Module`` of the init module. It never
+makes placeholder items for subpackages. Callers must assemble
+``Package.subpackages`` separately.
 """
 
 __all__ = ["resolve_init", "resolve_module_references"]
@@ -37,51 +37,53 @@ def resolve_init(
     known_all: Mapping[str, frozenset[str] | None] | None = None,
     tree: ast.Module | None = None,
 ) -> Module:
-    """Resolve an ``__init__.py`` source into a ``Module`` with re-exports attached.
+    """Resolve the source of an ``__init__.py`` into a ``Module`` with its re-exports.
 
-    Parses *init_source*, determines the public name set (via ``__all__`` or
-    the underscore-prefix rule), then for each public name attempts to resolve
-    it to a ``Function``, ``Class``, or ``Assignment``:
+    The function parses *init_source*. It finds the set of public names (from
+    ``__all__`` or from the underscore rule). Then it tries to resolve each
+    public name to a ``Function``, ``Class`` or ``Assignment``:
 
-    1. If the name was imported from a known sibling module, look it up on that
-       sibling's ``Module`` object and attach the resolved object.
-    2. If the name is defined locally in the init file, use whatever
-       ``visit_module`` captured.
-    3. If the name cannot be resolved from either source, attach a
-       ``Reference`` describing where it was imported from (if anywhere) —
-       no exception is raised.
+    1. If the init file imports the name from a known sibling module, the
+       function finds the name in the ``Module`` of that sibling. Then it
+       attaches the resolved object.
+    2. If the init file defines the name, the function uses the object that
+       ``visit_module`` collected.
+    3. If the function cannot resolve the name from these sources, it attaches
+       a ``Reference``. The reference tells where the name comes from, if this
+       is known. The function does not raise an exception.
 
-    Subpackage visibility is the orchestrator's concern, not this resolver's.
+    The orchestrator, not this resolver, decides which subpackages are visible.
 
     Args:
-        init_source: Raw Python source text of the ``__init__.py`` file.
-        dotted_package: Fully-qualified package name (e.g. ``"my_pkg.sub"``).
-        sibling_modules: Mapping from dotted module name to ``Module`` for all
-            modules visible to this init file.
-        subpackage_names: Names of direct sub-packages and sub-modules under
-            this package. Used only to avoid recording them as unresolved —
-            they are not attached to the returned ``Module``.
-        namespace_parents: Names of the directories above the analyzed root,
-            outermost first (e.g. ``("src", "sheridan")`` for a root of
-            ``src/sheridan/iceberg``). Absolute imports spelled with a trailing
-            run of these as a prefix (``from sheridan.iceberg._api import x``)
-            are treated as intra-package imports.
-        path: The file *init_source* was read from. It is reported in the
-            ``ParseError`` when *init_source* has a syntax error.
+        init_source: The raw Python source text of the ``__init__.py`` file.
+        dotted_package: The fully qualified package name (for example
+            ``"my_pkg.sub"``).
+        sibling_modules: A mapping from dotted module name to ``Module`` for
+            all the modules that this init file can see.
+        subpackage_names: The names of the direct subpackages and submodules of
+            this package. The function uses them only to not record them as
+            unresolved. It does not attach them to the ``Module`` that it gives.
+        namespace_parents: The names of the directories above the analyzed
+            root, the outermost first. For example, ``("src", "sheridan")`` for
+            the root ``src/sheridan/iceberg``. The function uses absolute
+            imports with a prefix from the end of these names as imports in
+            the package. An example is ``from sheridan.iceberg._api import x``.
+        path: The file that contains *init_source*. If *init_source* has a
+            syntax error, the ``ParseError`` shows this path.
         known_all: The evaluated ``__all__`` of each module in the analyzed
-            tree, by dotted name. When it holds *dotted_package*, that value
-            is used as is; otherwise ``__all__`` is evaluated from
-            *init_source*, and this mapping resolves
-            ``__all__ += sub.__all__``.
-        tree: *init_source* already parsed, so the caller can parse each
-            file once. *init_source* is not parsed again when it is given.
+            tree, by dotted name. If it has *dotted_package*, the function uses
+            that value. If not, the function evaluates ``__all__`` from
+            *init_source*, and this mapping resolves ``__all__ += sub.__all__``.
+        tree: The parsed *init_source*. With it, the caller parses each file
+            only one time. If you give it, the function does not parse
+            *init_source* again.
 
     Returns:
-        The resolved ``Module`` for the init file. Names that could not be
-        resolved are in its ``references``.
+        The resolved ``Module`` of the init file. Its ``references`` hold the
+        names that the function cannot resolve.
 
     Raises:
-        ParseError: When *init_source* cannot be parsed as valid Python.
+        ParseError: If *init_source* is not valid Python.
     """
     if tree is None:
         tree = parse_source(init_source, path)
@@ -96,16 +98,16 @@ def resolve_init(
             path=None if path is None else str(path),
         )
 
-    # Use visit_module for locally-defined names and the public-name filter.
-    # Pass the evaluated __all__ so it is not evaluated (and reported) twice.
+    # Use visit_module for the names that the file defines and for the public-name filter.
+    # Give it the evaluated __all__. Then visit_module does not evaluate (and report) it again.
     local_all = {**(known_all or {}), dotted_package: explicit_all}
     local_module = visit_module(init_source, dotted_package, path, local_all, tree=tree)
 
     root_package = dotted_package.split(".")[0]
 
     def star_exports(module_name: str) -> frozenset[str] | None:
-        # A visited module holds exactly its public names: its ``__all__``, or
-        # the names without a leading underscore when there is none.
+        # A visited module holds exactly its public names. These are its ``__all__``,
+        # or the names without a leading underscore if it has no ``__all__``.
         sibling_name = _strip_namespace_prefix(module_name, root_package, namespace_parents)
         sibling = sibling_modules.get(sibling_name)
 
@@ -116,7 +118,7 @@ def resolve_init(
     import_map = _build_import_map(all_imports, dotted_package, namespace_parents)
     public_names = _compute_public_names(tree, explicit_all, import_map)
 
-    # Index locally-captured objects by name for fast lookup.
+    # Index the objects that the file defines by name, for a fast search.
     local_index = _index_module(local_module)
 
     assignments: list[Assignment] = []
@@ -125,7 +127,7 @@ def resolve_init(
     references: list[Reference] = []
 
     for name in sorted(public_names):
-        # Subpackage names are the orchestrator's domain — skip silently.
+        # The orchestrator handles subpackage names. Skip them silently.
         if name in subpackage_names:
             continue
 
@@ -168,23 +170,25 @@ def resolve_module_references(
 ) -> dict[str, Module]:
     """Resolve the ``Reference`` entries of regular modules against each other.
 
-    A regular module whose ``__all__`` lists an imported name carries a
-    ``Reference`` for it. When the import points at another module in
-    *modules*, the reference is replaced with the definition found there. The
-    target is resolved first (memoized), so chains of any length are followed.
-    An import cycle stops the walk: the module being resolved is used as
-    visited, and a name that is only re-exported around the cycle stays a
-    ``Reference``.
+    If the ``__all__`` of a regular module lists an imported name, the module
+    has a ``Reference`` for it. If the import points to a different module in
+    *modules*, the function replaces the reference with the definition in that
+    module. The function resolves the target first (and memoizes it). Thus, it
+    follows chains of all lengths.
+
+    An import cycle stops the walk. The function uses the module in the cycle
+    as it was visited. A name that the modules in the cycle only re-export
+    stays a ``Reference``.
 
     Args:
-        modules: Mapping from dotted module name to the visited ``Module``.
-        namespace_parents: Names of the directories above the analyzed root,
-            outermost first. See ``resolve_init``.
+        modules: A mapping from dotted module name to the visited ``Module``.
+        namespace_parents: The names of the directories above the analyzed
+            root, the outermost first. See ``resolve_init``.
 
     Returns:
-        A new mapping with the same keys, where each module's resolvable
-        references have been replaced by the ``Function``, ``Class``, or
-        ``Assignment`` they point to.
+        A new mapping with the same keys. In each module, the function replaces
+        the references that it can resolve with the ``Function``, ``Class`` or
+        ``Assignment`` that they point to.
     """
     resolved: dict[str, Module] = {}
     in_progress: set[str] = set()
@@ -195,7 +199,7 @@ def resolve_module_references(
 
         module = modules.get(name)
         if module is None or name in in_progress or not module.references:
-            # In a cycle, hand back the module as visited and do not memoize it.
+            # In a cycle, give back the module as it was visited, and do not memoize it.
             return module
 
         in_progress.add(name)
@@ -212,7 +216,7 @@ def resolve_module_references(
 
 # A resolved symbol is one of these three concrete types.
 _Symbol = Assignment | Class | Function
-"""Type alias for the three concrete symbol types that can be resolved from an init module."""
+"""The type alias for the three concrete symbol types that an init module can resolve to."""
 
 
 def _build_import_map(
@@ -222,20 +226,22 @@ def _build_import_map(
 ) -> dict[str, tuple[str, str]]:
     """Select the ``from ... import`` bindings that point inside the analyzed tree.
 
-    Handles relative imports (already absolutized by ``collect_imports``) and
-    absolute imports that name a module under the same root package, including
-    absolute imports spelled with a namespace prefix above the analyzed root
-    (see ``namespace_parents``).
+    The function accepts these imports:
+
+    - Relative imports. ``collect_imports`` already made them absolute.
+    - Absolute imports of a module in the same root package.
+    - Absolute imports with a namespace prefix above the analyzed root (see
+      ``namespace_parents``).
 
     Args:
-        all_imports: Output of ``collect_imports`` for the init module.
-        dotted_package: Fully-qualified package name of the init being resolved.
-        namespace_parents: Directory names above the analyzed root, outermost
-            first.
+        all_imports: The output of ``collect_imports`` for the init module.
+        dotted_package: The fully qualified package name of the init module.
+        namespace_parents: The names of the directories above the analyzed
+            root, the outermost first.
 
     Returns:
-        A mapping from local alias to ``(dotted_module_name, original_name)``
-        where ``dotted_module_name`` uses the analyzed tree's own naming.
+        A mapping from local alias to ``(dotted_module_name, original_name)``.
+        ``dotted_module_name`` uses the names of the analyzed tree.
     """
     root_package = dotted_package.split(".")[0]
     result: dict[str, tuple[str, str]] = {}
@@ -252,22 +258,22 @@ def _build_import_map(
 
 
 def _strip_namespace_prefix(module: str, root_package: str, namespace_parents: tuple[str, ...]) -> str:
-    """Rewrite *module* into the analyzed tree's naming when it carries a namespace prefix.
+    """Change *module* to the names of the analyzed tree, if it has a namespace prefix.
 
-    When iceberg is pointed at ``src/sheridan/iceberg`` the root package is
-    named ``iceberg``, but the code itself imports ``sheridan.iceberg.x``. If
-    the components before ``root_package`` exactly match the innermost
-    directories above the root, they are stripped.
+    If you give iceberg ``src/sheridan/iceberg``, the name of the root package
+    is ``iceberg``. But the code imports ``sheridan.iceberg.x``. If the
+    components before ``root_package`` are the same as the innermost
+    directories above the root, the function removes them.
 
     Args:
-        module: Absolute dotted module name as written in the import.
-        root_package: First component of the analyzed tree's dotted names.
-        namespace_parents: Directory names above the analyzed root, outermost
-            first.
+        module: The absolute dotted module name, as the import gives it.
+        root_package: The first component of the dotted names of the analyzed tree.
+        namespace_parents: The names of the directories above the analyzed
+            root, the outermost first.
 
     Returns:
-        The module name with the prefix removed, or *module* unchanged when no
-        prefix matches.
+        The module name without the prefix. If no prefix matches, *module*
+        without a change.
     """
     parts = module.split(".")
     deepest = min(len(namespace_parents), len(parts) - 1)
@@ -284,17 +290,18 @@ def _compute_public_names(
     explicit_all: frozenset[str] | None,
     import_map: dict[str, tuple[str, str]],
 ) -> frozenset[str]:
-    """Determine the public names exported by the init module.
+    """Find the public names that the init module exports.
 
-    When ``__all__`` is present its literal string members are used directly.
-    Otherwise, every top-level name (locally-defined or imported) that does not
-    start with ``_`` is included.
+    If the module has ``__all__``, the function uses its literal string items.
+    If not, it includes each top-level name that does not start with ``_``.
+    These are the names that the module defines or imports.
 
     Args:
-        tree: Parsed module AST.
-        explicit_all: Literal names from ``__all__``, or ``None`` when absent.
-        import_map: Mapping of local name → source produced by
-            ``_build_import_map``.
+        tree: The parsed module AST.
+        explicit_all: The literal names from ``__all__``, or ``None`` if there
+            is no ``__all__``.
+        import_map: The mapping from local name to source that
+            ``_build_import_map`` makes.
 
     Returns:
         The set of public names to resolve.
@@ -304,7 +311,7 @@ def _compute_public_names(
 
     names: set[str] = set()
 
-    # Include all non-private imported names.
+    # Include all the imported names that are not private.
     for name in import_map:
         if not name.startswith("_"):
             names.add(name)
@@ -313,14 +320,14 @@ def _compute_public_names(
 
 
 def _index_module(module: Module) -> dict[str, _Symbol]:
-    """Build a name → symbol index from a ``Module``.
+    """Build an index from name to symbol for a ``Module``.
 
     Args:
-        module: The module whose public symbols should be indexed.
+        module: The module with the public symbols to index.
 
     Returns:
-        A flat mapping from name to the corresponding
-        ``Function``, ``Class``, or ``Assignment`` object.
+        A flat mapping from name to the related ``Function``, ``Class`` or
+        ``Assignment`` object.
     """
     index: dict[str, _Symbol] = {}
     for fn in module.functions:
@@ -336,10 +343,10 @@ def _index_module(module: Module) -> dict[str, _Symbol]:
 
 
 def _exported_names(module: Module) -> frozenset[str]:
-    """List every name a visited module exports, resolved or not.
+    """List all the names that a visited module exports, resolved and unresolved.
 
     Args:
-        module: A visited (and possibly resolved) module.
+        module: A visited module. It can also be resolved.
 
     Returns:
         The names of its definitions and its references.
@@ -356,13 +363,13 @@ def _lookup_in_sibling(
     """Look up *source_name* in a sibling module from the mapping.
 
     Args:
-        name: The local alias (used for error context only; not inspected here).
-        source_name: The original name exported by the sibling module.
-        dotted_module: Fully-qualified name of the sibling module to search.
-        sibling_modules: All available sibling modules keyed by dotted name.
+        name: The local alias. The function does not examine it.
+        source_name: The original name that the sibling module exports.
+        dotted_module: The fully qualified name of the sibling module to search.
+        sibling_modules: All the available sibling modules, by dotted name.
 
     Returns:
-        The resolved symbol, or ``None`` when the module or name is absent.
+        The resolved symbol, or ``None`` if the module or the name is not there.
     """
     sibling = sibling_modules.get(dotted_module)
     if sibling is None:
@@ -378,21 +385,22 @@ def _resolve_name(
     sibling_modules: Mapping[str, Module],
     local_index: dict[str, _Symbol],
 ) -> _Symbol | None:
-    """Attempt to resolve *name* to a concrete symbol.
+    """Try to resolve *name* to a concrete symbol.
 
-    Resolution order:
-    1. If the name appears in *import_map*, look it up in *sibling_modules*.
-    2. Otherwise, fall back to *local_index* (locally-defined in the init).
+    The function uses this order:
+
+    1. If *import_map* has the name, find the name in *sibling_modules*.
+    2. If not, use *local_index* (the symbols that the init module defines).
 
     Args:
         name: The public name to resolve.
-        import_map: Map from local name to ``(dotted_module, original_name)``.
-        sibling_modules: All sibling modules available for import resolution.
-        local_index: Index of locally-defined symbols in the init module.
+        import_map: The map from local name to ``(dotted_module, original_name)``.
+        sibling_modules: All the sibling modules that the imports can use.
+        local_index: The index of the symbols that the init module defines.
 
     Returns:
-        The resolved ``Function``, ``Class``, or ``Assignment``, or ``None``
-        when the name cannot be resolved from any source.
+        The resolved ``Function``, ``Class`` or ``Assignment``. ``None`` if the
+        function cannot resolve the name from a source.
     """
     if name not in import_map:
         return local_index.get(name)
@@ -417,14 +425,15 @@ def _resolve_references(
     """Replace the references of *module* that point at a module *resolve* knows.
 
     Args:
-        module: The module whose references should be resolved.
-        namespace_parents: Directory names above the analyzed root, outermost
-            first.
-        resolve: Returns the (resolved) module for a dotted name, or ``None``.
+        module: The module with the references to resolve.
+        namespace_parents: The names of the directories above the analyzed
+            root, the outermost first.
+        resolve: A function that gives the (resolved) module for a dotted
+            name, or ``None``.
 
     Returns:
-        A copy of *module* with each resolvable reference moved into its
-        ``assignments``, ``classes``, or ``functions``.
+        A copy of *module*. The function moves each reference that it can
+        resolve into the ``assignments``, ``classes`` or ``functions``.
     """
     root_package = module.name.split(".")[0]
 

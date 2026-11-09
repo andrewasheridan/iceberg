@@ -1,4 +1,4 @@
-"""Internal utilities for simple_pkg."""
+"""The internal utilities of simple_pkg."""
 
 __all__ = ["my_func"]
 

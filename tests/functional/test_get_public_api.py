@@ -1,9 +1,10 @@
-"""End-to-end functional tests for get_public_api.
+"""Test get_public_api from end to end.
 
-These tests build realistic package trees under tmp_path and verify that the
-full discover → visit → resolve_init → assemble pipeline produces the expected
-public API surface.  No mocking; config=Config(max_workers=1) is used to avoid
-needing a config file on disk and to keep worker-process overhead minimal.
+These tests build realistic package trees in tmp_path. They make sure that the
+full pipeline (discover → visit → resolve_init → assemble) gives the expected
+public API. The tests do not use mocks. They use config=Config(max_workers=1).
+Thus, they do not need a configuration file on disk, and the overhead of
+worker processes is minimal.
 """
 
 from pathlib import Path
@@ -19,7 +20,7 @@ _CFG = Config(max_workers=1)
 
 
 def _snapshot_package(path: Path) -> Package:
-    """Snapshot a package directory, narrowing the ``Package | Module`` result."""
+    """Snapshot a package directory, and narrow the ``Package | Module`` result."""
     result = get_public_api(path, config=_CFG)
 
     assert isinstance(result, Package)
@@ -35,7 +36,7 @@ def _class_names(module: Module) -> set[str]:
 
 
 def _all_modules(pkg: Package) -> list[Module]:
-    """Flatten all modules from a Package trie into a list."""
+    """Put all the modules of a Package trie into a flat list."""
     result: list[Module] = list(pkg.modules)
     for sub in pkg.subpackages:
         result.extend(_all_modules(sub))
@@ -52,7 +53,7 @@ def _all_class_names(pkg: Package) -> set[str]:
 
 
 def _find_module(pkg: Package, dotted_name: str) -> Module | None:
-    """Find the first Module whose name matches dotted_name anywhere in the trie."""
+    """Find the first Module in the trie with a name that matches dotted_name."""
     for mod in _all_modules(pkg):
         if mod.name == dotted_name:
             return mod
@@ -67,7 +68,7 @@ def test_nonexistent_path_raises_invalid_path_error(tmp_path: Path) -> None:
 
 
 def test_single_file_returns_module(tmp_path: Path) -> None:
-    """A single .py file produces a Module with the file's stem as name."""
+    """One .py file gives a Module. The name of the Module is the stem of the file."""
     src = tmp_path / "utils.py"
     src.write_text(
         """\
@@ -96,7 +97,7 @@ class Converter:
 
 
 def test_flat_package_single_module(tmp_path: Path) -> None:
-    """A package with just __init__.py and one sibling module."""
+    """A package with only __init__.py and one sibling module."""
     pkg_dir = tmp_path / "mypkg"
     pkg_dir.mkdir()
 
@@ -125,13 +126,13 @@ def _internal() -> None:
     assert pkg.name == "mypkg"
     assert pkg.subpackages == ()
 
-    # greet must be reachable somewhere in the trie
+    # The trie must have greet at some level
     assert "greet" in _all_function_names(pkg)
     assert "_internal" not in _all_function_names(pkg)
 
 
 def test_multi_module_package_with_init_reexports(tmp_path: Path) -> None:
-    """__init__.py re-exports from multiple siblings; all names must appear."""
+    """__init__.py re-exports names from many siblings. The result must include all the names."""
     pkg_dir = tmp_path / "shapes"
     pkg_dir.mkdir()
 
@@ -178,7 +179,7 @@ def area(width: float, height: float) -> float:
 
 
 def test_class_in_submodule_reexported_via_init(tmp_path: Path) -> None:
-    """A class defined in a submodule and re-exported in __init__ must be reachable."""
+    """The result must include a class that a submodule defines and __init__ re-exports."""
     pkg_dir = tmp_path / "transport"
     pkg_dir.mkdir()
 
@@ -204,27 +205,27 @@ class HttpClient:
 
     pkg = _snapshot_package(pkg_dir)
 
-    # When __all__ is defined, private sub-modules are filtered; only the
-    # resolved init module is exposed at the package level.
+    # If the package defines __all__, iceberg removes the private submodules. Only the
+    # resolved init module is at the package level.
     assert len(pkg.modules) == 1
     init_mod = pkg.modules[0]
 
     assert init_mod.name == "transport"
     assert "HttpClient" in _class_names(init_mod)
 
-    # http.py is not in __all__, so it is suppressed from the trie.
+    # __all__ does not include http.py. Thus, the trie does not include it.
     assert _find_module(pkg, "transport.http") is None
     assert pkg.subpackages == ()
 
 
 def test_nested_subpackage_class_reachable(tmp_path: Path) -> None:
-    """A class inside a nested subpackage is present in the trie."""
+    """The trie includes a class in a nested subpackage."""
     root_dir = tmp_path / "mylib"
     sub_dir = root_dir / "storage"
     root_dir.mkdir()
     sub_dir.mkdir()
 
-    # No __all__ on the root init: subpackages are included in the trie as-is.
+    # The root init has no __all__. Thus, the trie includes the subpackages without a change.
     (root_dir / "__init__.py").write_text("", encoding="utf-8")
     (sub_dir / "__init__.py").write_text(
         """\
@@ -250,13 +251,13 @@ class Store:
 
     assert pkg.name == "mylib"
 
-    # Without __all__ on the root init, the storage subpackage is included.
+    # The root init has no __all__. Thus, the trie includes the storage subpackage.
     assert len(pkg.subpackages) == 1
     storage_pkg = pkg.subpackages[0]
     assert storage_pkg.name == "mylib.storage"
 
-    # Within mylib.storage, __all__ = ["Store"] is defined, so only the
-    # resolved init module is exposed (backend.py is filtered out).
+    # mylib.storage defines __all__ = ["Store"]. Thus, the result shows only the
+    # resolved init module (iceberg removes backend.py).
     assert storage_pkg.subpackages == ()
     assert len(storage_pkg.modules) == 1
     storage_init = storage_pkg.modules[0]
@@ -266,7 +267,7 @@ class Store:
 
 
 def test_locally_defined_function_in_init_reachable(tmp_path: Path) -> None:
-    """A function defined directly in __init__.py appears in the init Module."""
+    """The init Module includes a function that __init__.py defines directly."""
     pkg_dir = tmp_path / "utils"
     pkg_dir.mkdir()
 
@@ -293,7 +294,7 @@ def add(a: int, b: int) -> int:
 
 
 def test_module_with_only_private_names_has_empty_collections(tmp_path: Path) -> None:
-    """A module exporting only private names produces empty functions/classes."""
+    """A module that exports only private names gives empty functions and classes."""
     pkg_dir = tmp_path / "internals"
     pkg_dir.mkdir()
 
@@ -320,7 +321,7 @@ class _InternalHelper:
 
 
 def test_package_path_matches_directory(tmp_path: Path) -> None:
-    """Package.path must equal the directory passed to get_public_api."""
+    """Package.path must be the same as the directory that get_public_api got."""
     pkg_dir = tmp_path / "mything"
     pkg_dir.mkdir()
     (pkg_dir / "__init__.py").write_text("", encoding="utf-8")
@@ -331,7 +332,7 @@ def test_package_path_matches_directory(tmp_path: Path) -> None:
 
 
 def test_async_function_is_captured(tmp_path: Path) -> None:
-    """An async function in a module is included and marked is_async=True."""
+    """The result includes an async function in a module, with is_async=True."""
     src = tmp_path / "fetcher.py"
     src.write_text(
         """\
@@ -351,7 +352,7 @@ async def fetch(url: str) -> bytes:
 
 
 def test_function_return_annotation_preserved(tmp_path: Path) -> None:
-    """Return-type annotations on functions survive the full pipeline."""
+    """Return-type annotations of functions stay the same through the full pipeline."""
     src = tmp_path / "math_utils.py"
     src.write_text(
         """\
@@ -369,7 +370,7 @@ def square(n: int) -> int:
 
 
 def test_class_methods_present_after_reexport(tmp_path: Path) -> None:
-    """Methods on a class re-exported via __init__ are preserved on the Class object."""
+    """If __init__ re-exports a class, the Class object keeps its methods."""
     pkg_dir = tmp_path / "services"
     pkg_dir.mkdir()
 

@@ -1,4 +1,4 @@
-"""Public module within mixed_pkg."""
+"""A public module in mixed_pkg."""
 
 __all__ = ["PublicThing", "public_fn"]
 
