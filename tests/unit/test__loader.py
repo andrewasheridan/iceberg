@@ -75,7 +75,7 @@ def _package(root: Path) -> Package:
 
 
 def _snapshot(**changes: Any) -> dict[str, Any]:
-    data = json.loads(format_json(_MODULE))
+    data: dict[str, Any] = json.loads(format_json(_MODULE))
     data.update(changes)
     return data
 

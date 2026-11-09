@@ -36,9 +36,9 @@ repos:
       - id: pyrefly
         name: pyrefly
         language: system
-        entry: uv run --frozen pyrefly check src/
+        entry: uv run --frozen pyrefly check
         pass_filenames: false
-        files: ^src/.*\.pyi?$
+        files: ^(src|tests)/.*\.pyi?$
 
       # Same pattern as tests/unit/test_comment_style.py; keep them in sync.
       - id: no-banner-comments

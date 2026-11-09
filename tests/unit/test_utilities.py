@@ -237,7 +237,7 @@ def test_callable_without_source_raises_invalid_path_error() -> None:
 
 def test_callable_lambda_raises_invalid_path_error() -> None:
     with pytest.raises(InvalidPathError, match="lambda"):
-        get_function(lambda x: x)
+        get_function(lambda: None)
 
 
 def test_get_class_str_simple_name() -> None:

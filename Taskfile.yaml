@@ -57,7 +57,7 @@ tasks:
   typecheck:
     desc: Run pyrefly type checking
     cmds:
-      - uv run pyrefly check src/
+      - uv run pyrefly check
 
   test:
     desc: Run pytest with coverage
