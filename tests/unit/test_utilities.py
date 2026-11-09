@@ -555,6 +555,23 @@ def test_get_assignment_str_attribute_target_not_found() -> None:
         get_assignment("obj.attr = 1", name="attr")
 
 
+def test_get_assignment_str_finds_type_alias_by_name() -> None:
+    result = get_assignment("x = 1\ntype Alias = int", name="Alias")
+    assert result == Assignment(name="Alias", annotation="TypeAlias")
+
+
+def test_get_assignment_ast_unpacking_target_raises_parse_error() -> None:
+    node = ast.parse("a, b = 1, 2").body[0]
+    assert isinstance(node, ast.Assign)
+
+    with pytest.raises(ParseError, match="non-simple target"):
+        get_assignment(node)
+
+
+def test_get_assignment_str_is_dedented() -> None:
+    assert get_assignment("    x: int = 1").annotation == "int"
+
+
 def test_get_module_str_default_name() -> None:
     result: Module = get_module("x = 1\ndef foo(): pass")
     assert result.name == "<module>"
@@ -702,3 +719,11 @@ def test_path_syntax_error_reports_file_path(tmp_path: Path) -> None:
 
     assert info.value.path == str(target)
     assert info.value.lineno == 1
+
+
+def test_get_package_path_to_module_raises_invalid_path_error(tmp_path: Path) -> None:
+    module = tmp_path / "mod.py"
+    module.write_text("x = 1\n", encoding="utf-8")
+
+    with pytest.raises(InvalidPathError, match="use get_module"):
+        get_package(module)
