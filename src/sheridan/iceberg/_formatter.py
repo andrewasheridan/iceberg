@@ -256,11 +256,33 @@ def _sort_key(obj: Any) -> str:
     return json.dumps(obj, sort_keys=True)
 
 
-def _to_plain(obj: Any) -> Any:
+def _relative_path(path: Path, root: Path | None) -> str:
+    """Return *path* as a POSIX string relative to *root*.
+
+    Absolute paths would make snapshots depend on where the source is checked
+    out, so every path is expressed relative to the analyzed root. The root
+    itself becomes ``"."``.
+
+    Args:
+        path: The path to render.
+        root: The analyzed root directory, or ``None`` when there is none.
+
+    Returns:
+        The relative POSIX path, or just the final path component when *path*
+        is not inside *root*.
+    """
+    if root is not None and path.is_relative_to(root):
+        return path.relative_to(root).as_posix() or "."
+    return path.name or "."
+
+
+def _to_plain(obj: Any, root: Path | None = None) -> Any:
     """Recursively normalise *obj* to a JSON-serializable plain Python value.
 
     Args:
         obj: Any Python object produced by the iceberg model layer.
+        root: The analyzed root directory; ``Path`` values are rendered
+            relative to it.
 
     Returns:
         A ``dict``, ``list``, ``str``, ``int``, ``float``, ``bool``, or
@@ -268,17 +290,17 @@ def _to_plain(obj: Any) -> Any:
     """
     match obj:
         case _ if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-            return {f.name: _to_plain(getattr(obj, f.name)) for f in dataclasses.fields(obj)}
+            return {f.name: _to_plain(getattr(obj, f.name), root) for f in dataclasses.fields(obj)}
 
         case Path():
-            return str(obj)
+            return _relative_path(obj, root)
 
         case frozenset():
-            converted = [_to_plain(item) for item in obj]
+            converted = [_to_plain(item, root) for item in obj]
             return sorted(converted, key=_sort_key)
 
         case tuple() | list():
-            return [_to_plain(item) for item in obj]
+            return [_to_plain(item, root) for item in obj]
 
         case _:
             return obj
@@ -288,7 +310,9 @@ def format_json(api: Package | Module) -> str:
     """Render *api* as deterministic, indented JSON.
 
     ``frozenset`` fields are serialized as sorted lists so that output is
-    stable across interpreter runs.
+    stable across interpreter runs. Package paths are relative to the root
+    package directory (the root itself is ``"."``), so the same source in two
+    different directories gives byte-identical output.
 
     Args:
         api: The root package or module to serialize.
@@ -296,4 +320,5 @@ def format_json(api: Package | Module) -> str:
     Returns:
         A JSON string with two-space indentation and sorted keys.
     """
-    return json.dumps(_to_plain(api), indent=2)
+    root = api.path if isinstance(api, Package) else None
+    return json.dumps(_to_plain(api, root), indent=2)

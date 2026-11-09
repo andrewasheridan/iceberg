@@ -6,6 +6,7 @@ iceberg source package as a fixture.  No mocking is used.
 """
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -160,3 +161,27 @@ def test_nonexistent_path_exits_with_code_1(tmp_path: Path) -> None:
     assert result.returncode == 1, (
         f"Expected exit code 1 (IcebergError), got {result.returncode}.\nstderr: {result.stderr!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# JSON output does not depend on where the source lives
+# ---------------------------------------------------------------------------
+
+
+def test_json_output_is_identical_for_copies_in_different_directories(tmp_path: Path) -> None:
+    """The same package in two different directories gives byte-identical JSON."""
+    fixture = _PROJECT_ROOT / "tests" / "fixtures" / "nested_pkg"
+    first = tmp_path / "first" / "nested_pkg"
+    second = tmp_path / "second" / "deeper" / "nested_pkg"
+    shutil.copytree(fixture, first)
+    shutil.copytree(fixture, second)
+
+    first_result = _run([str(first), "--json"])
+    second_result = _run([str(second), "--json"])
+
+    assert first_result.returncode == 0, first_result.stderr
+    assert second_result.returncode == 0, second_result.stderr
+    assert first_result.stdout == second_result.stdout
+    assert str(tmp_path) not in first_result.stdout
+    parsed = json.loads(first_result.stdout)
+    assert parsed["path"] == "."
