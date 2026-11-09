@@ -2,7 +2,7 @@
 # Print the number of the next backlog issue to work on, or nothing if none is left.
 #
 # Order:
-#   1. The agreed bug order (FIRST below), for issues that are still open.
+#   1. Issues pinned to the front (FIRST below), in that order, while still open.
 #   2. Then by priority (high, medium, low), bugs first, then by issue number.
 #
 # Only issues written by a trusted author (TRUSTED_AUTHORS below) are eligible.
@@ -16,7 +16,7 @@
 # Requires gh and jq.
 set -euo pipefail
 
-FIRST='[43, 44, 45, 48, 49, 50, 51, 63, 68]'
+FIRST='[93]'
 TRUSTED_AUTHORS='["andrewasheridan"]'
 
 issues=$(gh issue list --state open --limit 500 --json number,title,labels,author)
