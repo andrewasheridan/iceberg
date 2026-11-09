@@ -97,9 +97,9 @@ def test_scan_reports_banner_and_skips_hidden_dirs(tmp_path: Path) -> None:
     hits = _banner_lines(_source_files(tmp_path), tmp_path)
 
     assert hits == [
-        f".github/ci.yaml:1: {rule}",
-        f"pkg/mod.py:2: {rule}",
-        f"pkg/mod.py:4: {rule}",
+        f"{Path('.github/ci.yaml')}:1: {rule}",
+        f"{Path('pkg/mod.py')}:2: {rule}",
+        f"{Path('pkg/mod.py')}:4: {rule}",
     ]
 
 
