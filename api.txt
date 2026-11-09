@@ -5,6 +5,8 @@ package sheridan.iceberg
 │   └── property is_public: bool
 ├── class Class
 │   ├── name: str
+│   ├── bases: tuple[str, ...]
+│   ├── keywords: tuple[str, ...]
 │   ├── assignments: tuple[Assignment, ...]
 │   ├── methods: tuple[Function, ...]
 │   ├── nested_classes: tuple[Class, ...]
@@ -13,7 +15,7 @@ package sheridan.iceberg
 │   ├── test_module_pattern: re.Pattern[str]
 │   ├── max_workers: int
 │   └── exclude: tuple[str, ...]
-├── class ConfigError
+├── class ConfigError(IcebergError)
 ├── class Function
 │   ├── name: str
 │   ├── positional_parameters: tuple[Parameter, ...]
@@ -26,8 +28,8 @@ package sheridan.iceberg
 │   ├── decorators: tuple[str, ...]
 │   ├── overloads: tuple[Function, ...]
 │   └── property is_public: bool
-├── class IcebergError
-├── class InvalidPathError
+├── class IcebergError(Exception)
+├── class InvalidPathError(IcebergError)
 ├── class Module
 │   ├── name: str
 │   ├── assignments: tuple[Assignment, ...]
@@ -50,7 +52,7 @@ package sheridan.iceberg
 │   ├── annotation: str | None
 │   ├── default: str | None
 │   └── property is_public: bool
-├── class ParseError
+├── class ParseError(IcebergError)
 │   ├── def __init__(self, message: str, *, lineno: int | None = None, offset: int | None = None, path: str | None = None) -> None
 │   └── classmethod def from_syntax_error(cls, exc: SyntaxError) -> ParseError
 ├── class Reference
@@ -58,8 +60,8 @@ package sheridan.iceberg
 │   ├── module: str | None
 │   ├── attribute: str | None
 │   └── property is_public: bool
-├── class SnapshotError
-├── class SourceReadError
+├── class SnapshotError(IcebergError)
+├── class SourceReadError(IcebergError)
 │   └── def __init__(self, message: str, *, path: str) -> None
 ├── def get_public_api(path: Path, *, config: Config | None = None) -> Package | Module
 ├── def load_json(text: str, *, root: Path | None = None) -> Package | Module

@@ -137,6 +137,19 @@ def _assignment_str(assignment: Assignment) -> str:
     return assignment.name
 
 
+def _class_str(cls: Class) -> str:
+    """Render a class header for tree output.
+
+    Args:
+        cls: The class to render.
+
+    Returns:
+        A string such as ``class Foo`` or ``class Foo(Base, metaclass=Meta)``.
+    """
+    arguments = (*cls.bases, *cls.keywords)
+    return f"class {cls.name}({', '.join(arguments)})" if arguments else f"class {cls.name}"
+
+
 def _reference_str(reference: Reference) -> str:
     """Render an unresolved public name as the import statement that binds it.
 
@@ -226,7 +239,7 @@ def _children(
                     for a in m.assignments:
                         items.append((_assignment_str(a), None))
                     for cls in m.classes:
-                        items.append((f"class {cls.name}", cls))
+                        items.append((_class_str(cls), cls))
                     for fn in m.functions:
                         items.extend(
                             (label, None)
@@ -245,7 +258,7 @@ def _children(
             for a in node.assignments:
                 items.append((_assignment_str(a), None))
             for cls in node.classes:
-                items.append((f"class {cls.name}", cls))
+                items.append((_class_str(cls), cls))
             for fn in node.functions:
                 items.extend(
                     (label, None)
@@ -258,7 +271,7 @@ def _children(
         case Class():
             items = []
             for nc in node.nested_classes:
-                items.append((f"class {nc.name}", nc))
+                items.append((_class_str(nc), nc))
             for a in node.assignments:
                 items.append((_assignment_str(a), None))
             for fn in node.methods:
@@ -289,7 +302,7 @@ def format_tree(api: Package | Module, *, show_overload_implementation: bool = F
     return "\n".join([header, *body])
 
 
-JSON_SCHEMA_VERSION = 1
+JSON_SCHEMA_VERSION = 2
 """Version of the JSON output format, emitted as the top-level ``schema_version``.
 
 Bump it whenever a change to the JSON output could break a consumer.

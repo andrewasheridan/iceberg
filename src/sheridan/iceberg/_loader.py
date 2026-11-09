@@ -181,6 +181,8 @@ def _load_class(value: Any) -> Class:
     data = _object(value, "class")
     return Class(
         name=_field(data, "name", str),
+        bases=_str_list(data, "bases"),
+        keywords=_str_list(data, "keywords"),
         assignments=_list(data, "assignments", _load_assignment),
         methods=_list(data, "methods", _load_function),
         nested_classes=_list(data, "nested_classes", _load_class),

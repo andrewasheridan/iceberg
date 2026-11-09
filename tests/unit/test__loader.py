@@ -44,6 +44,8 @@ _FUNCTION = Function(
 )
 _CLASS = Class(
     name="C",
+    bases=("Base", "Generic[T]"),
+    keywords=("metaclass=Meta",),
     assignments=(Assignment(name="X", annotation="int"),),
     methods=(
         Function(
@@ -58,7 +60,7 @@ _CLASS = Class(
             decorators=("property",),
         ),
     ),
-    nested_classes=(Class(name="Inner", assignments=(), methods=(), nested_classes=()),),
+    nested_classes=(Class(name="Inner", bases=(), keywords=(), assignments=(), methods=(), nested_classes=()),),
 )
 _MODULE = Module(
     name="pkg",
@@ -204,4 +206,22 @@ def test_non_string_decorator_raises() -> None:
     data["functions"][0]["decorators"] = [1]
 
     with pytest.raises(SnapshotError, match="only strings"):
+        load_json(json.dumps(data))
+
+
+@pytest.mark.parametrize("key", ["bases", "keywords"])
+def test_non_string_class_base_or_keyword_raises(key: str) -> None:
+    data = _snapshot()
+    data["classes"][0][key] = [None]
+
+    with pytest.raises(SnapshotError, match="only strings"):
+        load_json(json.dumps(data))
+
+
+@pytest.mark.parametrize("key", ["bases", "keywords"])
+def test_class_without_bases_or_keywords_raises(key: str) -> None:
+    data = _snapshot()
+    del data["classes"][0][key]
+
+    with pytest.raises(SnapshotError, match=f"missing field '{key}'"):
         load_json(json.dumps(data))

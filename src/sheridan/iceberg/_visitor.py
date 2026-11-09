@@ -464,15 +464,16 @@ def _build_class(node: ast.ClassDef) -> Class:
     assignments, including those inside ``if`` and ``try`` blocks of the class
     body, skipping property setters, getters and deleters, and groups
     ``@overload`` signatures with their implementation. When a name is defined
-    more than once, only the first definition is kept. Does **not**
-    read ``node.bases``, ``node.decorator_list``, or any docstring.
+    more than once, only the first definition is kept. Bases and keyword
+    arguments such as ``metaclass=`` are kept as unparsed source. Does **not**
+    read ``node.decorator_list`` or any docstring.
 
     Args:
         node: A ``ClassDef`` AST node.
 
     Returns:
-        A ``Class`` capturing the name, assignments, methods, and nested
-        classes found in the class body.
+        A ``Class`` capturing the name, bases, keyword arguments, and the
+        assignments, methods, and nested classes found in the class body.
     """
     assignments: list[Assignment] = []
     methods: list[Function] = []
@@ -521,6 +522,8 @@ def _build_class(node: ast.ClassDef) -> Class:
 
     return Class(
         name=node.name,
+        bases=tuple(ast.unparse(base) for base in node.bases),
+        keywords=tuple(ast.unparse(keyword) for keyword in node.keywords),
         assignments=tuple(assignments),
         methods=tuple(methods),
         nested_classes=tuple(nested_classes),

@@ -245,6 +245,12 @@ def test_get_class_str_simple_name() -> None:
     assert result.name == "Foo"
 
 
+def test_get_class_captures_bases_and_keywords() -> None:
+    result = get_class("class Foo(Base, Protocol, metaclass=Meta):\n    pass")
+    assert result.bases == ("Base", "Protocol")
+    assert result.keywords == ("metaclass=Meta",)
+
+
 def test_get_class_str_no_class_raises_parse_error() -> None:
     with pytest.raises(ParseError):
         get_class("x = 1")

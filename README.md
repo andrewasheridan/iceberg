@@ -14,7 +14,8 @@ code, and it has no runtime dependencies.
 ## Features
 
 - Reports every public module, class, function, and assignment, with full
-  signatures (parameter names, annotations, defaults) and class members.
+  signatures (parameter names, annotations, defaults), class bases and
+  keyword arguments (`class Error(Base, metaclass=Meta)`), and class members.
   Definitions inside `if` / `try` blocks at module level or in a class body
   (`if TYPE_CHECKING:`, version checks, `except ImportError:` fallbacks)
   count; when a name is defined more than once, the first definition is kept.
@@ -128,7 +129,9 @@ A `Package` is a trie of `modules` and `subpackages`; its `assignments`,
 `Module`, `Class`, `Function`, `Parameter`, `Assignment`, and `Reference`.
 `Function.kind` tells a module-level `"function"` apart from a class's
 `"method"`, `"classmethod"`, `"staticmethod"` and `"property"`, and
-`Function.decorators` lists its decorators as source strings. The tree shows a
+`Function.decorators` lists its decorators as source strings. `Class.bases`
+and `Class.keywords` list a class's bases and keyword arguments such as
+`metaclass=ABCMeta` as source strings. The tree shows a
 property as the attribute callers read (`property p: int`) and prefixes
 classmethods and staticmethods with their kind. Property setters and deleters
 are not listed separately. A function with `typing.overload` signatures is one
