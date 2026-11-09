@@ -1,4 +1,4 @@
-"""Golden tests for the examples in the main README and every ``cases/*/README.md``.
+"""Golden tests for the examples in the READMEs and in the pages of the docs site.
 
 Each ``console`` block holds one ``$ iceberg ...`` command, then its expected
 output. The test runs the command from the project root through the ``main``
@@ -18,6 +18,9 @@ from sheridan.iceberg._cli import main
 
 _PROJECT_ROOT = Path(__file__).parent.parent.parent
 _READMES = [_PROJECT_ROOT / "README.md", *sorted((_PROJECT_ROOT / "cases").glob("*/README.md"))]
+# Only some docs pages have console examples. Thus, test_every_readme_has_an_example
+# does not examine these pages.
+_DOCS_PAGES = sorted((_PROJECT_ROOT / "docs").glob("*.md"))
 _CONSOLE_BLOCK = re.compile(r"^```console\n(.*?)^```$", re.MULTILINE | re.DOTALL)
 _PROMPT = "$ "
 
@@ -48,7 +51,7 @@ def _parse_block(readme: Path, block: str) -> _Example:
 def _collect() -> list[_Example]:
     examples: list[_Example] = []
 
-    for readme in _READMES:
+    for readme in [*_READMES, *_DOCS_PAGES]:
         text = readme.read_text(encoding="utf-8")
 
         for match in _CONSOLE_BLOCK.finditer(text):
