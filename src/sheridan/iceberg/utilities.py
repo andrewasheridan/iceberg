@@ -40,6 +40,7 @@ def _get_source(obj: object) -> str:
     """
     if getattr(obj, "__name__", None) == "<lambda>":
         raise InvalidPathError(f"Cannot build a Function from a lambda: {obj!r}; pass a def function instead")
+
     try:
         return inspect.getsource(obj)  # type: ignore[arg-type]
     except (OSError, TypeError) as exc:
@@ -60,10 +61,13 @@ def _scope_definitions(body: list[ast.stmt]) -> Iterator[_DefNode]:
         if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             yield stmt
             continue
+
         for field in ("body", "orelse", "finalbody"):
             yield from _scope_definitions(getattr(stmt, field, []))
+
         for handler in getattr(stmt, "handlers", []):
             yield from _scope_definitions(handler.body)
+
         for case in getattr(stmt, "cases", []):
             yield from _scope_definitions(case.body)
 
@@ -77,20 +81,26 @@ def _find_definition(tree: ast.Module, name: str, kind: type[_DefNode] | tuple[t
     first nested definition with that name is returned.
     """
     *parents, leaf = name.split(".")
+
     body: list[ast.stmt] = tree.body
     for part in parents:
         parent = next((node for node in _scope_definitions(body) if node.name == part), None)
         if parent is None:
             return None
+
         body = parent.body
+
     for node in _scope_definitions(body):
         if isinstance(node, kind) and node.name == leaf:
             return node
+
     if parents:
         return None
+
     for walked in ast.walk(tree):
         if isinstance(walked, kind) and walked.name == leaf:
             return walked
+
     return None
 
 
@@ -114,16 +124,21 @@ def _find_assignment(tree: ast.Module, name: str | None) -> Assignment | None:
         match node:
             case ast.Assign():
                 candidates = _build_assignments(node)
+
             case ast.AnnAssign():
                 result = _build_assignment(node)
                 candidates = [] if result is None else [result]
+
             case ast.TypeAlias():
                 candidates = [_build_type_alias(node)]
+
             case _:
                 continue
+
         for candidate in candidates:
             if name is None or candidate.name == name:
                 return candidate
+
     return None
 
 
@@ -187,19 +202,24 @@ def get_function(
         case str():
             src = textwrap.dedent(source_or_node_or_path_or_func)
             tree = parse_source(src)
+
             for node in ast.walk(tree):
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     return _build_function(node)
+
             raise ParseError("No function definition found in source")
 
         case Path():
             if name is None:
                 raise TypeError("name is required when passing a Path")
+
             src = read_source(source_or_node_or_path_or_func)
             tree = parse_source(src, source_or_node_or_path_or_func)
+
             func_node = _find_definition(tree, name, (ast.FunctionDef, ast.AsyncFunctionDef))
             if isinstance(func_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 return _build_function(func_node)
+
             raise InvalidPathError(f"No function {name!r} found in {source_or_node_or_path_or_func}")
 
         case _:
@@ -266,19 +286,24 @@ def get_class(
         case str():
             src = textwrap.dedent(source_or_node_or_path_or_cls)
             tree = parse_source(src)
+
             for node in ast.walk(tree):
                 if isinstance(node, ast.ClassDef):
                     return _build_class(node)
+
             raise ParseError("No class definition found in source")
 
         case Path():
             if name is None:
                 raise TypeError("name is required when passing a Path")
+
             src = read_source(source_or_node_or_path_or_cls)
             tree = parse_source(src, source_or_node_or_path_or_cls)
+
             class_node = _find_definition(tree, name, ast.ClassDef)
             if isinstance(class_node, ast.ClassDef):
                 return _build_class(class_node)
+
             raise InvalidPathError(f"No class {name!r} found in {source_or_node_or_path_or_cls}")
 
         case _:
@@ -345,6 +370,7 @@ def get_assignment(
             result = _build_assignment(source_or_node_or_path)
             if result is None:
                 raise ParseError("Assignment has a non-simple target")
+
             return result
 
         case str():
@@ -353,18 +379,23 @@ def get_assignment(
             found = _find_assignment(tree, name)
             if found is not None:
                 return found
+
             if name is not None:
                 raise ParseError(f"No assignment {name!r} found in source")
+
             raise ParseError("No assignment found in source")
 
         case Path():
             if name is None:
                 raise TypeError("name is required when passing a Path")
+
             src = read_source(source_or_node_or_path)
             tree = parse_source(src, source_or_node_or_path)
+
             found = _find_assignment(tree, name)
             if found is not None:
                 return found
+
             raise InvalidPathError(f"No assignment {name!r} found in {source_or_node_or_path}")
 
 
@@ -427,8 +458,10 @@ def get_module(
                 sf = inspect.getsourcefile(source_or_path_or_mod)
             except TypeError:
                 sf = None
+
             if sf is None:
                 raise InvalidPathError(f"Cannot locate source for module {source_or_path_or_mod!r}")
+
             return get_module(Path(sf), name=name or source_or_path_or_mod.__name__)
 
 
@@ -478,6 +511,7 @@ def get_package(
             result = get_public_api(path_or_mod)
             if isinstance(result, Package):
                 return result
+
             raise InvalidPathError(f"{path_or_mod} points to a module, not a package — use get_module() instead")
 
         case _:
@@ -495,10 +529,12 @@ def _package_dir(mod: types.ModuleType) -> Path:
     search_path = getattr(mod, "__path__", None)
     if search_path is None:
         raise InvalidPathError(f"{mod.__name__} is a module, not a package — use get_module() instead")
+
     portions = list(dict.fromkeys(search_path))
     if len(portions) != 1:
         raise InvalidPathError(
             f"{mod.__name__} is a namespace package with {len(portions)} portions "
             f"({', '.join(portions)}); pass the path of one portion to get_package() instead"
         )
+
     return Path(portions[0])

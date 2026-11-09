@@ -34,19 +34,26 @@ class _Example:
 
 def _parse_block(readme: Path, block: str) -> _Example:
     command, _, expected = block.partition("\n")
+
     assert command.startswith(_PROMPT), f"{readme}: console block must start with '{_PROMPT}iceberg ...'"
     program, *argv = shlex.split(command.removeprefix(_PROMPT))
+
     assert program == "iceberg", f"{readme}: console block must run iceberg, got {program!r}"
     assert _PROMPT not in expected, f"{readme}: console block must hold exactly one command"
+
     return _Example(readme=readme, argv=argv, expected=expected)
 
 
 def _collect() -> list[_Example]:
-    return [
-        _parse_block(readme, match.group(1))
-        for readme in _READMES
-        for match in _CONSOLE_BLOCK.finditer(readme.read_text(encoding="utf-8"))
-    ]
+    examples: list[_Example] = []
+
+    for readme in _READMES:
+        text = readme.read_text(encoding="utf-8")
+
+        for match in _CONSOLE_BLOCK.finditer(text):
+            examples.append(_parse_block(readme, match.group(1)))
+
+    return examples
 
 
 _EXAMPLES = _collect()
@@ -56,6 +63,7 @@ def test_every_readme_has_an_example() -> None:
     """Each README must contribute at least one example, so a renamed block fence cannot skip a case silently."""
     documented = {example.readme for example in _EXAMPLES}
     missing = [str(readme.relative_to(_PROJECT_ROOT)) for readme in _READMES if readme not in documented]
+
     assert not missing, f"READMEs without a console example: {missing}"
 
 

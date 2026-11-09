@@ -249,6 +249,7 @@ def test_main_non_py_file_returns_1_with_message(
     exit_code = main([str(target)])
 
     captured = capsys.readouterr()
+
     assert exit_code == 1
     assert "error: not a .py file" in captured.err
     assert captured.out == ""
@@ -266,6 +267,7 @@ def test_main_syntax_error_reports_file_line_and_column(tmp_path: Path, capsys: 
 
     assert exit_code == 1
     err = capsys.readouterr().err
+
     assert err.startswith(f"error: {bad}:3:7: ")
     assert "(<unknown>" not in err
 
@@ -293,6 +295,7 @@ def test_main_undecodable_file_returns_1(tmp_path: Path, capsys: pytest.CaptureF
 
     assert main([str(pkg)]) == 1
     captured = capsys.readouterr()
+
     assert str(pkg / "mod.py") in captured.err
     assert "unexpected error" not in captured.err
 
@@ -305,6 +308,7 @@ def test_main_broken_symlink_returns_1(tmp_path: Path, capsys: pytest.CaptureFix
 
     assert main([str(pkg)]) == 1
     captured = capsys.readouterr()
+
     assert str(pkg / "mod.py") in captured.err
     assert "unexpected error" not in captured.err
 
@@ -335,6 +339,7 @@ def test_main_exclude_skips_modules_end_to_end(tmp_path: Path, capsys: pytest.Ca
     exit_code = main([str(root), "--exclude", "drop.py"])
 
     out = capsys.readouterr().out
+
     assert exit_code == 0
     assert "kept" in out
     assert "dropped" not in out
@@ -380,7 +385,9 @@ def _config_passed_to_api(argv: list[str]) -> Config:
         patch("sheridan.iceberg._cli.format_tree", return_value=_TREE_OUTPUT),
     ):
         assert main(argv) == 0
+
     config = mock_api.call_args.kwargs["config"]
+
     assert isinstance(config, Config)
     return config
 
@@ -514,9 +521,11 @@ class TestKeepGoing:
         exit_code = main([str(package), "--no-config", "--keep-going"])
 
         captured = capsys.readouterr()
+
         assert exit_code == 1
         assert "def ok() -> None" in captured.out
         error, warning = captured.err.splitlines()
+
         assert error.startswith(f"{package / 'vendored.py'}:2: error: ")
         assert warning == f"{package / '__init__.py'}: warning: 'lazy' is exported but never bound"
 
@@ -542,6 +551,7 @@ class TestKeepGoing:
 
         assert main([str(package), "--no-config", "--json"]) == 0
         captured = capsys.readouterr()
+
         assert "diagnostics" not in json.loads(captured.out)
         assert captured.err == ""
 

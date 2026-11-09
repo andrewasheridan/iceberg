@@ -51,6 +51,7 @@ def _is_public_name(name: str) -> bool:
         ``True`` when the name is public.
     """
     is_dunder = len(name) > 4 and name.startswith("__") and name.endswith("__")
+
     return is_dunder or not name.startswith("_")
 
 
@@ -304,30 +305,35 @@ class Package:
         for module in self.modules:
             if module.name == self.name:
                 return module
+
         return None
 
     @property
     def assignments(self) -> tuple[Assignment, ...]:
         if init_module := self._init_module:
             return init_module.assignments
+
         return ()
 
     @property
     def classes(self) -> tuple[Class, ...]:
         if init_module := self._init_module:
             return init_module.classes
+
         return ()
 
     @property
     def functions(self) -> tuple[Function, ...]:
         if init_module := self._init_module:
             return init_module.functions
+
         return ()
 
     @property
     def references(self) -> tuple[Reference, ...]:
         if init_module := self._init_module:
             return init_module.references
+
         return ()
 
     @property

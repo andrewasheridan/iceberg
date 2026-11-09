@@ -21,6 +21,7 @@ _CFG = Config(max_workers=1)
 def _snapshot_package(path: Path) -> Package:
     """Snapshot a package directory, narrowing the ``Package | Module`` result."""
     result = get_public_api(path, config=_CFG)
+
     assert isinstance(result, Package)
     return result
 
@@ -38,6 +39,7 @@ def _all_modules(pkg: Package) -> list[Module]:
     result: list[Module] = list(pkg.modules)
     for sub in pkg.subpackages:
         result.extend(_all_modules(sub))
+
     return result
 
 
@@ -54,6 +56,7 @@ def _find_module(pkg: Package, dotted_name: str) -> Module | None:
     for mod in _all_modules(pkg):
         if mod.name == dotted_name:
             return mod
+
     return None
 
 
@@ -205,6 +208,7 @@ class HttpClient:
     # resolved init module is exposed at the package level.
     assert len(pkg.modules) == 1
     init_mod = pkg.modules[0]
+
     assert init_mod.name == "transport"
     assert "HttpClient" in _class_names(init_mod)
 
@@ -256,6 +260,7 @@ class Store:
     assert storage_pkg.subpackages == ()
     assert len(storage_pkg.modules) == 1
     storage_init = storage_pkg.modules[0]
+
     assert storage_init.name == "mylib.storage"
     assert "Store" in _class_names(storage_init)
 
@@ -281,6 +286,7 @@ def add(a: int, b: int) -> int:
     pkg = _snapshot_package(pkg_dir)
 
     init_mod = _find_module(pkg, "utils")
+
     assert init_mod is not None
     assert "add" in _function_names(init_mod)
     assert "PI" in {a.name for a in init_mod.assignments}
@@ -307,6 +313,7 @@ class _InternalHelper:
     pkg = _snapshot_package(pkg_dir)
 
     impl_mod = _find_module(pkg, "internals.impl")
+
     assert impl_mod is not None
     assert impl_mod.functions == ()
     assert impl_mod.classes == ()
@@ -338,6 +345,7 @@ async def fetch(url: str) -> bytes:
 
     assert isinstance(result, Module)
     func_map: dict[str, Function] = {f.name: f for f in result.functions}
+
     assert "fetch" in func_map
     assert func_map["fetch"].is_async is True
 
@@ -388,9 +396,12 @@ class AuthService:
     pkg = _snapshot_package(pkg_dir)
 
     init_mod = _find_module(pkg, "services")
+
     assert init_mod is not None
     class_map: dict[str, Class] = {c.name: c for c in init_mod.classes}
+
     assert "AuthService" in class_map
     method_names = {m.name for m in class_map["AuthService"].methods}
+
     assert "login" in method_names
     assert "logout" in method_names

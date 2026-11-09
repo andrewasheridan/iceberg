@@ -31,6 +31,7 @@ _FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 def _snapshot_package(path: Path) -> Package:
     """Snapshot a fixture package, narrowing the ``Package | Module`` result."""
     result = get_public_api(path, config=_CFG)
+
     assert isinstance(result, Package)
     return result
 
@@ -71,6 +72,7 @@ def test_simple_pkg_no_subpackages(simple_pkg: Package) -> None:
 def test_simple_pkg_private_modules_excluded(simple_pkg: Package) -> None:
     """_models and _utils must not appear as modules."""
     names = _module_names(simple_pkg)
+
     assert "simple_pkg._models" not in names
     assert "simple_pkg._utils" not in names
     # Also check short names just in case
@@ -117,6 +119,7 @@ def test_nested_pkg_name(nested_pkg: Package) -> None:
 def test_nested_pkg_private_module_excluded(nested_pkg: Package) -> None:
     """_private.py must not appear as a module."""
     names = _module_names(nested_pkg)
+
     assert "nested_pkg._private" not in names
     assert "_private" not in names
 
@@ -124,6 +127,7 @@ def test_nested_pkg_private_module_excluded(nested_pkg: Package) -> None:
 def test_nested_pkg_private_subpackage_excluded(nested_pkg: Package) -> None:
     """_private_sub subpackage must not appear in subpackages."""
     names = _subpackage_names(nested_pkg)
+
     assert "nested_pkg._private_sub" not in names
     assert "_private_sub" not in names
 
@@ -135,6 +139,7 @@ def test_nested_pkg_public_sub_not_a_subpackage(nested_pkg: Package) -> None:
     Per the design contract, only subpackages whose short name appears in __all__ are included.
     """
     names = _subpackage_names(nested_pkg)
+
     assert "nested_pkg.public_sub" not in names
     assert "public_sub" not in names
 
@@ -143,6 +148,7 @@ def test_nested_pkg_top_level_func_hoisted(nested_pkg: Package) -> None:
     """top_level_func is defined directly in __init__ and named in __all__."""
     assert len(nested_pkg.modules) == 1
     init_mod = nested_pkg.modules[0]
+
     assert "top_level_func" in _function_names(init_mod)
 
 
@@ -218,6 +224,7 @@ def test_mixed_pkg_name(mixed_pkg: Package) -> None:
 def test_mixed_pkg_private_module_excluded(mixed_pkg: Package) -> None:
     """_private_module must not appear anywhere in the package."""
     names = _module_names(mixed_pkg)
+
     assert "_private_module" not in names
     assert "mixed_pkg._private_module" not in names
 

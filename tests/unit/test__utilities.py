@@ -132,6 +132,7 @@ else:
     from .old import other
 """
     result = _imports(source)
+
     assert result["thing"] == ("pkg.new", "thing")
     assert result["other"] == ("pkg.old", "other")
 
@@ -327,8 +328,10 @@ def test_read_source_uses_pep263_declaration(tmp_path: Path) -> None:
 def test_read_source_bytes_not_valid_for_encoding(tmp_path: Path) -> None:
     path = tmp_path / "mod.py"
     path.write_bytes('NAME = "café"\n'.encode("latin-1"))
+
     with pytest.raises(SourceReadError, match="cannot decode file") as info:
         read_source(path)
+
     assert info.value.path == str(path)
     assert str(info.value).startswith(f"{path}: ")
 
@@ -344,6 +347,7 @@ def test_read_source_missing_file(tmp_path: Path) -> None:
     path = tmp_path / "missing.py"
     with pytest.raises(SourceReadError, match="cannot read file") as info:
         read_source(path)
+
     assert info.value.path == str(path)
 
 
@@ -364,6 +368,7 @@ def test_read_source_unreadable_file(tmp_path: Path) -> None:
             read_source(path)
     finally:
         path.chmod(0o644)
+
     assert info.value.path == str(path)
 
 
@@ -389,10 +394,12 @@ class TestParseSource:
     def test_syntax_error_raises_parse_error_with_path(self) -> None:
         with pytest.raises(ParseError) as info:
             parse_source("def (:\n", Path("bad.py"))
+
         assert info.value.path == "bad.py"
         assert info.value.lineno == 1
 
     def test_syntax_error_without_path_has_no_path(self) -> None:
         with pytest.raises(ParseError) as info:
             parse_source("def (:\n")
+
         assert info.value.path is None

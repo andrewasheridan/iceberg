@@ -26,6 +26,7 @@ def b():
 """
     module = _visit(source)
     names = {f.name for f in module.functions}
+
     assert "a" in names
     assert "b" not in names
 
@@ -38,6 +39,7 @@ y: int = 2
 """
     module = _visit(source)
     names = {a.name for a in module.assignments}
+
     assert "x" in names
     assert "y" not in names
 
@@ -54,6 +56,7 @@ def public():
 """
     module = _visit(source)
     names = {f.name for f in module.functions}
+
     assert "_helper" in names
     assert "public" not in names
 
@@ -68,6 +71,7 @@ def _private_fn():
 """
     module = _visit(source)
     names = {f.name for f in module.functions}
+
     assert "public_fn" in names
     assert "_private_fn" not in names
 
@@ -82,6 +86,7 @@ class _PrivateClass:
 """
     module = _visit(source)
     names = {c.name for c in module.classes}
+
     assert "PublicClass" in names
     assert "_PrivateClass" not in names
 
@@ -93,6 +98,7 @@ _Y: int = 2
 """
     module = _visit(source)
     names = {a.name for a in module.assignments}
+
     assert "X" in names
     assert "_Y" not in names
 
@@ -103,6 +109,7 @@ def full(pos_only: int, /, pos_or_kw: str, *args: float, kw_only: bool = True, *
     pass
 """
     module = _visit(source)
+
     assert len(module.functions) == 1
     fn: Function = module.functions[0]
 
@@ -115,8 +122,10 @@ def full(pos_only: int, /, pos_or_kw: str, *args: float, kw_only: bool = True, *
 
     # keyword_parameters is a frozenset
     kw_names = {p.name for p in fn.keyword_parameters}
+
     assert kw_names == {"kw_only"}
     (kw_param,) = fn.keyword_parameters
+
     assert kw_param.default == "True"
     assert kw_param.annotation == "bool"
 
@@ -143,6 +152,7 @@ def greet(name: str = "world", count: int = 3) -> str:
     module = _visit(source)
     fn = module.functions[0]
     defaults = {p.name: p.default for p in fn.positional_parameters}
+
     assert defaults["name"] == "'world'"
     assert defaults["count"] == "3"
 
@@ -168,6 +178,7 @@ def fn(a={default_source}, *, b={default_source}):
     fn = module.functions[0]
     (positional,) = fn.positional_parameters
     (keyword,) = fn.keyword_parameters
+
     assert positional.default == expected
     assert keyword.default == expected
 
@@ -180,6 +191,7 @@ def fn(a={long_list}):
 """
     module = _visit(source)
     (param,) = module.functions[0].positional_parameters
+
     assert param.default == "..."
 
 
@@ -190,6 +202,7 @@ def nothing() -> None:
 """
     module = _visit(source)
     fn = module.functions[0]
+
     assert fn.positional_parameters == ()
     assert fn.keyword_parameters == frozenset()
     assert fn.var_positional is None
@@ -205,6 +218,7 @@ def fn(*, required: str) -> None:
     module = _visit(source)
     fn = module.functions[0]
     (kw,) = fn.keyword_parameters
+
     assert kw.name == "required"
     assert kw.default is None
 
@@ -215,6 +229,7 @@ async def fetch(url: str) -> bytes:
     pass
 """
     module = _visit(source)
+
     assert len(module.functions) == 1
     assert module.functions[0].is_async is True
 
@@ -239,8 +254,10 @@ class Outer:
             pass
 """
     module = _visit(source)
+
     assert len(module.classes) == 1
     outer: Class = module.classes[0]
+
     assert outer.name == "Outer"
 
     method_names = {m.name for m in outer.methods}
@@ -248,8 +265,10 @@ class Outer:
 
     assert len(outer.nested_classes) == 1
     inner: Class = outer.nested_classes[0]
+
     assert inner.name == "Inner"
     inner_method_names = {m.name for m in inner.methods}
+
     assert "inner_method" in inner_method_names
 
 
@@ -259,6 +278,7 @@ class MyClass:
     pass
 """
     cls = _visit(source).classes[0]
+
     assert cls.bases == ()
     assert cls.keywords == ()
 
@@ -278,6 +298,7 @@ class MyClass(Base, metaclass=ABCMeta, total=False, **options):
     pass
 """
     cls = _visit(source).classes[0]
+
     assert cls.bases == ("Base",)
     assert cls.keywords == ("metaclass=ABCMeta", "total=False", "**options")
 
@@ -299,6 +320,7 @@ class MyClass:
 """
     module = _visit(source)
     cls = module.classes[0]
+
     assert not hasattr(cls, "decorators")
 
 
@@ -309,6 +331,7 @@ class MyClass:
 """
     module = _visit(source)
     cls = module.classes[0]
+
     assert not hasattr(cls, "docstring")
 
 
@@ -449,8 +472,10 @@ def test_annotated_assignment_simple_literal() -> None:
 TIMEOUT: int = 30
 """
     module = _visit(source)
+
     assert len(module.assignments) == 1
     a: Assignment = module.assignments[0]
+
     assert a.name == "TIMEOUT"
     assert a.annotation == "int"
 
@@ -461,6 +486,7 @@ VERSION: str = "1.0.0"
 """
     module = _visit(source)
     a = module.assignments[0]
+
     assert a.name == "VERSION"
     assert a.annotation == "str"
 
@@ -471,6 +497,7 @@ x: int
 """
     module = _visit(source)
     a = module.assignments[0]
+
     assert a.name == "x"
     assert a.annotation == "int"
 
@@ -481,6 +508,7 @@ LIMIT = 100
 """
     module = _visit(source)
     a = module.assignments[0]
+
     assert a.name == "LIMIT"
     assert a.annotation is None
 
@@ -523,6 +551,7 @@ a = b = 1
 c, *rest = 1, 2, 3
 """
     module = _visit(source)
+
     assert {a.name for a in module.assignments} == {"a", "b", "c", "rest"}
     assert module.references == ()
 
@@ -536,6 +565,7 @@ class MyClass:
 """
     module = _visit(source)
     names = [a.name for a in module.classes[0].assignments]
+
     assert names == ["a", "b", "c", "rest", "d"]
 
 
@@ -550,8 +580,10 @@ obj.attr = 42
 def test_type_alias_pep695() -> None:
     source = "type X = int\n"
     module = _visit(source)
+
     assert len(module.assignments) == 1
     a: Assignment = module.assignments[0]
+
     assert a.name == "X"
     assert a.annotation == "TypeAlias"
 
@@ -560,6 +592,7 @@ def test_type_alias_pep695_complex_rhs() -> None:
     source = "type Vector = list[float]\n"
     module = _visit(source)
     a = module.assignments[0]
+
     assert a.name == "Vector"
     assert a.annotation == "TypeAlias"
 
@@ -576,6 +609,7 @@ __all__ = ["MyAlias"]
 type MyAlias = str
 """
     module = _visit(source)
+
     assert len(module.assignments) == 1
     assert module.assignments[0].name == "MyAlias"
 
@@ -619,6 +653,7 @@ class MyClass:
     module = _visit(source)
     cls: Class = module.classes[0]
     method_names = {m.name for m in cls.methods}
+
     assert "public_method" in method_names
     assert "_helper" not in method_names
 
@@ -633,6 +668,7 @@ class MyClass:
     module = _visit(source)
     cls: Class = module.classes[0]
     assignment_names = {a.name for a in cls.assignments}
+
     assert "count" in assignment_names
     assert "_count" not in assignment_names
 
@@ -650,6 +686,7 @@ class Outer:
     module = _visit(source)
     cls: Class = module.classes[0]
     nested_names = {nc.name for nc in cls.nested_classes}
+
     assert "PublicInner" in nested_names
     assert "_Inner" not in nested_names
 
@@ -667,6 +704,7 @@ class MyClass:
     module = _visit(source)
     cls: Class = module.classes[0]
     method_names = {m.name for m in cls.methods}
+
     assert "__init__" in method_names
     assert "_private" not in method_names
 
@@ -689,6 +727,7 @@ class MyClass:
 """
     module = _visit(source)
     cls: Class = module.classes[0]
+
     assert [m.name for m in cls.methods] == ["__call__", "__eq__"]
 
 
@@ -703,6 +742,7 @@ class MyClass:
 """
     module = _visit(source)
     cls: Class = module.classes[0]
+
     assert [a.name for a in cls.assignments] == ["__slots__", "__match_args__"]
 
 
@@ -752,6 +792,7 @@ def local():
     pass
 """
     module = visit_module(source, "pkg.mod")
+
     assert [f.name for f in module.functions] == ["local"]
     assert module.references == (
         Reference(name="helper", module="pkg._impl", attribute="helper"),
@@ -785,6 +826,7 @@ if TYPE_CHECKING:
         pass
 """
     module = _visit(source)
+
     assert [a.name for a in module.assignments] == ["Alias"]
     assert [c.name for c in module.classes] == ["Proto"]
     assert [f.name for f in module.functions] == ["helper"]
@@ -805,6 +847,7 @@ else:
     LIMIT = 2
 """
     module = _visit(source)
+
     assert module.functions == (
         Function(
             name="compat",
@@ -833,6 +876,7 @@ finally:
         pass
 """
     module = visit_module(source, "pkg.mod")
+
     assert [f.name for f in module.functions] == ["fast"]
     assert [c.name for c in module.classes] == ["Thing"]
     assert module.references == ()
@@ -878,6 +922,7 @@ class A:
             x = 1
 """
     (cls,) = _visit(source).classes
+
     assert [(m.name, m.returns) for m in cls.methods] == [("y", "int")]
     assert cls.assignments == (Assignment(name="LIMIT", annotation="int"),)
     assert cls.nested_classes == (
@@ -899,6 +944,7 @@ class A:
         HAS_NUMPY = True
 """
     (cls,) = _visit(source).classes
+
     assert [m.name for m in cls.methods] == ["to_array"]
     assert cls.assignments == (Assignment(name="HAS_NUMPY", annotation=None),)
     assert [c.name for c in cls.nested_classes] == ["Fallback"]
@@ -922,6 +968,7 @@ class C:
     def f(self, x): ...
 """
     (method,) = _visit(source).classes[0].methods
+
     assert method.name == "f"
     assert [o.returns for o in method.overloads] == ["int", "str"]
 
@@ -929,6 +976,7 @@ class C:
 def test_syntax_error_reports_path_line_and_column() -> None:
     with pytest.raises(ParseError) as info:
         visit_module("x = 1\ndef f(:\n", "pkg.mod", Path("src/pkg/mod.py"))
+
     assert info.value.path == "src/pkg/mod.py"
     assert info.value.lineno == 2
     assert info.value.offset is not None
@@ -938,6 +986,7 @@ def test_syntax_error_reports_path_line_and_column() -> None:
 def test_syntax_error_without_path_has_no_path() -> None:
     with pytest.raises(ParseError) as info:
         visit_module("def f(:\n", "pkg.mod")
+
     assert info.value.path is None
     assert info.value.lineno == 1
 
@@ -946,6 +995,7 @@ def test_star_import_from_module_with_known_all_binds_its_names() -> None:
     source = 'from ._c import *\nfrom os import *\n__all__ = ["X", "ghost"]\n'
     known_all: dict[str, frozenset[str] | None] = {"pkg._c": frozenset({"X"})}
     module = visit_module(source, "pkg.mod", known_all=known_all)
+
     assert module.references == (
         Reference(name="X", module="pkg._c", attribute="X"),
         Reference(name="ghost", module="os", attribute="ghost"),
@@ -972,6 +1022,7 @@ def f(x):
 
     assert [fn.name for fn in module.functions] == ["f"]
     (f,) = module.functions
+
     assert f.decorators == ()
     assert f.returns is None
     assert [o.returns for o in f.overloads] == ["int", "str"]
@@ -1005,6 +1056,7 @@ class C:
 
     assert [fn.name for fn in cls.methods] == ["m", "k"]
     m, k = cls.methods
+
     assert [o.returns for o in m.overloads] == ["int", "str"]
     assert {o.kind for o in m.overloads} == {"method"}
     assert k.kind == "classmethod"

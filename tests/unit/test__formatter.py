@@ -108,6 +108,7 @@ def test_format_tree_empty_package() -> None:
     """An empty package should render just its header line with no children."""
     pkg = _make_package(name="mylib")
     result = format_tree(pkg)
+
     assert result == "package mylib"
 
 
@@ -117,6 +118,7 @@ def test_format_tree_single_empty_module() -> None:
     pkg = _make_package(name="mylib", modules=(mod,))
     result = format_tree(pkg)
     expected = "package mylib\n└── module utils"
+
     assert result == expected
 
 
@@ -127,6 +129,7 @@ def test_format_tree_two_modules_branch_and_last() -> None:
     pkg = _make_package(name="mylib", modules=(mod_a, mod_b))
     result = format_tree(pkg)
     lines = result.splitlines()
+
     assert lines[0] == "package mylib"
     assert lines[1] == "├── module alpha"
     assert lines[2] == "└── module beta"
@@ -138,6 +141,7 @@ def test_format_tree_module_with_assignment_annotation() -> None:
     mod = _make_module(name="core", assignments=(a,))
     pkg = _make_package(name="mylib", modules=(mod,))
     result = format_tree(pkg)
+
     assert "VERSION: str" in result
 
 
@@ -147,6 +151,7 @@ def test_format_tree_module_with_bare_assignment() -> None:
     mod = _make_module(name="core", assignments=(a,))
     pkg = _make_package(name="mylib", modules=(mod,))
     result = format_tree(pkg)
+
     assert "SENTINEL" in result
 
 
@@ -156,6 +161,7 @@ def test_format_tree_function_no_params() -> None:
     mod = _make_module(name="ops", functions=(fn,))
     pkg = _make_package(name="mylib", modules=(mod,))
     result = format_tree(pkg)
+
     assert "do_thing()" in result
 
 
@@ -165,6 +171,7 @@ def test_format_tree_function_with_return() -> None:
     mod = _make_module(name="ops", functions=(fn,))
     pkg = _make_package(name="mylib", modules=(mod,))
     result = format_tree(pkg)
+
     assert "compute() -> int" in result
 
 
@@ -174,6 +181,7 @@ def test_format_tree_async_function() -> None:
     mod = _make_module(name="net", functions=(fn,))
     pkg = _make_package(name="mylib", modules=(mod,))
     result = format_tree(pkg)
+
     assert "async def fetch() -> str" in result
 
 
@@ -187,6 +195,7 @@ def test_format_tree_property(returns: str | None, expected: str) -> None:
     fn = _make_function(name="p", positional_parameters=(self_param,), returns=returns, kind="property")
     mod = _make_module(name="ops", functions=(fn,))
     result = format_tree(mod)
+
     assert result.splitlines()[-1].endswith(expected)
     assert "def p" not in result
 
@@ -196,6 +205,7 @@ def test_format_tree_classmethod_and_staticmethod_are_prefixed(kind: FunctionKin
     """Classmethods and staticmethods are prefixed with their kind."""
     fn = _make_function(name="build", returns="None", kind=kind)
     mod = _make_module(name="ops", functions=(fn,))
+
     assert f"{kind} def build() -> None" in format_tree(mod)
 
 
@@ -203,6 +213,7 @@ def test_format_tree_method_has_no_prefix() -> None:
     """A plain method renders like a function."""
     fn = _make_function(name="run", kind="method")
     mod = _make_module(name="ops", functions=(fn,))
+
     assert format_tree(mod).splitlines()[-1].endswith("── def run()")
 
 
@@ -214,6 +225,7 @@ def test_format_tree_function_positional_params() -> None:
     mod = _make_module(name="ops", functions=(fn,))
     pkg = _make_package(name="mylib", modules=(mod,))
     result = format_tree(pkg)
+
     assert "greet(a: int, b: str = 'hi')" in result
 
 
@@ -224,6 +236,7 @@ def test_format_tree_function_var_positional() -> None:
     mod = _make_module(name="ops", functions=(fn,))
     pkg = _make_package(name="mylib", modules=(mod,))
     result = format_tree(pkg)
+
     assert "variadic(*args)" in result
 
 
@@ -234,6 +247,7 @@ def test_format_tree_function_var_keyword() -> None:
     mod = _make_module(name="ops", functions=(fn,))
     pkg = _make_package(name="mylib", modules=(mod,))
     result = format_tree(pkg)
+
     assert "wrapper(**kwargs)" in result
 
 
@@ -244,6 +258,7 @@ def test_format_tree_function_keyword_only_separator() -> None:
     mod = _make_module(name="ops", functions=(fn,))
     pkg = _make_package(name="mylib", modules=(mod,))
     result = format_tree(pkg)
+
     assert "run(*, verbose: bool = False)" in result
 
 
@@ -253,6 +268,7 @@ def test_format_tree_class_appears() -> None:
     mod = _make_module(name="ui", classes=(cls,))
     pkg = _make_package(name="mylib", modules=(mod,))
     result = format_tree(pkg)
+
     assert "class Widget" in result
 
 
@@ -263,6 +279,7 @@ def test_format_tree_class_shows_bases_and_keywords() -> None:
     outer = _make_class(name="Outer", nested_classes=(inner,))
     mod = _make_module(name="ui", classes=(cls, outer))
     result = format_tree(mod)
+
     assert "class Widget(Base, Generic[T], metaclass=Meta)" in result
     assert "class Kind(Enum)" in result
     assert "class Outer\n" in result
@@ -273,6 +290,7 @@ def test_format_tree_hoisted_class_shows_bases() -> None:
     cls = _make_class(name="Error", bases=("Exception",))
     mod = _make_module(name="mylib", classes=(cls,))
     pkg = _make_package(name="mylib", modules=(mod,))
+
     assert "class Error(Exception)" in format_tree(pkg)
 
 
@@ -281,6 +299,7 @@ def test_format_json_class_bases_and_keywords_serialised() -> None:
     cls = _make_class(name="Agent", bases=("Base",), keywords=("metaclass=Meta",))
     parsed = json.loads(format_json(_make_module(name="agents", classes=(cls,))))
     cls_data = parsed["classes"][0]
+
     assert cls_data["bases"] == ["Base"]
     assert cls_data["keywords"] == ["metaclass=Meta"]
     assert list(cls_data)[:4] == ["node_type", "name", "bases", "keywords"]
@@ -296,6 +315,7 @@ def test_format_tree_class_method_indented() -> None:
     lines = result.splitlines()
     class_idx = next(i for i, line in enumerate(lines) if "class Widget" in line)
     method_idx = next(i for i, line in enumerate(lines) if "render() -> str" in line)
+
     assert method_idx > class_idx
 
 
@@ -306,10 +326,12 @@ def test_format_tree_nested_class() -> None:
     mod = _make_module(name="stuff", classes=(outer,))
     pkg = _make_package(name="mylib", modules=(mod,))
     result = format_tree(pkg)
+
     assert "class Inner" in result
     lines = result.splitlines()
     outer_idx = next(i for i, line in enumerate(lines) if "class Outer" in line)
     inner_idx = next(i for i, line in enumerate(lines) if "class Inner" in line)
+
     assert inner_idx > outer_idx
 
 
@@ -318,6 +340,7 @@ def test_format_tree_subpackage() -> None:
     subpkg = _make_package(name="sub", path=Path("/fake/sub"))
     pkg = _make_package(name="mylib", subpackages=(subpkg,))
     result = format_tree(pkg)
+
     assert "package sub" in result
 
 
@@ -362,6 +385,7 @@ def test_format_json_returns_valid_json() -> None:
     pkg = _make_package(name="mylib")
     output = format_json(pkg)
     parsed = json.loads(output)
+
     assert isinstance(parsed, dict)
 
 
@@ -369,6 +393,7 @@ def test_format_json_top_level_keys_present() -> None:
     """The JSON object must contain the expected top-level keys."""
     pkg = _make_package(name="mylib")
     parsed = json.loads(format_json(pkg))
+
     assert "name" in parsed
     assert "path" in parsed
     assert "modules" in parsed
@@ -379,6 +404,7 @@ def test_format_json_name_value() -> None:
     """The ``name`` field in JSON matches the package name."""
     pkg = _make_package(name="awesome_lib")
     parsed = json.loads(format_json(pkg))
+
     assert parsed["name"] == "awesome_lib"
 
 
@@ -386,6 +412,7 @@ def test_format_json_path_is_string() -> None:
     """The ``path`` field must be serialised as a plain string, not a mapping."""
     pkg = _make_package(name="mylib", path=Path("/some/path"))
     parsed = json.loads(format_json(pkg))
+
     assert isinstance(parsed["path"], str)
 
 
@@ -393,6 +420,7 @@ def test_format_json_root_path_is_dot() -> None:
     """The root package path is rendered as ``"."``, not as an absolute path."""
     pkg = _make_package(name="mylib", path=Path("/some/path"))
     parsed = json.loads(format_json(pkg))
+
     assert parsed["path"] == "."
 
 
@@ -401,6 +429,7 @@ def test_format_json_subpackage_path_is_relative_to_root() -> None:
     sub = _make_package(name="mylib.sub.deep", path=Path("/some/path/sub/deep"))
     pkg = _make_package(name="mylib", path=Path("/some/path"), subpackages=(sub,))
     parsed = json.loads(format_json(pkg))
+
     assert parsed["subpackages"][0]["path"] == "sub/deep"
 
 
@@ -417,6 +446,7 @@ def test_format_json_stable_across_two_calls() -> None:
     )
     mod = _make_module(name="core", functions=(fn,))
     pkg = _make_package(name="mylib", modules=(mod,))
+
     assert format_json(pkg) == format_json(pkg)
 
 
@@ -425,6 +455,7 @@ def test_format_json_modules_is_list() -> None:
     mod = _make_module(name="utils")
     pkg = _make_package(name="mylib", modules=(mod,))
     parsed = json.loads(format_json(pkg))
+
     assert isinstance(parsed["modules"], list)
     assert parsed["modules"][0]["name"] == "utils"
 
@@ -456,6 +487,7 @@ def test_format_json_frozenset_keyword_params_sorted() -> None:
     parsed = json.loads(format_json(pkg))
     kw_list: list[dict[str, Any]] = parsed["modules"][0]["functions"][0]["keyword_parameters"]
     names = [p["name"] for p in kw_list]
+
     assert names == sorted(names)
 
 
@@ -503,8 +535,10 @@ def test_format_json_frozenset_same_name_params_stable() -> None:
     # Both parameter dicts must appear in the list.
     parsed = json.loads(format_json(pkg))
     kw_list: list[dict[str, Any]] = parsed["modules"][0]["functions"][0]["keyword_parameters"]
+
     assert len(kw_list) == 2
     found_annotations = {p["annotation"] for p in kw_list}
+
     assert found_annotations == {"int", "str"}
 
 
@@ -512,6 +546,7 @@ def test_format_tree_empty_package_no_newline() -> None:
     """An empty package must not trail with a newline."""
     pkg = _make_package(name="empty")
     result = format_tree(pkg)
+
     assert not result.endswith("\n")
 
 
@@ -519,6 +554,7 @@ def test_format_tree_package_header() -> None:
     """The first line of format_tree output is always ``package <name>``."""
     pkg = _make_package(name="acme")
     first_line = format_tree(pkg).splitlines()[0]
+
     assert first_line == "package acme"
 
 
@@ -526,6 +562,7 @@ def test_format_json_empty_package() -> None:
     """An empty package serialises with empty lists for modules and subpackages."""
     pkg = _make_package(name="empty", path=Path("/e"))
     parsed = json.loads(format_json(pkg))
+
     assert parsed["modules"] == []
     assert parsed["subpackages"] == []
 
@@ -537,6 +574,7 @@ def test_format_tree_single_module_single_function() -> None:
     pkg = _make_package(name="mylib", modules=(mod,))
     result = format_tree(pkg)
     expected = "package mylib\n└── module greetings\n    └── def hello() -> None"
+
     assert result == expected
 
 
@@ -546,6 +584,7 @@ def test_format_json_single_module_single_function() -> None:
     mod = _make_module(name="greetings", functions=(fn,))
     pkg = _make_package(name="mylib", modules=(mod,))
     parsed = json.loads(format_json(pkg))
+
     assert parsed["modules"][0]["name"] == "greetings"
     assert parsed["modules"][0]["functions"][0]["name"] == "hello"
     assert parsed["modules"][0]["functions"][0]["returns"] == "None"
@@ -559,6 +598,7 @@ def test_format_json_class_methods_serialised() -> None:
     pkg = _make_package(name="mylib", modules=(mod,))
     parsed = json.loads(format_json(pkg))
     cls_data = parsed["modules"][0]["classes"][0]
+
     assert cls_data["name"] == "Agent"
     assert cls_data["methods"][0]["name"] == "act"
 
@@ -571,6 +611,7 @@ def test_format_json_nested_class_serialised() -> None:
     pkg = _make_package(name="mylib", modules=(mod,))
     parsed = json.loads(format_json(pkg))
     outer_data = parsed["modules"][0]["classes"][0]
+
     assert outer_data["nested_classes"][0]["name"] == "Inner"
 
 
@@ -590,6 +631,7 @@ def test_format_tree_assignment_label_variants(
     mod = _make_module(name="m", assignments=(a,))
     pkg = _make_package(name="p", modules=(mod,))
     result = format_tree(pkg)
+
     assert expected_label in result
 
 
@@ -614,6 +656,7 @@ def test_format_tree_parameter_rendering(
     mod = _make_module(name="m", functions=(fn,))
     pkg = _make_package(name="p", modules=(mod,))
     result = format_tree(pkg)
+
     assert expected_param_str in result
 
 
@@ -736,6 +779,7 @@ def test_format_json_path_outside_root_is_not_absolute() -> None:
     sub = _make_package(name="mylib.sub", path=Path("/elsewhere/sub"))
     pkg = _make_package(name="mylib", path=Path("/some/path"), subpackages=(sub,))
     parsed = json.loads(format_json(pkg))
+
     assert parsed["subpackages"][0]["path"] == "sub"
 
 
@@ -834,6 +878,7 @@ def test_format_json_schema_version_only_at_top_level() -> None:
     sub = _make_package(name="mylib.sub", path=Path("/p/sub"))
     pkg = _make_package(name="mylib", path=Path("/p"), modules=(_make_module(name="m"),), subpackages=(sub,))
     parsed = json.loads(format_json(pkg))
+
     assert "schema_version" not in parsed["subpackages"][0]
     assert "schema_version" not in parsed["modules"][0]
 
@@ -873,6 +918,7 @@ def test_format_json_node_type_does_not_replace_function_kind() -> None:
     mod = _make_module(name="m", classes=(_make_class(name="C", methods=(method,)),))
     parsed = json.loads(format_json(mod))
     method_data = parsed["classes"][0]["methods"][0]
+
     assert method_data["node_type"] == "function"
     assert method_data["kind"] == "classmethod"
 

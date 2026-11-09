@@ -82,9 +82,10 @@ def _should_prune(name: str) -> bool:
         such a directory are not importable or not source, so they are
         skipped silently.
     """
-    return (
-        name in _PRUNED_DIRS or name.endswith(_PRUNED_SUFFIXES) or name.startswith(".") or not _is_importable_name(name)
-    )
+    if name in _PRUNED_DIRS or name.endswith(_PRUNED_SUFFIXES) or name.startswith("."):
+        return True
+
+    return not _is_importable_name(name)
 
 
 def _is_excluded(path: Path, root: Path, patterns: tuple[str, ...]) -> bool:
@@ -100,6 +101,7 @@ def _is_excluded(path: Path, root: Path, patterns: tuple[str, ...]) -> bool:
         matches any pattern.
     """
     relative = PurePosixPath(path.relative_to(root).as_posix())
+
     return any(relative.full_match(pattern) for pattern in patterns)
 
 
@@ -185,6 +187,7 @@ def _discover_single_file(root: Path) -> tuple[DiscoveredModule, ...]:
         is_init=False,
         package_parts=(),
     )
+
     return (module,)
 
 
@@ -217,9 +220,12 @@ def _discover_directory(root: Path, config: Config) -> tuple[DiscoveredModule, .
 
     for dirpath, dirnames, filenames in root.walk():
         # Mutate dirnames in-place to prune unwanted subtrees.
-        dirnames[:] = [
-            d for d in dirnames if not _should_prune(d) and not _is_excluded(dirpath / d, root, config.exclude)
-        ]
+        kept_dirs: list[str] = []
+        for d in dirnames:
+            if not _should_prune(d) and not _is_excluded(dirpath / d, root, config.exclude):
+                kept_dirs.append(d)
+
+        dirnames[:] = kept_dirs
 
         for filename in filenames:
             if not filename.endswith(".py"):

@@ -33,8 +33,10 @@ def _positive_int(value: str) -> int:
         number = int(value)
     except ValueError:
         raise argparse.ArgumentTypeError(f"expected a positive integer, got {value!r}") from None
+
     if number < 1:
         raise argparse.ArgumentTypeError(f"expected a positive integer, got {value!r}")
+
     return number
 
 
@@ -46,6 +48,7 @@ def _new_file_mode() -> int:
     """
     umask = os.umask(0)
     os.umask(umask)
+
     return 0o666 & ~umask
 
 
@@ -63,9 +66,11 @@ def _write_output(path: Path, text: str) -> None:
         OSError: If the file cannot be written.
     """
     fd, temp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+
     try:
         with os.fdopen(fd, "wb") as file:
             file.write(f"{text}\n".encode())
+
         os.chmod(temp_name, _new_file_mode())
         os.replace(temp_name, path)
     except BaseException:
@@ -95,28 +100,21 @@ def _resolve_config(args: argparse.Namespace) -> Config:
         config = load_config_file(args.config)
     else:
         config = load_config(args.path)
+
     if args.exclude:
         config = dataclasses.replace(config, exclude=(*config.exclude, *args.exclude))
+
     if args.max_workers is not None:
         config = dataclasses.replace(config, max_workers=args.max_workers)
+
     return config
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    """Run the iceberg CLI.
-
-    Parses *argv* (or ``sys.argv[1:]`` when *argv* is ``None``), resolves the
-    public API of the given path, and writes the result to stdout (or to the
-    ``--output`` file). With
-    ``--keep-going``, diagnostics go to stderr (and into the JSON output).
-
-    Args:
-        argv: Argument list to parse.  Defaults to ``sys.argv[1:]``.
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser for the ``iceberg`` command.
 
     Returns:
-        An integer exit code: ``0`` on success, ``1`` on a known
-        ``IcebergError`` or when ``--keep-going`` skipped a module, ``2`` on
-        any unexpected exception.
+        The parser, with every option the CLI accepts.
     """
     parser = argparse.ArgumentParser(
         prog="iceberg",
@@ -201,7 +199,26 @@ def main(argv: Sequence[str] | None = None) -> int:
         ),
     )
 
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run the iceberg CLI.
+
+    Parses *argv* (or ``sys.argv[1:]`` when *argv* is ``None``), resolves the
+    public API of the given path, and writes the result to stdout (or to the
+    ``--output`` file). With
+    ``--keep-going``, diagnostics go to stderr (and into the JSON output).
+
+    Args:
+        argv: Argument list to parse.  Defaults to ``sys.argv[1:]``.
+
+    Returns:
+        An integer exit code: ``0`` on success, ``1`` on a known
+        ``IcebergError`` or when ``--keep-going`` skipped a module, ``2`` on
+        any unexpected exception.
+    """
+    args = _build_parser().parse_args(argv)
 
     try:
         config = _resolve_config(args)
@@ -217,6 +234,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         output = format_json(report.api, report.diagnostics if args.keep_going else None)
     else:
         output = format_tree(report.api, show_overload_implementation=args.show_overload_implementations)
+
     if args.output is None:
         print(output)
     else:
@@ -225,8 +243,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         except OSError as exc:
             print(f"error: cannot write {args.output}: {exc.strerror or exc}", file=sys.stderr)
             return 1
+
     if not args.keep_going:
         return 0
+
     for diagnostic in report.diagnostics:
         print(format_diagnostic(diagnostic), file=sys.stderr)
+
     return 1 if report.has_errors else 0

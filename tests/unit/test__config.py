@@ -21,6 +21,7 @@ def _write(path: Path, text: str) -> Path:
 
 def test_config_defaults() -> None:
     cfg = Config()
+
     assert isinstance(cfg.test_module_pattern, re.Pattern)
     assert cfg.test_module_pattern.pattern == _DEFAULT_PATTERN_SRC
     assert cfg.max_workers == 1
@@ -44,6 +45,7 @@ def test_config_explicit_values() -> None:
         test_module_pattern=pattern,
         max_workers=4,
     )
+
     assert cfg.test_module_pattern is pattern
     assert cfg.max_workers == 4
 
@@ -65,6 +67,7 @@ def test_load_config_iceberg_toml_wins_over_pyproject(tmp_path: Path) -> None:
         "[tool.iceberg]\nmax_workers = 99\n",
     )
     cfg = load_config(tmp_path)
+
     assert cfg.max_workers == 2
 
 
@@ -96,6 +99,7 @@ def test_load_config_custom_pattern_compiles(tmp_path: Path) -> None:
         'test_module_pattern = "^tests/"\n',
     )
     cfg = load_config(tmp_path)
+
     assert isinstance(cfg.test_module_pattern, re.Pattern)
     assert cfg.test_module_pattern.pattern == "^tests/"
     assert cfg.test_module_pattern.match("tests/foo.py") is not None
@@ -171,6 +175,7 @@ def test_load_config_found_in_parent(tmp_path: Path) -> None:
     nested = tmp_path / "a" / "b" / "c"
     nested.mkdir(parents=True)
     cfg = load_config(nested)
+
     assert cfg.max_workers == 3
 
 
@@ -181,6 +186,7 @@ def test_load_config_closer_ancestor_wins(tmp_path: Path) -> None:
     child.mkdir()
     _write(child / ".iceberg.toml", "max_workers = 7\n")
     cfg = load_config(child)
+
     assert cfg.max_workers == 7
 
 
@@ -190,6 +196,7 @@ def test_load_config_nearer_pyproject_wins_over_distant_iceberg_toml(tmp_path: P
     project = tmp_path / "project"
     _write(project / "pyproject.toml", "[tool.iceberg]\nmax_workers = 3\n")
     cfg = load_config(project / "src")
+
     assert cfg.max_workers == 3
 
 
@@ -200,6 +207,7 @@ def test_load_config_stops_at_pyproject_without_iceberg_table(tmp_path: Path) ->
     project = tmp_path / "vendor" / "project"
     _write(project / "pyproject.toml", '[tool.other]\nfoo = "bar"\n')
     cfg = load_config(project / "pkg")
+
     assert cfg == Config()
 
 
@@ -207,6 +215,7 @@ def test_load_config_nested_project_uses_its_own_config(tmp_path: Path) -> None:
     _write(tmp_path / "pyproject.toml", "[tool.iceberg]\nmax_workers = 4\n")
     inner = tmp_path / "packages" / "inner"
     _write(inner / "pyproject.toml", "[tool.iceberg]\nmax_workers = 2\n")
+
     assert load_config(inner / "src").max_workers == 2
     assert load_config(tmp_path / "packages").max_workers == 4
 
@@ -221,6 +230,7 @@ def test_load_config_iceberg_toml_above_project_root_ignored(tmp_path: Path) -> 
     _write(tmp_path / ".iceberg.toml", "max_workers = 9\n")
     project = tmp_path / "project"
     _write(project / "pyproject.toml", "[project]\nname = 'x'\n")
+
     assert load_config(project).max_workers == 1
 
 

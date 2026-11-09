@@ -40,11 +40,15 @@ def _field(data: dict[str, Any], key: str, kind: type | tuple[type, ...]) -> Any
     """
     if key not in data:
         raise SnapshotError(f"missing field {key!r} in {_describe(data)}")
+
     value = data[key]
-    # bool is a subclass of int, so reject it unless bool itself is allowed.
     allowed = kind if isinstance(kind, tuple) else (kind,)
-    if not isinstance(value, allowed) or (isinstance(value, bool) and bool not in allowed):
+    # bool is a subclass of int, so reject it unless bool itself is allowed.
+    is_unwanted_bool = isinstance(value, bool) and bool not in allowed
+
+    if not isinstance(value, allowed) or is_unwanted_bool:
         raise SnapshotError(f"field {key!r} in {_describe(data)} has the wrong type: {type(value).__name__}")
+
     return value
 
 
@@ -73,7 +77,11 @@ def _describe(data: dict[str, Any]) -> str:
     """
     node_type = data.get("node_type", "object")
     name = data.get("name")
-    return f"{node_type} {name!r}" if isinstance(name, str) else str(node_type)
+
+    if not isinstance(name, str):
+        return str(node_type)
+
+    return f"{node_type} {name!r}"
 
 
 def _object(value: Any, node_type: str | None) -> dict[str, Any]:
@@ -92,8 +100,10 @@ def _object(value: Any, node_type: str | None) -> dict[str, Any]:
     """
     if not isinstance(value, dict):
         raise SnapshotError(f"expected a JSON object, got {type(value).__name__}")
+
     if node_type is not None and value.get("node_type") != node_type:
         raise SnapshotError(f"expected node_type {node_type!r}, got {value.get('node_type')!r}")
+
     return value
 
 
@@ -127,11 +137,13 @@ def _str_list(data: dict[str, Any], key: str) -> tuple[str, ...]:
     items = _field(data, key, list)
     if not all(isinstance(item, str) for item in items):
         raise SnapshotError(f"field {key!r} in {_describe(data)} must hold only strings")
+
     return tuple(items)
 
 
 def _load_parameter(value: Any) -> Parameter:
     data = _object(value, None)
+
     return Parameter(
         name=_field(data, "name", str),
         annotation=_optional_str(data, "annotation"),
@@ -141,6 +153,7 @@ def _load_parameter(value: Any) -> Parameter:
 
 def _load_optional_parameter(data: dict[str, Any], key: str) -> Parameter | None:
     value = _field(data, key, (dict, type(None)))
+
     return None if value is None else _load_parameter(value)
 
 
@@ -149,6 +162,7 @@ def _load_function(value: Any) -> Function:
     kind = _field(data, "kind", str)
     if kind not in _FUNCTION_KINDS:
         raise SnapshotError(f"unknown kind {kind!r} in {_describe(data)}")
+
     return Function(
         name=_field(data, "name", str),
         positional_parameters=_list(data, "positional_parameters", _load_parameter),
@@ -165,11 +179,13 @@ def _load_function(value: Any) -> Function:
 
 def _load_assignment(value: Any) -> Assignment:
     data = _object(value, "assignment")
+
     return Assignment(name=_field(data, "name", str), annotation=_optional_str(data, "annotation"))
 
 
 def _load_reference(value: Any) -> Reference:
     data = _object(value, "reference")
+
     return Reference(
         name=_field(data, "name", str),
         module=_optional_str(data, "module"),
@@ -179,6 +195,7 @@ def _load_reference(value: Any) -> Reference:
 
 def _load_class(value: Any) -> Class:
     data = _object(value, "class")
+
     return Class(
         name=_field(data, "name", str),
         bases=_str_list(data, "bases"),
@@ -191,6 +208,7 @@ def _load_class(value: Any) -> Class:
 
 def _load_module(value: Any) -> Module:
     data = _object(value, "module")
+
     return Module(
         name=_field(data, "name", str),
         assignments=_list(data, "assignments", _load_assignment),
@@ -202,6 +220,7 @@ def _load_module(value: Any) -> Module:
 
 def _load_package(value: Any, root: Path) -> Package:
     data = _object(value, "package")
+
     return Package(
         name=_field(data, "name", str),
         path=root / _field(data, "path", str),
@@ -237,8 +256,10 @@ def load_json(text: str, *, root: Path | None = None) -> Package | Module:
         data = json.loads(text)
     except json.JSONDecodeError as exc:
         raise SnapshotError(f"invalid JSON: {exc}") from exc
+
     if not isinstance(data, dict):
         raise SnapshotError(f"expected a JSON object, got {type(data).__name__}")
+
     version = data.get("schema_version")
     if version != JSON_SCHEMA_VERSION or isinstance(version, bool):
         raise SnapshotError(
@@ -248,7 +269,9 @@ def load_json(text: str, *, root: Path | None = None) -> Package | Module:
     match data.get("node_type"):
         case "package":
             return _load_package(data, root if root is not None else Path())
+
         case "module":
             return _load_module(data)
+
         case other:
             raise SnapshotError(f"expected a package or module at the top level, got node_type {other!r}")

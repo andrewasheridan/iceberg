@@ -103,6 +103,7 @@ def visit_module(
             None if known_all is None else known_all.get,
             path=None if path is None else str(path),
         )
+
     public = _top_level_public_names(tree, explicit_all)
 
     assignments: list[Assignment] = []
@@ -117,6 +118,7 @@ def visit_module(
     def keep(name: str) -> bool:
         if name not in public or name in seen:
             return False
+
         seen.add(name)
         return True
 
@@ -131,7 +133,9 @@ def visit_module(
                     classes.append(_build_class(cls_node))
 
             case ast.Assign() as assign_node:
-                assignments.extend(a for a in _build_assignments(assign_node) if keep(a.name))
+                for assignment in _build_assignments(assign_node):
+                    if keep(assignment.name):
+                        assignments.append(assignment)
 
             case ast.AnnAssign() as ann_node:
                 result = _build_assignment(ann_node)
@@ -211,6 +215,7 @@ def _build_references(
     """
     imports = collect_imports(tree, package, known_all.get)
     candidate = star_candidate(tree, package, known_all.get)
+
     references: list[Reference] = []
     for name in sorted(names):
         if name in imports:
@@ -219,7 +224,9 @@ def _build_references(
             module, attribute = candidate, name
         else:
             module, attribute = None, None
+
         references.append(Reference(name=name, module=module, attribute=attribute))
+
     return tuple(references)
 
 
@@ -244,6 +251,7 @@ def _build_function(
         whether the function is async, its kind and its decorators.
     """
     positional, keyword_only, var_positional, var_keyword = _build_parameters(node.args)
+
     return Function(
         name=node.name,
         positional_parameters=positional,
@@ -299,6 +307,7 @@ def _group_overloads(
     for node in statements:
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
+
         if _is_overload(node):
             pending.setdefault(node.name, []).append(node)
         elif node.name in pending:
@@ -353,12 +362,16 @@ def _method_kind(decorators: list[ast.expr]) -> FunctionKind:
         ``"property"``, ``"classmethod"``, ``"staticmethod"`` or ``"method"``.
     """
     names = {_decorator_name(decorator) for decorator in decorators}
+
     if names & _PROPERTY_DECORATORS:
         return "property"
+
     if "classmethod" in names:
         return "classmethod"
+
     if "staticmethod" in names:
         return "staticmethod"
+
     return "method"
 
 
@@ -372,13 +385,16 @@ def _is_property_accessor(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
         ``True`` for ``@p.setter``, ``@p.getter`` or ``@p.deleter`` on a
         function named ``p``.
     """
-    return any(
-        isinstance(decorator, ast.Attribute)
-        and decorator.attr in _ACCESSOR_ATTRIBUTES
-        and isinstance(decorator.value, ast.Name)
-        and decorator.value.id == node.name
-        for decorator in node.decorator_list
-    )
+    for decorator in node.decorator_list:
+        match decorator:
+            case ast.Attribute(value=ast.Name(id=owner), attr=attr):
+                if attr in _ACCESSOR_ATTRIBUTES and owner == node.name:
+                    return True
+
+            case _:
+                pass
+
+    return False
 
 
 def _build_parameters(
@@ -413,6 +429,7 @@ def _build_parameters(
         default: str | None = None
         if default_index >= 0:
             default = _value_source(args.defaults[default_index])
+
         positional.append(
             Parameter(
                 name=arg.arg,
@@ -422,14 +439,11 @@ def _build_parameters(
         )
 
     keyword_only: set[Parameter] = set()
-    for arg, default_node in zip(
-        args.kwonlyargs,
-        args.kw_defaults,
-        strict=True,
-    ):
+    for arg, default_node in zip(args.kwonlyargs, args.kw_defaults, strict=True):
         kw_default: str | None = None
         if default_node is not None:
             kw_default = _value_source(default_node)
+
         keyword_only.add(
             Parameter(
                 name=arg.arg,
@@ -487,6 +501,7 @@ def _build_class(node: ast.ClassDef) -> Class:
     def keep(name: str, *, is_public: bool) -> bool:
         if not is_public or name in seen:
             return False
+
         seen.add(name)
         return True
 
@@ -495,6 +510,7 @@ def _build_class(node: ast.ClassDef) -> Class:
             case (ast.FunctionDef() | ast.AsyncFunctionDef()) as fn_child:
                 if fn_child in grouped or _is_property_accessor(fn_child):
                     continue
+
                 fn = _build_function(fn_child, in_class=True, overloads=overloads.get(fn_child, ()))
                 if keep(fn.name, is_public=fn.is_public):
                     methods.append(fn)
@@ -505,7 +521,9 @@ def _build_class(node: ast.ClassDef) -> Class:
                     nested_classes.append(nested)
 
             case ast.Assign() as assign_child:
-                assignments.extend(a for a in _build_assignments(assign_child) if keep(a.name, is_public=a.is_public))
+                for assignment in _build_assignments(assign_child):
+                    if keep(assignment.name, is_public=assignment.is_public):
+                        assignments.append(assignment)
 
             case ast.AnnAssign() as ann_child:
                 result = _build_assignment(ann_child)
@@ -546,6 +564,7 @@ def _build_assignments(node: ast.Assign) -> list[Assignment]:
     names: dict[str, None] = {}
     for target in node.targets:
         names.update(dict.fromkeys(bound_names(target)))
+
     return [Assignment(name=name, annotation=None) for name in names]
 
 
@@ -589,6 +608,7 @@ def _annotation_source(node: ast.expr | None) -> str | None:
     """
     if node is None:
         return None
+
     return ast.unparse(node)
 
 
@@ -616,6 +636,7 @@ def _value_source(node: ast.expr | None) -> str | None:
     source = ast.unparse(node)
     if len(source) > _MAX_DEFAULT_LENGTH:
         return "..."
+
     return source
 
 
