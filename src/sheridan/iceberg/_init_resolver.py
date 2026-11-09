@@ -14,11 +14,11 @@ own ``Module``; it never synthesises placeholder entries for subpackages.
 Callers must assemble ``Package.subpackages`` separately.
 """
 
-__all__ = ["ResolveReport", "resolve_init"]
+__all__ = ["ResolveReport", "resolve_init", "resolve_module_references"]
 
 import ast
 import dataclasses
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from sheridan.iceberg._exceptions import ParseError
@@ -148,6 +148,52 @@ def resolve_init(
     )
 
     return module, ResolveReport(unresolved=tuple(unresolved))
+
+
+def resolve_module_references(
+    modules: Mapping[str, Module],
+    *,
+    namespace_parents: tuple[str, ...] = (),
+) -> dict[str, Module]:
+    """Resolve the ``Reference`` entries of regular modules against each other.
+
+    A regular module whose ``__all__`` lists an imported name carries a
+    ``Reference`` for it. When the import points at another module in
+    *modules*, the reference is replaced with the definition found there. The
+    target is resolved first (memoized), so chains of any length are followed.
+    An import cycle stops the walk: the module being resolved is used as
+    visited, and a name that is only re-exported around the cycle stays a
+    ``Reference``.
+
+    Args:
+        modules: Mapping from dotted module name to the visited ``Module``.
+        namespace_parents: Names of the directories above the analyzed root,
+            outermost first. See ``resolve_init``.
+
+    Returns:
+        A new mapping with the same keys, where each module's resolvable
+        references have been replaced by the ``Function``, ``Class``, or
+        ``Assignment`` they point to.
+    """
+    resolved: dict[str, Module] = {}
+    in_progress: set[str] = set()
+
+    def resolve(name: str) -> Module | None:
+        if name in resolved:
+            return resolved[name]
+        module = modules.get(name)
+        if module is None or name in in_progress or not module.references:
+            # In a cycle, hand back the module as visited and do not memoize it.
+            return module
+        in_progress.add(name)
+        try:
+            result = _resolve_references(module, namespace_parents, resolve)
+        finally:
+            in_progress.discard(name)
+        resolved[name] = result
+        return result
+
+    return {name: resolve(name) or module for name, module in modules.items()}
 
 
 # ---------------------------------------------------------------------------
@@ -334,3 +380,56 @@ def _resolve_name(
             return resolved
 
     return local_index.get(name)
+
+
+def _resolve_references(
+    module: Module,
+    namespace_parents: tuple[str, ...],
+    resolve: Callable[[str], Module | None],
+) -> Module:
+    """Replace the references of *module* that point at a module *resolve* knows.
+
+    Args:
+        module: The module whose references should be resolved.
+        namespace_parents: Directory names above the analyzed root, outermost
+            first.
+        resolve: Returns the (resolved) module for a dotted name, or ``None``.
+
+    Returns:
+        A copy of *module* with each resolvable reference moved into its
+        ``assignments``, ``classes``, or ``functions``.
+    """
+    root_package = module.name.split(".")[0]
+    assignments = list(module.assignments)
+    classes = list(module.classes)
+    functions = list(module.functions)
+    references: list[Reference] = []
+
+    for reference in module.references:
+        symbol: _Symbol | None = None
+        if reference.module is not None and reference.attribute is not None:
+            target = resolve(_strip_namespace_prefix(reference.module, root_package, namespace_parents))
+            if target is not None:
+                symbol = _index_module(target).get(reference.attribute)
+
+        if symbol is None:
+            references.append(reference)
+            continue
+        if symbol.name != reference.name:
+            symbol = dataclasses.replace(symbol, name=reference.name)
+
+        match symbol:
+            case Assignment():
+                assignments.append(symbol)
+            case Class():
+                classes.append(symbol)
+            case Function():
+                functions.append(symbol)
+
+    return dataclasses.replace(
+        module,
+        assignments=tuple(assignments),
+        classes=tuple(classes),
+        functions=tuple(functions),
+        references=tuple(references),
+    )

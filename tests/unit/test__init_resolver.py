@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from sheridan.iceberg._exceptions import ParseError
-from sheridan.iceberg._init_resolver import ResolveReport, resolve_init
+from sheridan.iceberg._init_resolver import ResolveReport, resolve_init, resolve_module_references
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Reference
 
 # ---------------------------------------------------------------------------
@@ -628,3 +628,73 @@ def test_syntax_error_reports_init_path() -> None:
         resolve_init("def broken(:", "pkg", {}, frozenset(), path=Path("src/pkg/__init__.py"))
     assert info.value.path == "src/pkg/__init__.py"
     assert info.value.lineno == 1
+
+
+# ---------------------------------------------------------------------------
+# resolve_module_references — re-export chains between regular modules
+# ---------------------------------------------------------------------------
+
+
+def test_module_references_follow_three_module_chain() -> None:
+    cls = _make_class("X")
+    modules = {
+        "pkg._a": Module("pkg._a", (), (), (), (Reference("X", "pkg._b", "X"),)),
+        "pkg._b": Module("pkg._b", (), (), (), (Reference("X", "pkg._c", "X"),)),
+        "pkg._c": _make_module("pkg._c", classes=(cls,)),
+    }
+    resolved = resolve_module_references(modules)
+    assert resolved["pkg._a"].classes == (cls,)
+    assert resolved["pkg._a"].references == ()
+    assert resolved["pkg._b"].classes == (cls,)
+    assert resolved["pkg._c"] is modules["pkg._c"]
+
+
+def test_module_references_aliased_import_renamed() -> None:
+    fn = _make_function("f")
+    modules = {
+        "pkg._a": Module("pkg._a", (), (), (), (Reference("g", "pkg._b", "f"),)),
+        "pkg._b": _make_module("pkg._b", functions=(fn,)),
+    }
+    resolved = resolve_module_references(modules)
+    assert resolved["pkg._a"].functions == (_make_function("g"),)
+
+
+def test_module_references_namespace_prefix_resolved() -> None:
+    value = _make_assignment("V")
+    modules = {
+        "pkg._a": Module("pkg._a", (), (), (), (Reference("V", "org.pkg._b", "V"),)),
+        "pkg._b": _make_module("pkg._b", assignments=(value,)),
+    }
+    resolved = resolve_module_references(modules, namespace_parents=("src", "org"))
+    assert resolved["pkg._a"].assignments == (value,)
+
+
+def test_module_references_cycle_leaves_reference() -> None:
+    a_ref = Reference("X", "pkg._b", "X")
+    b_ref = Reference("X", "pkg._a", "X")
+    modules = {
+        "pkg._a": Module("pkg._a", (), (), (), (a_ref,)),
+        "pkg._b": Module("pkg._b", (), (), (), (b_ref,)),
+    }
+    resolved = resolve_module_references(modules)
+    assert resolved["pkg._a"].references == (a_ref,)
+    assert resolved["pkg._b"].references == (b_ref,)
+    assert resolved["pkg._a"].classes == resolved["pkg._b"].classes == ()
+
+
+def test_module_references_cycle_still_finds_definitions() -> None:
+    x = _make_class("X")
+    y = _make_class("Y")
+    modules = {
+        "pkg._a": Module("pkg._a", (), (y,), (), (Reference("X", "pkg._b", "X"),)),
+        "pkg._b": Module("pkg._b", (), (x,), (), (Reference("Y", "pkg._a", "Y"),)),
+    }
+    resolved = resolve_module_references(modules)
+    assert resolved["pkg._a"].classes == (y, x)
+    assert resolved["pkg._b"].classes == (x, y)
+
+
+def test_module_references_outside_tree_kept() -> None:
+    ref = Reference("sqrt", "math", "sqrt")
+    modules = {"pkg._a": Module("pkg._a", (), (), (), (ref,))}
+    assert resolve_module_references(modules)["pkg._a"].references == (ref,)
