@@ -378,10 +378,10 @@ def get_assignment(
 
     Raises:
         ParseError: If a source string or file is not valid Python, if the
-            target of an AST node is not a simple name, or if no assignment in the
-            source matches.
-        NotFoundError: If you give a ``Path``, but the file has no assignment
-            with the given ``name``.
+            target of an AST node is not a simple name, or if you give a source
+            string without ``name`` and the source has no assignment.
+        NotFoundError: If you give ``name``, but the source string or file has
+            no assignment with that name.
         TypeError: If you give a ``Path`` without ``name``.
     """
     match source_or_node_or_path:
@@ -401,7 +401,7 @@ def get_assignment(
                 return found
 
             if name is not None:
-                raise ParseError(f"The source has no assignment {name!r}")
+                raise NotFoundError(f"The source has no assignment {name!r}")
 
             raise ParseError("The source has no assignment")
 
