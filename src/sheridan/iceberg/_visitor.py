@@ -31,6 +31,7 @@ Explicitly excluded from capture: docstrings, decorators, class bases.
 __all__ = ["visit_module"]
 
 import ast
+from pathlib import Path
 
 from sheridan.iceberg._exceptions import ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Parameter, Reference
@@ -43,12 +44,14 @@ from sheridan.iceberg._utilities import (
 )
 
 
-def visit_module(source: str, dotted_name: str) -> Module:
+def visit_module(source: str, dotted_name: str, path: Path | None = None) -> Module:
     """Parse *source* and return the public API surface as a ``Module``.
 
     Args:
         source: Raw Python source text.
         dotted_name: Fully-qualified module name (e.g. ``"my_pkg.core"``).
+        path: The file *source* was read from. It is reported in the
+            ``ParseError`` when *source* has a syntax error.
 
     Returns:
         A ``Module`` containing only the public names found in *source*.
@@ -57,9 +60,9 @@ def visit_module(source: str, dotted_name: str) -> Module:
         ParseError: When *source* cannot be parsed as valid Python.
     """
     try:
-        tree = ast.parse(source, feature_version=(3, 14))
+        tree = ast.parse(source, filename="<unknown>" if path is None else str(path), feature_version=(3, 14))
     except SyntaxError as exc:
-        raise ParseError(str(exc)) from exc
+        raise ParseError.from_syntax_error(exc) from exc
 
     explicit_all = extract_all(tree)
     public = _top_level_public_names(tree, explicit_all)

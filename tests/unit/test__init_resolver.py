@@ -1,5 +1,7 @@
 """Tests for sheridan.iceberg._init_resolver (resolve_init and ResolveReport)."""
 
+from pathlib import Path
+
 import pytest
 
 from sheridan.iceberg._exceptions import ParseError
@@ -619,3 +621,10 @@ from org.team.pkg.core import fn
         namespace_parents=("src", "org", "team"),
     )
     assert module.functions == (fn,)
+
+
+def test_syntax_error_reports_init_path() -> None:
+    with pytest.raises(ParseError) as info:
+        resolve_init("def broken(:", "pkg", {}, frozenset(), path=Path("src/pkg/__init__.py"))
+    assert info.value.path == "src/pkg/__init__.py"
+    assert info.value.lineno == 1

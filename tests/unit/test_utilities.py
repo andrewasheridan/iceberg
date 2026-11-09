@@ -456,3 +456,12 @@ def test_get_package_module_type_returns_package() -> None:
 def test_get_package_nonexistent_path_raises_invalid_path_error() -> None:
     with pytest.raises((InvalidPathError, FileNotFoundError, OSError)):
         get_package(Path("/nonexistent/path/to/pkg"))
+
+
+def test_path_syntax_error_reports_file_path(tmp_path: Path) -> None:
+    target = tmp_path / "mod.py"
+    target.write_text("def (\n")
+    with pytest.raises(ParseError) as info:
+        get_function(target, name="f")
+    assert info.value.path == str(target)
+    assert info.value.lineno == 1

@@ -275,3 +275,19 @@ def test_main_non_py_file_returns_1_with_message(
     assert exit_code == 1
     assert "error: not a .py file" in captured.err
     assert captured.out == ""
+
+
+def test_main_syntax_error_reports_file_line_and_column(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    (pkg / "good.py").write_text("x = 1\n")
+    bad = pkg / "mod.py"
+    bad.write_text("x = 1\n\ndef f(:\n    pass\n")
+
+    exit_code = main([str(pkg)])
+
+    assert exit_code == 1
+    err = capsys.readouterr().err
+    assert err.startswith(f"error: {bad}:3:7: ")
+    assert "(<unknown>" not in err

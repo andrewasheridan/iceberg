@@ -74,7 +74,7 @@ def get_function(
             try:
                 tree = ast.parse(src)
             except SyntaxError as exc:
-                raise ParseError(str(exc)) from exc
+                raise ParseError.from_syntax_error(exc) from exc
             for node in ast.walk(tree):
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     return _build_function(node)
@@ -85,9 +85,9 @@ def get_function(
                 raise TypeError("name is required when passing a Path")
             src = source_or_node_or_path_or_func.read_text(encoding="utf-8")
             try:
-                tree = ast.parse(src)
+                tree = ast.parse(src, filename=str(source_or_node_or_path_or_func))
             except SyntaxError as exc:
-                raise ParseError(str(exc)) from exc
+                raise ParseError.from_syntax_error(exc) from exc
             for node in ast.walk(tree):
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
                     return _build_function(node)
@@ -156,7 +156,7 @@ def get_class(
             try:
                 tree = ast.parse(src)
             except SyntaxError as exc:
-                raise ParseError(str(exc)) from exc
+                raise ParseError.from_syntax_error(exc) from exc
             for node in ast.walk(tree):
                 if isinstance(node, ast.ClassDef):
                     return _build_class(node)
@@ -167,9 +167,9 @@ def get_class(
                 raise TypeError("name is required when passing a Path")
             src = source_or_node_or_path_or_cls.read_text(encoding="utf-8")
             try:
-                tree = ast.parse(src)
+                tree = ast.parse(src, filename=str(source_or_node_or_path_or_cls))
             except SyntaxError as exc:
-                raise ParseError(str(exc)) from exc
+                raise ParseError.from_syntax_error(exc) from exc
             for node in ast.walk(tree):
                 if isinstance(node, ast.ClassDef) and node.name == name:
                     return _build_class(node)
@@ -241,7 +241,7 @@ def get_assignment(
             try:
                 tree = ast.parse(src)
             except SyntaxError as exc:
-                raise ParseError(str(exc)) from exc
+                raise ParseError.from_syntax_error(exc) from exc
             for node in tree.body:
                 if not isinstance(node, (ast.Assign, ast.AnnAssign, ast.TypeAlias)):
                     continue
@@ -272,9 +272,9 @@ def get_assignment(
                 raise TypeError("name is required when passing a Path")
             src = source_or_node_or_path.read_text(encoding="utf-8")
             try:
-                tree = ast.parse(src)
+                tree = ast.parse(src, filename=str(source_or_node_or_path))
             except SyntaxError as exc:
-                raise ParseError(str(exc)) from exc
+                raise ParseError.from_syntax_error(exc) from exc
             for node in tree.body:
                 if not isinstance(node, (ast.Assign, ast.AnnAssign, ast.TypeAlias)):
                     continue
