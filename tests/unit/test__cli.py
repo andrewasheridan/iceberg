@@ -1,5 +1,6 @@
 """Tests for sheridan.iceberg._cli."""
 
+import json
 from importlib.metadata import version
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -9,6 +10,7 @@ import pytest
 from sheridan.iceberg._cli import main
 from sheridan.iceberg._config import Config
 from sheridan.iceberg._exceptions import IcebergError, InvalidPathError
+from sheridan.iceberg._models import Report
 
 _TREE_OUTPUT = "package mypackage\n└── module mymodule"
 _JSON_OUTPUT = '{\n  "name": "mypackage"\n}'
@@ -19,7 +21,7 @@ def test_main_success_tree_stdout(capsys: pytest.CaptureFixture[str]) -> None:
     fake_package = MagicMock()
 
     with (
-        patch("sheridan.iceberg._cli.get_public_api", return_value=fake_package) as mock_api,
+        patch("sheridan.iceberg._cli.get_public_api_report", return_value=Report(api=fake_package)) as mock_api,
         patch("sheridan.iceberg._cli.format_tree", return_value=_TREE_OUTPUT) as mock_tree,
         patch("sheridan.iceberg._cli.format_json") as mock_json,
     ):
@@ -37,12 +39,12 @@ def test_main_success_tree_stdout(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_main_success_tree_uses_path_argument(capsys: pytest.CaptureFixture[str]) -> None:
-    """main passes the path argument as a Path object to get_public_api."""
+    """main passes the path argument as a Path object to get_public_api_report."""
 
     fake_package = MagicMock()
 
     with (
-        patch("sheridan.iceberg._cli.get_public_api", return_value=fake_package) as mock_api,
+        patch("sheridan.iceberg._cli.get_public_api_report", return_value=Report(api=fake_package)) as mock_api,
         patch("sheridan.iceberg._cli.format_tree", return_value=_TREE_OUTPUT),
     ):
         main(["src/mypackage"])
@@ -57,7 +59,7 @@ def test_main_success_stderr_is_empty(capsys: pytest.CaptureFixture[str]) -> Non
     fake_package = MagicMock()
 
     with (
-        patch("sheridan.iceberg._cli.get_public_api", return_value=fake_package),
+        patch("sheridan.iceberg._cli.get_public_api_report", return_value=Report(api=fake_package)),
         patch("sheridan.iceberg._cli.format_tree", return_value=_TREE_OUTPUT),
     ):
         main(["some/path"])
@@ -71,7 +73,7 @@ def test_main_json_flag_stdout(capsys: pytest.CaptureFixture[str]) -> None:
     fake_package = MagicMock()
 
     with (
-        patch("sheridan.iceberg._cli.get_public_api", return_value=fake_package) as mock_api,
+        patch("sheridan.iceberg._cli.get_public_api_report", return_value=Report(api=fake_package)) as mock_api,
         patch("sheridan.iceberg._cli.format_json", return_value=_JSON_OUTPUT) as mock_json,
         patch("sheridan.iceberg._cli.format_tree") as mock_tree,
     ):
@@ -84,7 +86,7 @@ def test_main_json_flag_stdout(capsys: pytest.CaptureFixture[str]) -> None:
     assert captured.err == ""
 
     mock_api.assert_called_once()
-    mock_json.assert_called_once_with(fake_package)
+    mock_json.assert_called_once_with(fake_package, None)
     mock_tree.assert_not_called()
 
 
@@ -93,7 +95,7 @@ def test_main_json_flag_stderr_is_empty(capsys: pytest.CaptureFixture[str]) -> N
     fake_package = MagicMock()
 
     with (
-        patch("sheridan.iceberg._cli.get_public_api", return_value=fake_package),
+        patch("sheridan.iceberg._cli.get_public_api_report", return_value=Report(api=fake_package)),
         patch("sheridan.iceberg._cli.format_json", return_value=_JSON_OUTPUT),
     ):
         main(["some/path", "--json"])
@@ -103,9 +105,9 @@ def test_main_json_flag_stderr_is_empty(capsys: pytest.CaptureFixture[str]) -> N
 
 
 def test_main_iceberg_error_returns_1(capsys: pytest.CaptureFixture[str]) -> None:
-    """main returns 1 when get_public_api raises an IcebergError."""
+    """main returns 1 when get_public_api_report raises an IcebergError."""
     with patch(
-        "sheridan.iceberg._cli.get_public_api",
+        "sheridan.iceberg._cli.get_public_api_report",
         side_effect=InvalidPathError("path does not exist: /bad/path"),
     ):
         exit_code = main(["/bad/path"])
@@ -118,7 +120,7 @@ def test_main_iceberg_error_message_to_stderr(capsys: pytest.CaptureFixture[str]
     error_msg = "path does not exist: /bad/path"
 
     with patch(
-        "sheridan.iceberg._cli.get_public_api",
+        "sheridan.iceberg._cli.get_public_api_report",
         side_effect=InvalidPathError(error_msg),
     ):
         main(["/bad/path"])
@@ -131,7 +133,7 @@ def test_main_iceberg_error_message_to_stderr(capsys: pytest.CaptureFixture[str]
 def test_main_iceberg_error_nothing_to_stdout(capsys: pytest.CaptureFixture[str]) -> None:
     """On IcebergError, nothing is written to stdout."""
     with patch(
-        "sheridan.iceberg._cli.get_public_api",
+        "sheridan.iceberg._cli.get_public_api_report",
         side_effect=IcebergError("some iceberg error"),
     ):
         main(["any/path"])
@@ -153,16 +155,16 @@ def test_main_iceberg_error_subclasses_return_1(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Any IcebergError subclass causes exit code 1."""
-    with patch("sheridan.iceberg._cli.get_public_api", side_effect=exc):
+    with patch("sheridan.iceberg._cli.get_public_api_report", side_effect=exc):
         exit_code = main(["any/path"])
 
     assert exit_code == 1
 
 
 def test_main_unexpected_error_returns_2(capsys: pytest.CaptureFixture[str]) -> None:
-    """main returns 2 when get_public_api raises an unexpected exception."""
+    """main returns 2 when get_public_api_report raises an unexpected exception."""
     with patch(
-        "sheridan.iceberg._cli.get_public_api",
+        "sheridan.iceberg._cli.get_public_api_report",
         side_effect=RuntimeError("something went very wrong"),
     ):
         exit_code = main(["any/path"])
@@ -173,7 +175,7 @@ def test_main_unexpected_error_returns_2(capsys: pytest.CaptureFixture[str]) -> 
 def test_main_unexpected_error_message_to_stderr(capsys: pytest.CaptureFixture[str]) -> None:
     """main writes 'unexpected error: <type>: <msg>' to stderr on unexpected exceptions."""
     with patch(
-        "sheridan.iceberg._cli.get_public_api",
+        "sheridan.iceberg._cli.get_public_api_report",
         side_effect=RuntimeError("something went very wrong"),
     ):
         main(["any/path"])
@@ -186,7 +188,7 @@ def test_main_unexpected_error_message_to_stderr(capsys: pytest.CaptureFixture[s
 def test_main_unexpected_error_nothing_to_stdout(capsys: pytest.CaptureFixture[str]) -> None:
     """On an unexpected exception, nothing is written to stdout."""
     with patch(
-        "sheridan.iceberg._cli.get_public_api",
+        "sheridan.iceberg._cli.get_public_api_report",
         side_effect=ValueError("oops"),
     ):
         main(["any/path"])
@@ -211,7 +213,7 @@ def test_main_unexpected_error_includes_type_name(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """The unexpected error message contains the exception class name."""
-    with patch("sheridan.iceberg._cli.get_public_api", side_effect=exc):
+    with patch("sheridan.iceberg._cli.get_public_api_report", side_effect=exc):
         exit_code = main(["any/path"])
 
     assert exit_code == 2
@@ -225,7 +227,7 @@ def test_main_argv_none_reads_sys_argv(capsys: pytest.CaptureFixture[str]) -> No
 
     with (
         patch("sys.argv", ["iceberg", "some/path"]),
-        patch("sheridan.iceberg._cli.get_public_api", return_value=fake_package) as mock_api,
+        patch("sheridan.iceberg._cli.get_public_api_report", return_value=Report(api=fake_package)) as mock_api,
         patch("sheridan.iceberg._cli.format_tree", return_value=_TREE_OUTPUT),
     ):
         exit_code = main(None)
@@ -310,7 +312,7 @@ def test_main_exclude_extends_configured_list(tmp_path: Path, capsys: pytest.Cap
     (tmp_path / "pyproject.toml").write_text('[tool.iceberg]\nexclude = ["a"]\n', encoding="utf-8")
 
     with (
-        patch("sheridan.iceberg._cli.get_public_api", return_value=MagicMock()) as mock_api,
+        patch("sheridan.iceberg._cli.get_public_api_report", return_value=Report(api=MagicMock())) as mock_api,
         patch("sheridan.iceberg._cli.format_tree", return_value=_TREE_OUTPUT),
     ):
         exit_code = main([str(tmp_path), "--exclude", "b", "--exclude", "**/c"])
@@ -351,7 +353,7 @@ def test_main_show_overload_implementations_flag_reaches_format_tree() -> None:
     fake_package = MagicMock()
 
     with (
-        patch("sheridan.iceberg._cli.get_public_api", return_value=fake_package),
+        patch("sheridan.iceberg._cli.get_public_api_report", return_value=Report(api=fake_package)),
         patch("sheridan.iceberg._cli.format_tree", return_value=_TREE_OUTPUT) as mock_tree,
     ):
         exit_code = main(["some/path", "--show-overload-implementations"])
@@ -370,9 +372,9 @@ def test_main_version_prints_installed_version(capsys: pytest.CaptureFixture[str
 
 
 def _config_passed_to_api(argv: list[str]) -> Config:
-    """Run main with get_public_api mocked and return the Config it received."""
+    """Run main with get_public_api_report mocked and return the Config it received."""
     with (
-        patch("sheridan.iceberg._cli.get_public_api", return_value=MagicMock()) as mock_api,
+        patch("sheridan.iceberg._cli.get_public_api_report", return_value=Report(api=MagicMock())) as mock_api,
         patch("sheridan.iceberg._cli.format_tree", return_value=_TREE_OUTPUT),
     ):
         assert main(argv) == 0
@@ -488,3 +490,55 @@ def test_main_max_workers_rejects_invalid_values(
 
     assert exc_info.value.code == 2
     assert "expected a positive integer" in capsys.readouterr().err
+
+
+class TestKeepGoing:
+    """``--keep-going`` skips broken modules and prints diagnostics to stderr."""
+
+    @pytest.fixture
+    def package(self, tmp_path: Path) -> Path:
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text('__all__ = ["good", "lazy"]\n', encoding="utf-8")
+        (pkg / "good.py").write_text("def ok() -> None: ...\n", encoding="utf-8")
+        (pkg / "vendored.py").write_text("x = 1\nprint 'py2'\n", encoding="utf-8")
+        return pkg
+
+    def test_without_keep_going_stops_on_bad_file(self, package: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        assert main([str(package), "--no-config"]) == 1
+        assert capsys.readouterr().out == ""
+
+    def test_keep_going_prints_output_and_diagnostics(self, package: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        exit_code = main([str(package), "--no-config", "--keep-going"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "def ok() -> None" in captured.out
+        error, warning = captured.err.splitlines()
+        assert error.startswith(f"{package / 'vendored.py'}:2: error: ")
+        assert warning == f"{package / '__init__.py'}: warning: 'lazy' is exported but never bound"
+
+    def test_keep_going_json_includes_diagnostics(self, package: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        main([str(package), "--no-config", "--keep-going", "--json"])
+
+        document = json.loads(capsys.readouterr().out)
+        assert [(d["severity"], d["path"]) for d in document["diagnostics"]] == [
+            ("error", "vendored.py"),
+            ("warning", "__init__.py"),
+        ]
+
+    def test_keep_going_with_only_warnings_exits_0(self, package: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        (package / "vendored.py").unlink()
+
+        assert main([str(package), "--no-config", "--keep-going"]) == 0
+        assert "warning:" in capsys.readouterr().err
+
+    def test_json_without_keep_going_has_no_diagnostics(
+        self, package: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        (package / "vendored.py").unlink()
+
+        assert main([str(package), "--no-config", "--json"]) == 0
+        captured = capsys.readouterr()
+        assert "diagnostics" not in json.loads(captured.out)
+        assert captured.err == ""

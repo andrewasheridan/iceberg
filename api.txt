@@ -16,6 +16,12 @@ package sheridan.iceberg
 │   ├── max_workers: int
 │   └── exclude: tuple[str, ...]
 ├── class ConfigError(IcebergError)
+├── class Diagnostic
+│   ├── severity: Severity
+│   ├── module: str
+│   ├── path: Path
+│   ├── message: str
+│   └── lineno: int | None
 ├── class Function
 │   ├── name: str
 │   ├── positional_parameters: tuple[Parameter, ...]
@@ -60,10 +66,15 @@ package sheridan.iceberg
 │   ├── module: str | None
 │   ├── attribute: str | None
 │   └── property is_public: bool
+├── class Report
+│   ├── api: Package | Module
+│   ├── diagnostics: tuple[Diagnostic, ...]
+│   └── property has_errors: bool
 ├── class SnapshotError(IcebergError)
 ├── class SourceReadError(IcebergError)
 │   └── def __init__(self, message: str, *, path: str) -> None
 ├── def get_public_api(path: Path, *, config: Config | None = None) -> Package | Module
+├── def get_public_api_report(path: Path, *, config: Config | None = None, keep_going: bool = False) -> Report
 ├── def load_json(text: str, *, root: Path | None = None) -> Package | Module
 └── module sheridan.iceberg.utilities
     ├── def get_function(source: str) -> Function

@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from jsonschema import Draft202012Validator, ValidationError
 
-from sheridan.iceberg import get_public_api
+from sheridan.iceberg import get_public_api, get_public_api_report
 from sheridan.iceberg._config import Config
 from sheridan.iceberg._formatter import JSON_SCHEMA_VERSION, format_json
 
@@ -49,6 +49,18 @@ def test_schema_version_matches_formatter(schema: dict[str, Any]) -> None:
 def test_output_matches_schema(target: Path, validator: Draft202012Validator) -> None:
     document = json.loads(format_json(get_public_api(target, config=_CFG)))
 
+    validator.validate(document)
+
+
+def test_output_with_diagnostics_matches_schema(tmp_path: Path, validator: Draft202012Validator) -> None:
+    """``--keep-going --json`` output, with an error and a warning, matches the schema."""
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "__init__.py").write_text('__all__ = ["lazy"]\n', encoding="utf-8")
+    (tmp_path / "pkg" / "broken.py").write_text("def (:\n", encoding="utf-8")
+    report = get_public_api_report(tmp_path / "pkg", config=_CFG, keep_going=True)
+    document = json.loads(format_json(report.api, report.diagnostics))
+
+    assert [diagnostic["severity"] for diagnostic in document["diagnostics"]] == ["error", "warning"]
     validator.validate(document)
 
 

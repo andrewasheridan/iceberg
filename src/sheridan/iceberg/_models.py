@@ -3,12 +3,15 @@
 __all__ = [
     "Assignment",
     "Class",
+    "Diagnostic",
     "Function",
     "FunctionKind",
     "Module",
     "Package",
     "Parameter",
     "Reference",
+    "Report",
+    "Severity",
 ]
 
 from dataclasses import dataclass
@@ -23,6 +26,13 @@ an instance method, ``"classmethod"`` and ``"staticmethod"`` come from those
 decorators, and ``"property"`` is a ``@property`` or
 ``@functools.cached_property`` getter, which callers read as an attribute
 (``obj.p``) rather than call.
+"""
+
+type Severity = Literal["error", "warning"]
+"""How serious a ``Diagnostic`` is.
+
+An ``"error"`` is a module that could not be read or parsed and was skipped. A
+``"warning"`` is a public name that is exported but never bound.
 """
 
 
@@ -324,3 +334,54 @@ class Package:
     def is_public(self) -> bool:
         *_, stem = self.name.split(".")
         return _is_public_module_stem(stem)
+
+
+@dataclass(frozen=True, slots=True)
+class Diagnostic:
+    """A problem found while analyzing one module.
+
+    Attributes:
+        severity: ``"error"`` for a module that was skipped because it could
+            not be read or parsed, ``"warning"`` for an unresolved public name.
+        module: Fully-qualified dotted name of the module the problem is in.
+        path: The module's source file. JSON output renders it relative to the
+            analyzed root.
+        message: What went wrong, without the location.
+        lineno: The 1-based line of the problem, or ``None`` when not known.
+    """
+
+    severity: Severity
+    """``"error"`` for a skipped module, ``"warning"`` for an unresolved name."""
+
+    module: str
+    """Fully-qualified dotted name of the module the problem is in."""
+
+    path: Path
+    """The module's source file."""
+
+    message: str
+    """What went wrong, without the location."""
+
+    lineno: int | None = None
+    """The 1-based line of the problem, or ``None`` when not known."""
+
+
+@dataclass(frozen=True, slots=True)
+class Report:
+    """The public API of a path together with the problems found on the way.
+
+    Attributes:
+        api: The analyzed package, or the module when a single file was given.
+        diagnostics: Errors for skipped modules, then warnings for unresolved
+            public names, each group sorted by module.
+    """
+
+    api: Package | Module
+    """The analyzed package, or the module when a single file was given."""
+
+    diagnostics: tuple[Diagnostic, ...] = ()
+    """Errors for skipped modules, then warnings for unresolved public names."""
+
+    @property
+    def has_errors(self) -> bool:
+        return any(diagnostic.severity == "error" for diagnostic in self.diagnostics)

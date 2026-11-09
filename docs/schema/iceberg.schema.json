@@ -6,6 +6,11 @@
   "properties": {
     "schema_version": {
       "const": 2
+    },
+    "diagnostics": {
+      "type": "array",
+      "description": "Present only with `--keep-going`: errors for skipped modules, then warnings for unresolved names.",
+      "items": {"$ref": "#/$defs/diagnostic"}
     }
   },
   "required": ["schema_version"],
@@ -15,6 +20,18 @@
   ],
   "unevaluatedProperties": false,
   "$defs": {
+    "diagnostic": {
+      "type": "object",
+      "properties": {
+        "severity": {"enum": ["error", "warning"]},
+        "module": {"type": "string", "description": "Fully-qualified dotted name of the module the problem is in."},
+        "path": {"type": "string", "description": "POSIX path of the module's source file relative to the analyzed root."},
+        "message": {"type": "string"},
+        "lineno": {"type": ["integer", "null"], "description": "1-based line of the problem, or null when not known."}
+      },
+      "required": ["severity", "module", "path", "message", "lineno"],
+      "additionalProperties": false
+    },
     "optionalString": {
       "type": ["string", "null"]
     },

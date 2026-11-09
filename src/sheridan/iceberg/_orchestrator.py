@@ -5,9 +5,13 @@ via ``concurrent.futures.ProcessPoolExecutor`` when ``Config.max_workers`` is
 greater than 1), then serially resolves each
 ``__init__.py`` with full access to the accumulated module map, and finally
 folds everything into a ``Package`` trie.
+
+When the caller passes an ``errors`` list, a module that cannot be read or
+parsed is recorded there as a ``Diagnostic`` and skipped instead of stopping
+the run.
 """
 
-__all__ = ["build_package"]
+__all__ = ["build_package", "unresolved_name_warnings"]
 
 import ast
 from collections.abc import Mapping, Sequence
@@ -17,18 +21,36 @@ from pathlib import Path
 
 from sheridan.iceberg._config import Config
 from sheridan.iceberg._discovery import DiscoveredModule, discover
-from sheridan.iceberg._exceptions import ParseError
+from sheridan.iceberg._exceptions import IcebergError, ParseError, SourceReadError
 from sheridan.iceberg._init_resolver import resolve_init, resolve_module_references
-from sheridan.iceberg._models import Module, Package
+from sheridan.iceberg._models import Diagnostic, Module, Package
 from sheridan.iceberg._utilities import extract_all, parse_source, read_source
 from sheridan.iceberg._visitor import visit_module
+
+
+def _error_diagnostic(name: str, path: Path, exc: IcebergError) -> Diagnostic:
+    """Describe a module that was skipped because of *exc*.
+
+    Args:
+        name: Dotted name of the skipped module.
+        path: The module's source file.
+        exc: The error raised while reading, parsing or visiting it.
+
+    Returns:
+        An ``"error"`` diagnostic carrying the bare message and, for a
+        ``ParseError``, its line.
+    """
+    message = getattr(exc, "message", None) or str(exc)
+    return Diagnostic(severity="error", module=name, path=path, message=message, lineno=getattr(exc, "lineno", None))
 
 
 def _visit_worker(
     discovered: DiscoveredModule,
     tree: ast.Module | None = None,
     known_all: Mapping[str, frozenset[str] | None] | None = None,
-) -> Module:
+    *,
+    keep_going: bool = False,
+) -> Module | Diagnostic:
     """Read source from disk and return a parsed ``Module``.
 
     Runs in a worker process when ``Config.max_workers`` is greater than 1.
@@ -40,17 +62,28 @@ def _visit_worker(
             and dotted name.
         tree: The module's AST, when the parent has already parsed it.
         known_all: The evaluated ``__all__`` of each module, by dotted name.
+        keep_going: Return a ``Diagnostic`` instead of raising when the module
+            cannot be read or parsed. A diagnostic crosses the process
+            boundary intact, while iceberg's exceptions lose their location
+            when pickled.
 
     Returns:
-        A ``Module`` capturing the public API surface of the source file.
+        A ``Module`` capturing the public API surface of the source file, or
+        an error ``Diagnostic`` when *keep_going* is set and it failed.
     """
-    source = read_source(discovered.source_path)
-    return visit_module(source, discovered.dotted_name, discovered.source_path, known_all, tree=tree)
+    try:
+        source = read_source(discovered.source_path)
+        return visit_module(source, discovered.dotted_name, discovered.source_path, known_all, tree=tree)
+    except IcebergError as exc:
+        if not keep_going:
+            raise
+        return _error_diagnostic(discovered.dotted_name, discovered.source_path, exc)
 
 
 def _evaluate_all(
     discovered: Sequence[DiscoveredModule],
     trees: dict[str, ast.Module],
+    errors: list[Diagnostic] | None = None,
 ) -> dict[str, frozenset[str] | None]:
     """Evaluate the ``__all__`` of every discovered module.
 
@@ -64,10 +97,13 @@ def _evaluate_all(
         discovered: Every module found under the analyzed root.
         trees: Filled with the AST of each file parsed here, by dotted name,
             so later stages do not parse it again.
+        errors: When given, a file that cannot be read is recorded here
+            instead of raising ``SourceReadError``.
 
     Returns:
         A mapping from dotted module name to its ``__all__``, or ``None`` when
-        it is absent or cannot be evaluated statically.
+        it is absent or cannot be evaluated statically. A file that cannot be
+        read is left out.
     """
     by_name = {dm.dotted_name: dm for dm in discovered}
     result: dict[str, frozenset[str] | None] = {}
@@ -79,7 +115,14 @@ def _evaluate_all(
         dm = by_name.get(name)
         if dm is None or name in in_progress:
             return None
-        source = read_source(dm.source_path)
+        try:
+            source = read_source(dm.source_path)
+        except SourceReadError as exc:
+            if errors is None:
+                raise
+            errors.append(_error_diagnostic(name, dm.source_path, exc))
+            result[name] = None
+            return None
         if "__all__" not in source:
             result[name] = None
             return None
@@ -285,7 +328,48 @@ def _build_trie(
     return _make_package(root_parts)
 
 
-def build_package(root: Path, config: Config) -> Package | Module:
+def unresolved_name_warnings(api: Package | Module, path: Path) -> list[Diagnostic]:
+    """List a warning for each public name in *api* that no import binds.
+
+    These are the references the tree shows as ``name (unresolved)``.
+    References that name the module they come from (re-exports from outside
+    the analyzed tree) are expected and are not reported.
+
+    Args:
+        api: The assembled package or module.
+        path: The analyzed path: the source file when *api* is a ``Module``.
+
+    Returns:
+        One ``"warning"`` diagnostic per unresolved name, sorted by module and
+        then by name.
+    """
+    located: list[tuple[Module, Path]] = []
+    packages: list[Package] = []
+    if isinstance(api, Module):
+        located.append((api, path))
+    else:
+        packages.append(api)
+    while packages:
+        package = packages.pop()
+        for module in package.modules:
+            file_name = "__init__.py" if module.name == package.name else f"{module.name.rpartition('.')[2]}.py"
+            located.append((module, package.path / file_name))
+        packages.extend(package.subpackages)
+
+    return [
+        Diagnostic(
+            severity="warning",
+            module=module.name,
+            path=source_path,
+            message=f"{reference.name!r} is exported but never bound",
+        )
+        for module, source_path in sorted(located, key=lambda item: item[0].name)
+        for reference in module.references
+        if reference.module is None
+    ]
+
+
+def build_package(root: Path, config: Config, *, errors: list[Diagnostic] | None = None) -> Package | Module:
     """Build a ``Package`` snapshot for the Python source rooted at *root*.
 
     When *root* is a single ``.py`` file, discovery is skipped and the file
@@ -302,6 +386,10 @@ def build_package(root: Path, config: Config) -> Package | Module:
     Args:
         root: A path to either a single ``.py`` file or a package directory.
         config: Runtime configuration controlling workers, filters, etc.
+        errors: When given, a module under a directory *root* that cannot be
+            read or parsed is recorded here, sorted by module, and left out
+            of the result instead of raising. A single-file *root* still
+            raises, since there is nothing else to report.
 
     Returns:
         A ``Package`` containing the full public API surface of *root*. When
@@ -311,35 +399,39 @@ def build_package(root: Path, config: Config) -> Package | Module:
         source = read_source(root)
         return visit_module(source, root.stem, root)
 
+    keep_going = errors is not None
+    found: list[Diagnostic] = []
+
     # 1. Discover all Python source files under root.
     all_discovered = discover(root, config)
 
     # 2. Evaluate every __all__ once, so `__all__ += sub.__all__` can see
     #    other modules, then partition into regular modules and __init__.py files.
     trees: dict[str, ast.Module] = {}
-    known_all = _evaluate_all(all_discovered, trees)
-    non_init_modules = [dm for dm in all_discovered if not dm.is_init]
-    init_modules = [dm for dm in all_discovered if dm.is_init]
+    known_all = _evaluate_all(all_discovered, trees, found if keep_going else None)
+    unreadable = {diagnostic.module for diagnostic in found}
+    non_init_modules = [dm for dm in all_discovered if not dm.is_init and dm.dotted_name not in unreadable]
+    init_modules = [dm for dm in all_discovered if dm.is_init and dm.dotted_name not in unreadable]
 
     # 3. Visit non-init modules. A process pool costs more to start than it
     #    saves for typical packages, and spawning workers re-imports the
     #    caller's __main__, so it is strictly opt-in.
-    visited_modules: list[Module]
+    visit = partial(_visit_worker, known_all=known_all, keep_going=keep_going)
+    visited: list[Module | Diagnostic]
     if config.max_workers > 1:
         with ProcessPoolExecutor(max_workers=config.max_workers) as executor:
-            visited_modules = list(
-                executor.map(
-                    partial(_visit_worker, known_all=known_all),
-                    non_init_modules,
-                    [trees.get(dm.dotted_name) for dm in non_init_modules],
-                )
+            visited = list(
+                executor.map(visit, non_init_modules, [trees.get(dm.dotted_name) for dm in non_init_modules])
             )
     else:
-        visited_modules = [_visit_worker(dm, trees.get(dm.dotted_name), known_all) for dm in non_init_modules]
+        visited = [visit(dm, trees.get(dm.dotted_name)) for dm in non_init_modules]
 
-    module_map: dict[str, Module] = {
-        dm.dotted_name: module for dm, module in zip(non_init_modules, visited_modules, strict=True)
-    }
+    module_map: dict[str, Module] = {}
+    for dm, outcome in zip(non_init_modules, visited, strict=True):
+        if isinstance(outcome, Diagnostic):
+            found.append(outcome)
+        else:
+            module_map[dm.dotted_name] = outcome
 
     # Follow re-export chains between regular modules (``_a`` re-exporting
     # ``X`` from ``_b``), so an init that imports from ``_a`` finds ``X``.
@@ -356,23 +448,27 @@ def build_package(root: Path, config: Config) -> Package | Module:
     package_all_map: dict[str, frozenset[str] | None] = {}
 
     for init_module in sorted_inits:
-        tree = trees.get(init_module.dotted_name)
-        source = read_source(init_module.source_path)
-        child_names = _child_names_at_level(init_module.dotted_name, all_discovered)
-
         package_all_map[init_module.dotted_name] = known_all.get(init_module.dotted_name)
-
-        module = resolve_init(
-            source,
-            init_module.dotted_name,
-            module_map,
-            child_names,
-            namespace_parents=namespace_parents,
-            path=init_module.source_path,
-            known_all=known_all,
-            tree=tree,
-        )
+        try:
+            module = resolve_init(
+                read_source(init_module.source_path),
+                init_module.dotted_name,
+                module_map,
+                _child_names_at_level(init_module.dotted_name, all_discovered),
+                namespace_parents=namespace_parents,
+                path=init_module.source_path,
+                known_all=known_all,
+                tree=trees.get(init_module.dotted_name),
+            )
+        except IcebergError as exc:
+            if not keep_going:
+                raise
+            found.append(_error_diagnostic(init_module.dotted_name, init_module.source_path, exc))
+            continue
         module_map[init_module.dotted_name] = module
+
+    if errors is not None:
+        errors.extend(sorted(found, key=lambda diagnostic: diagnostic.module))
 
     # 5. Fold the completed module map into a Package trie.
     return _build_trie(module_map, all_discovered, root, package_all_map)
