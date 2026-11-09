@@ -289,6 +289,63 @@ def test_main_unexpected_error_includes_type_name(
     assert expected_type_name in captured.err
 
 
+@pytest.mark.parametrize(
+    ("target", "extra_args"),
+    [
+        ("format_tree", []),
+        ("format_json", ["--json"]),
+        ("_write_output", ["-o", "api.txt"]),
+    ],
+    ids=["format_tree", "format_json", "_write_output"],
+)
+class TestUnexpectedErrorAfterAnalysis:
+    """Unexpected errors while formatting or writing the report go through the bug-report handler."""
+
+    def test_returns_2_with_bug_report_message(
+        self,
+        target: str,
+        extra_args: list[str],
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("ICEBERG_DEBUG", raising=False)
+
+        with (
+            patch("sheridan.iceberg._cli.get_public_api_report", return_value=Report(api=MagicMock())),
+            patch(f"sheridan.iceberg._cli.{target}", side_effect=RecursionError("too deep")),
+        ):
+            exit_code = main(["some/path", *extra_args])
+
+        captured = capsys.readouterr()
+
+        assert exit_code == 2
+        assert "unexpected error: RecursionError: too deep" in captured.err
+        assert "https://github.com/andrewasheridan/iceberg/issues" in captured.err
+        assert "Traceback (most recent call last)" not in captured.err
+        assert captured.out == ""
+
+    def test_traceback_option_prints_full_traceback(
+        self,
+        target: str,
+        extra_args: list[str],
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("ICEBERG_DEBUG", raising=False)
+
+        with (
+            patch("sheridan.iceberg._cli.get_public_api_report", return_value=Report(api=MagicMock())),
+            patch(f"sheridan.iceberg._cli.{target}", side_effect=RecursionError("too deep")),
+        ):
+            exit_code = main(["some/path", "--traceback", *extra_args])
+
+        err = capsys.readouterr().err
+
+        assert exit_code == 2
+        assert "Traceback (most recent call last)" in err
+        assert "RecursionError: too deep" in err
+
+
 def test_main_argv_none_reads_sys_argv(capsys: pytest.CaptureFixture[str]) -> None:
     """When argv is None, main reads from sys.argv[1:]."""
     fake_package = MagicMock()
