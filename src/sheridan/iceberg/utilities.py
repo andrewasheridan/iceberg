@@ -13,8 +13,15 @@ from typing import Any, overload
 from sheridan.iceberg._api import get_public_api
 from sheridan.iceberg._exceptions import InvalidPathError, ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Package
-from sheridan.iceberg._utilities import read_source
-from sheridan.iceberg._visitor import _build_assignment, _build_class, _build_function, _build_type_alias, visit_module
+from sheridan.iceberg._utilities import module_level_statements, read_source
+from sheridan.iceberg._visitor import (
+    _build_assignment,
+    _build_assignments,
+    _build_class,
+    _build_function,
+    _build_type_alias,
+    visit_module,
+)
 
 
 def _get_source(obj: object) -> str:
@@ -84,6 +91,39 @@ def _find_definition(tree: ast.Module, name: str, kind: type[_DefNode] | tuple[t
     for walked in ast.walk(tree):
         if isinstance(walked, kind) and walked.name == leaf:
             return walked
+    return None
+
+
+def _find_assignment(tree: ast.Module, name: str | None) -> Assignment | None:
+    """Find the first module-level assignment that binds *name* in *tree*.
+
+    Module-level ``if`` / ``try`` blocks are searched, as in ``get_module``.
+    Every name an ``Assign`` binds counts, including each target of a chained
+    assignment (``a = b = 1``) and each name in tuple, list, or starred
+    unpacking. The first definition of *name* wins.
+
+    Args:
+        tree: Parsed module AST.
+        name: The name to look for, or ``None`` for the first assignment.
+
+    Returns:
+        The matching ``Assignment``, or ``None`` when no assignment binds *name*.
+    """
+    for node in module_level_statements(tree.body):
+        candidates: list[Assignment]
+        match node:
+            case ast.Assign():
+                candidates = _build_assignments(node)
+            case ast.AnnAssign():
+                result = _build_assignment(node)
+                candidates = [] if result is None else [result]
+            case ast.TypeAlias():
+                candidates = [_build_type_alias(node)]
+            case _:
+                continue
+        for candidate in candidates:
+            if name is None or candidate.name == name:
+                return candidate
     return None
 
 
@@ -283,6 +323,12 @@ def get_assignment(
       with the keyword argument ``name`` identifying which assignment to
       extract.
 
+    For the string and path forms, module-level ``if`` / ``try`` blocks are
+    searched, and every name an assignment binds can be selected, including
+    each target of a chained assignment (``a = b = 1``) and each name in tuple,
+    list, or starred unpacking (``c, *rest = ...``). When several assignments
+    bind the same name, the first one is returned, as in ``get_module``.
+
     Args:
         source_or_node_or_path: One of: a raw Python source string, an
             ``ast.Assign`` / ``ast.AnnAssign`` / ``ast.TypeAlias`` node, or a
@@ -319,27 +365,9 @@ def get_assignment(
                 tree = ast.parse(src)
             except SyntaxError as exc:
                 raise ParseError.from_syntax_error(exc) from exc
-            for node in tree.body:
-                if not isinstance(node, (ast.Assign, ast.AnnAssign, ast.TypeAlias)):
-                    continue
-                node_name: str | None
-                match node:
-                    case ast.AnnAssign(target=ast.Name(id=n)):
-                        node_name = n
-                    case ast.Assign(targets=[ast.Name(id=n)]):
-                        node_name = n
-                    case ast.TypeAlias(name=ast.Name(id=n)):
-                        node_name = n
-                    case _:
-                        node_name = None
-                if name is not None and node_name != name:
-                    continue
-                if isinstance(node, ast.TypeAlias):
-                    return _build_type_alias(node)
-                result = _build_assignment(node)
-                if result is None:
-                    continue
-                return result
+            found = _find_assignment(tree, name)
+            if found is not None:
+                return found
             if name is not None:
                 raise ParseError(f"No assignment {name!r} found in source")
             raise ParseError("No assignment found in source")
@@ -352,27 +380,9 @@ def get_assignment(
                 tree = ast.parse(src, filename=str(source_or_node_or_path))
             except SyntaxError as exc:
                 raise ParseError.from_syntax_error(exc) from exc
-            for node in tree.body:
-                if not isinstance(node, (ast.Assign, ast.AnnAssign, ast.TypeAlias)):
-                    continue
-                node_name_p: str | None
-                match node:
-                    case ast.AnnAssign(target=ast.Name(id=n)):
-                        node_name_p = n
-                    case ast.Assign(targets=[ast.Name(id=n)]):
-                        node_name_p = n
-                    case ast.TypeAlias(name=ast.Name(id=n)):
-                        node_name_p = n
-                    case _:
-                        node_name_p = None
-                if node_name_p != name:
-                    continue
-                if isinstance(node, ast.TypeAlias):
-                    return _build_type_alias(node)
-                result = _build_assignment(node)
-                if result is None:
-                    continue
-                return result
+            found = _find_assignment(tree, name)
+            if found is not None:
+                return found
             raise InvalidPathError(f"No assignment {name!r} found in {source_or_node_or_path}")
 
 
