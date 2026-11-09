@@ -1,6 +1,8 @@
 """Tests for sheridan.iceberg._cli."""
 
 import json
+import os
+import stat
 from importlib.metadata import version
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -542,3 +544,105 @@ class TestKeepGoing:
         captured = capsys.readouterr()
         assert "diagnostics" not in json.loads(captured.out)
         assert captured.err == ""
+
+
+class TestOutput:
+    """``-o/--output`` writes the report to a file instead of stdout."""
+
+    @pytest.fixture
+    def package(self, tmp_path: Path) -> Path:
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text('__all__ = ["greet"]\n\ndef greet() -> str: ...\n', encoding="utf-8")
+        return pkg
+
+    @pytest.mark.parametrize("flag", ["-o", "--output"])
+    def test_writes_utf8_with_final_newline(
+        self, flag: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        target = tmp_path / "api.txt"
+        with (
+            patch("sheridan.iceberg._cli.get_public_api_report", return_value=Report(api=MagicMock())),
+            patch("sheridan.iceberg._cli.format_tree", return_value="package café\n└── módulo"),
+        ):
+            assert main(["some/path", flag, str(target)]) == 0
+
+        assert target.read_bytes() == "package café\n└── módulo\n".encode()
+        assert capsys.readouterr().out == ""
+
+    def test_json_output_matches_stdout(
+        self, package: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        target = tmp_path / "api.json"
+        main([str(package), "--no-config", "--json"])
+        stdout = capsys.readouterr().out
+
+        assert main([str(package), "--no-config", "--json", "-o", str(target)]) == 0
+        assert target.read_text(encoding="utf-8") == stdout
+
+    def test_replaces_existing_file(self, package: Path, tmp_path: Path) -> None:
+        target = tmp_path / "api.txt"
+        target.write_text("old snapshot that is much longer than the new one\n" * 100, encoding="utf-8")
+
+        assert main([str(package), "--no-config", "-o", str(target)]) == 0
+        assert "def greet() -> str" in target.read_text(encoding="utf-8")
+        assert "old snapshot" not in target.read_text(encoding="utf-8")
+
+    def test_analysis_error_leaves_existing_file_untouched(self, tmp_path: Path) -> None:
+        target = tmp_path / "api.txt"
+        target.write_text("previous\n", encoding="utf-8")
+
+        assert main([str(tmp_path / "missing"), "--no-config", "-o", str(target)]) == 1
+        assert target.read_text(encoding="utf-8") == "previous\n"
+        assert list(tmp_path.iterdir()) == [target]
+
+    def test_analysis_error_creates_no_file(self, tmp_path: Path) -> None:
+        target = tmp_path / "api.txt"
+
+        assert main([str(tmp_path / "missing"), "--no-config", "-o", str(target)]) == 1
+        assert list(tmp_path.iterdir()) == []
+
+    def test_write_error_leaves_no_partial_file(
+        self, package: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        target = out_dir / "api.txt"
+        target.write_text("previous\n", encoding="utf-8")
+
+        with patch("sheridan.iceberg._cli.os.replace", side_effect=OSError(28, "No space left on device")):
+            exit_code = main([str(package), "--no-config", "-o", str(target)])
+
+        assert exit_code == 1
+        assert capsys.readouterr().err == f"error: cannot write {target}: No space left on device\n"
+        assert list(out_dir.iterdir()) == [target]
+        assert target.read_text(encoding="utf-8") == "previous\n"
+
+    def test_missing_directory_returns_1(
+        self, package: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        target = tmp_path / "nowhere" / "api.txt"
+
+        assert main([str(package), "--no-config", "-o", str(target)]) == 1
+        assert capsys.readouterr().err.startswith(f"error: cannot write {target}: ")
+        assert not target.parent.exists()
+
+    def test_new_file_uses_umask_permissions(self, package: Path, tmp_path: Path) -> None:
+        target = tmp_path / "api.txt"
+        old_umask = os.umask(0o022)
+        try:
+            assert main([str(package), "--no-config", "-o", str(target)]) == 0
+        finally:
+            os.umask(old_umask)
+
+        assert stat.S_IMODE(target.stat().st_mode) == 0o644
+
+    def test_keep_going_still_writes_file(
+        self, package: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        (package / "broken.py").write_text("print 'py2'\n", encoding="utf-8")
+        target = tmp_path / "api.txt"
+
+        assert main([str(package), "--no-config", "--keep-going", "-o", str(target)]) == 1
+        assert "def greet() -> str" in target.read_text(encoding="utf-8")
+        assert "error:" in capsys.readouterr().err
