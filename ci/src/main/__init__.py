@@ -23,6 +23,21 @@ from dagger import DefaultPath, dag, function, object_type
 _PYTHON_IMAGE = "python:3.14-slim"
 _API_SNAPSHOT = "api.txt"
 _API_PATH = "src/sheridan/"
+_SDIST_DIR = "/dist"
+# Hatch adds PKG-INFO and .gitignore to every sdist; the rest is the include list in
+# pyproject.toml.
+_SDIST_ALLOWED = frozenset(
+    {
+        ".gitignore",
+        "CHANGELOG.md",
+        "LICENSE",
+        "PKG-INFO",
+        "README.md",
+        "pyproject.toml",
+        "src",
+        "tests",
+    }
+)
 
 
 def _uv(source: dagger.Directory) -> dagger.Container:
@@ -63,6 +78,28 @@ async def _api_check(source: dagger.Directory) -> str:
         f"The public API differs from {_API_SNAPSHOT}. If that is intended, run "
         f"`task api:update` and commit {_API_SNAPSHOT}.\n\n{diff}"
     )
+
+
+async def _sdist_check(source: dagger.Directory) -> str:
+    """Build the sdist and check its top-level entries.
+
+    Raises:
+        RuntimeError: The sdist has a top-level entry that is not in the allowed set.
+    """
+    listing = await (
+        _uv(source)
+        .with_exec(["uv", "build", "--sdist", "--out-dir", _SDIST_DIR])
+        .with_exec(["sh", "-c", f"tar -tzf {_SDIST_DIR}/*.tar.gz"])
+        .stdout()
+    )
+    top_level = {parts[1] for line in listing.splitlines() if len(parts := line.split("/")) > 1 and parts[1]}
+    unexpected = sorted(top_level - _SDIST_ALLOWED)
+    if unexpected:
+        raise RuntimeError(
+            f"The sdist has unexpected top-level entries: {', '.join(unexpected)}. "
+            "Check [tool.hatch.build.targets.sdist] in pyproject.toml."
+        )
+    return listing
 
 
 @object_type
@@ -134,6 +171,14 @@ class SheridanIcebergCi:
         return await _api_check(source)
 
     @function
+    async def sdist_check(
+        self,
+        source: Annotated[dagger.Directory, DefaultPath(".")],
+    ) -> str:
+        """Fail if the sdist has a top-level entry outside the allowed set."""
+        return await _sdist_check(source)
+
+    @function
     async def check(
         self,
         source: Annotated[dagger.Directory, DefaultPath(".")],
@@ -155,6 +200,7 @@ class SheridanIcebergCi:
         gates: list[tuple[str, Coroutine[Any, Any, str]]] = [
             *((name, container.stdout()) for name, container in containers),
             ("iceberg", _api_check(source)),
+            ("sdist", _sdist_check(source)),
         ]
 
         results: list[str | BaseException] = list(

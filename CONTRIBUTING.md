@@ -116,6 +116,7 @@ task test         # pytest (with coverage)
 task iceberg      # iceberg src/ (dogfood — show public API)
 task api:check    # fail if the public API differs from api.txt
 task api:update   # rewrite api.txt from src/sheridan/
+task sdist:check  # fail if the sdist ships files outside its include list
 task check        # all gates (read-only: lint:check, format:check, …)
 ```
 
@@ -125,6 +126,14 @@ task check        # all gates (read-only: lint:check, format:check, …)
 `task ci`) and `task check` fail when the current public API differs from it, and print
 the diff. If the change is intended, run `task api:update` and commit `api.txt` with
 your change, so that every API change shows up in review.
+
+## Source distribution
+
+The sdist ships only `src/`, `tests/`, `README.md`, `LICENSE`, `CHANGELOG.md` and
+`pyproject.toml` (the `include` list in `[tool.hatch.build.targets.sdist]`); Hatch adds
+`PKG-INFO` and `.gitignore`. CI (the `sdist` gate in `task ci`) and `task check` build
+the sdist and fail when it has any other top-level entry. If you add a file that users
+need in the sdist, add it to the `include` list and to both checks.
 
 ## Adding dependencies
 
