@@ -52,7 +52,9 @@ after the path it is given: `iceberg src/sheridan` reports `sheridan.iceberg`,
 while `iceberg src/sheridan/iceberg` reports `iceberg`.
 
 Exit codes: `0` on success, `1` for iceberg errors (missing path, invalid
-config, unparseable source), `2` for unexpected errors.
+config, unreadable or unparseable source), `2` for unexpected errors. Source files
+are decoded the way Python decodes them: UTF-8 unless a PEP 263 encoding
+declaration such as `# -*- coding: latin-1 -*-` says otherwise.
 
 ### Example output
 

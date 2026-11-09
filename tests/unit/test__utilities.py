@@ -1,11 +1,22 @@
 """Tests for sheridan.iceberg._utilities."""
 
 import ast
+import os
+import sys
 import warnings
+from pathlib import Path
 
 import pytest
 
-from sheridan.iceberg._utilities import bound_names, collect_imports, extract_all, infer_all, resolve_relative
+from sheridan.iceberg._exceptions import SourceReadError
+from sheridan.iceberg._utilities import (
+    bound_names,
+    collect_imports,
+    extract_all,
+    infer_all,
+    read_source,
+    resolve_relative,
+)
 
 
 def _imports(source: str, package: str = "pkg") -> dict[str, tuple[str, str | None]]:
@@ -233,3 +244,63 @@ def test_extract_all_warning_names_path_and_line() -> None:
     tree = ast.parse("__all__ = ['a']\n__all__ += make()")
     with pytest.warns(UserWarning, match=r"^pkg/mod\.py:2: cannot evaluate __all__"):
         extract_all(tree, "pkg", path="pkg/mod.py")
+
+
+# ---------------------------------------------------------------------------
+# read_source
+# ---------------------------------------------------------------------------
+
+
+def test_read_source_reads_utf8(tmp_path: Path) -> None:
+    path = tmp_path / "mod.py"
+    path.write_bytes('NAME = "café"\n'.encode())
+    assert read_source(path) == 'NAME = "café"\n'
+
+
+def test_read_source_uses_pep263_declaration(tmp_path: Path) -> None:
+    path = tmp_path / "mod.py"
+    path.write_bytes('# -*- coding: latin-1 -*-\nNAME = "café"\n'.encode("latin-1"))
+    assert read_source(path) == '# -*- coding: latin-1 -*-\nNAME = "café"\n'
+
+
+def test_read_source_bytes_not_valid_for_encoding(tmp_path: Path) -> None:
+    path = tmp_path / "mod.py"
+    path.write_bytes('NAME = "café"\n'.encode("latin-1"))
+    with pytest.raises(SourceReadError, match="cannot decode file") as info:
+        read_source(path)
+    assert info.value.path == str(path)
+    assert str(info.value).startswith(f"{path}: ")
+
+
+def test_read_source_unknown_encoding(tmp_path: Path) -> None:
+    path = tmp_path / "mod.py"
+    path.write_bytes(b"# -*- coding: bogus -*-\nx = 1\n")
+    with pytest.raises(SourceReadError, match="unknown encoding: bogus"):
+        read_source(path)
+
+
+def test_read_source_missing_file(tmp_path: Path) -> None:
+    path = tmp_path / "missing.py"
+    with pytest.raises(SourceReadError, match="cannot read file") as info:
+        read_source(path)
+    assert info.value.path == str(path)
+
+
+def test_read_source_broken_symlink(tmp_path: Path) -> None:
+    path = tmp_path / "link.py"
+    path.symlink_to(tmp_path / "missing.py")
+    with pytest.raises(SourceReadError, match="cannot read file"):
+        read_source(path)
+
+
+@pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0, reason="needs POSIX permissions as non-root")
+def test_read_source_unreadable_file(tmp_path: Path) -> None:
+    path = tmp_path / "mod.py"
+    path.write_text("x = 1\n")
+    path.chmod(0)
+    try:
+        with pytest.raises(SourceReadError, match="cannot read file") as info:
+            read_source(path)
+    finally:
+        path.chmod(0o644)
+    assert info.value.path == str(path)

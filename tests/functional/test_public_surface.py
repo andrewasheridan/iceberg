@@ -35,6 +35,7 @@ def test_all_equals_expected_names() -> None:
         "Config",
         "ConfigError",
         "Reference",
+        "SourceReadError",
         "utilities",
     }
     assert set(iceberg.__all__) == expected
@@ -54,6 +55,7 @@ def test_all_equals_expected_names() -> None:
         "InvalidPathError",
         "ParseError",
         "ConfigError",
+        "SourceReadError",
     ],
 )
 def test_all_names_are_accessible_as_attributes(name: str) -> None:

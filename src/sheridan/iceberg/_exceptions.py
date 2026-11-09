@@ -4,7 +4,7 @@ All exceptions raised by iceberg are subclasses of ``IcebergError``, allowing
 callers to catch the entire family with a single clause when desired.
 """
 
-__all__ = ["ConfigError", "IcebergError", "InvalidPathError", "ParseError"]
+__all__ = ["ConfigError", "IcebergError", "InvalidPathError", "ParseError", "SourceReadError"]
 
 
 class IcebergError(Exception):
@@ -75,6 +75,31 @@ class ParseError(IcebergError):
         """
         path = exc.filename if exc.filename and exc.filename != "<unknown>" else None
         return cls(exc.msg or str(exc), path=path, lineno=exc.lineno, offset=exc.offset)
+
+
+class SourceReadError(IcebergError):
+    """Raised when a source file cannot be read or decoded.
+
+    Covers files that cannot be opened (missing, broken symlink, no
+    permission) and files whose bytes do not match their encoding: UTF-8 by
+    default, or the encoding named in a PEP 263 declaration. ``str()``
+    prefixes the message with ``path:``.
+
+    Attributes:
+        message: The bare error message, without the path.
+        path: The file that could not be read.
+    """
+
+    def __init__(self, message: str, *, path: str) -> None:
+        """Store the message and the path of the file.
+
+        Args:
+            message: The bare error message.
+            path: The file that could not be read.
+        """
+        self.message = message
+        self.path = path
+        super().__init__(f"{path}: {message}")
 
 
 class ConfigError(IcebergError):

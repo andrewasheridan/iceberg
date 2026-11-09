@@ -37,6 +37,7 @@ EXPECTED_PUBLIC_NAMES: frozenset[str] = frozenset(
         "Config",
         "ConfigError",
         "Reference",
+        "SourceReadError",
     }
 )
 

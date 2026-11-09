@@ -5,16 +5,47 @@ They operate on the stdlib ``ast`` module and carry no external dependencies
 beyond the standard library.
 """
 
-__all__ = ["bound_names", "collect_imports", "extract_all", "infer_all", "resolve_relative"]
+__all__ = ["bound_names", "collect_imports", "extract_all", "infer_all", "read_source", "resolve_relative"]
 
 import ast
+import importlib.util
 import warnings
 from collections.abc import Callable, Iterator
+from pathlib import Path
+
+from sheridan.iceberg._exceptions import SourceReadError
 
 #: Look up the evaluated ``__all__`` of another module by dotted name. Returns
 #: ``None`` when the module is not in the analyzed tree or its ``__all__`` is
 #: unknown.
 type AllLookup = Callable[[str], frozenset[str] | None]
+
+
+def read_source(path: Path) -> str:
+    """Read and decode a Python source file.
+
+    The bytes are decoded the way the interpreter decodes them: UTF-8 unless
+    a PEP 263 encoding declaration or a BOM says otherwise.
+
+    Args:
+        path: The source file to read.
+
+    Returns:
+        The decoded source text, with universal newlines.
+
+    Raises:
+        SourceReadError: If the file cannot be read, or its bytes cannot be
+            decoded with its encoding.
+    """
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        raise SourceReadError(f"cannot read file: {exc.strerror or exc}", path=str(path)) from exc
+    try:
+        return importlib.util.decode_source(data)
+    except (SyntaxError, UnicodeDecodeError, LookupError) as exc:
+        reason = exc.msg if isinstance(exc, SyntaxError) else str(exc)
+        raise SourceReadError(f"cannot decode file: {reason}", path=str(path)) from exc
 
 
 class _NotStaticError(Exception):

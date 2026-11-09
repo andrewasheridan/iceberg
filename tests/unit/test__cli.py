@@ -291,3 +291,47 @@ def test_main_syntax_error_reports_file_line_and_column(tmp_path: Path, capsys: 
     err = capsys.readouterr().err
     assert err.startswith(f"error: {bad}:3:7: ")
     assert "(<unknown>" not in err
+
+
+# ---------------------------------------------------------------------------
+# Source files that cannot be read or decoded (real files, no mocks)
+# ---------------------------------------------------------------------------
+
+
+def _package(tmp_path: Path, module_bytes: bytes) -> Path:
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    (pkg / "mod.py").write_bytes(module_bytes)
+    return pkg
+
+
+def test_main_latin1_declaration_is_used(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """A module with a PEP 263 latin-1 declaration is decoded with latin-1."""
+    source = "# -*- coding: latin-1 -*-\ndef café() -> None: ...\n"
+    pkg = _package(tmp_path, source.encode("latin-1"))
+
+    assert main([str(pkg)]) == 0
+    assert "café" in capsys.readouterr().out
+
+
+def test_main_undecodable_file_returns_1(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """A module that is not valid UTF-8 is an IcebergError naming the file."""
+    pkg = _package(tmp_path, 'NAME = "café"\n'.encode("latin-1"))
+
+    assert main([str(pkg)]) == 1
+    captured = capsys.readouterr()
+    assert str(pkg / "mod.py") in captured.err
+    assert "unexpected error" not in captured.err
+
+
+def test_main_broken_symlink_returns_1(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """A module that is a broken symlink is an IcebergError naming the file."""
+    pkg = _package(tmp_path, b"")
+    (pkg / "mod.py").unlink()
+    (pkg / "mod.py").symlink_to(tmp_path / "missing.py")
+
+    assert main([str(pkg)]) == 1
+    captured = capsys.readouterr()
+    assert str(pkg / "mod.py") in captured.err
+    assert "unexpected error" not in captured.err
