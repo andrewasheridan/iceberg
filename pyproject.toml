@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sheridan-iceberg"
-version = "6.4.3"
+version = "7.0.0"
 description = "Reports the public API surface of Python modules"
 readme = "README.md"
 license = { text = "MIT" }
@@ -124,7 +124,7 @@ fail_under = 90
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "6.4.3"
+version = "7.0.0"
 version_files = [
     "pyproject.toml:^version",
 ]
