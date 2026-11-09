@@ -13,11 +13,11 @@ jobs:
       !startsWith(github.event.head_commit.message, 'bump:') &&
       !startsWith(github.head_ref, 'chore/version-bump-')
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Restore Dagger engine cache
         id: cache-dagger
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25  # v5.1.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: /tmp/dagger-engine.tar
           key: dagger-engine-v0.20.3
@@ -27,7 +27,7 @@ jobs:
         run: docker load -i /tmp/dagger-engine.tar
 
       - name: Run CI pipeline
-        uses: dagger/dagger-for-github@496f1b3d8b0d823834c13e67cf8a8e08ca3b9602  # v8.4.0
+        uses: dagger/dagger-for-github@27b130bf0f79a7f6fbbbe0fbca6760dc9bb40a77  # v8.4.1
         with:
           version: "0.20.3"
           call: check --source=.
