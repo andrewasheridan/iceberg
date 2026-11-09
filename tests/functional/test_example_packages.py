@@ -22,18 +22,10 @@ from sheridan.iceberg import get_public_api
 from sheridan.iceberg._config import Config
 from sheridan.iceberg._models import Module, Package
 
-# ---------------------------------------------------------------------------
-# Shared config — single worker keeps process overhead minimal in tests.
-# ---------------------------------------------------------------------------
-
+# A single worker keeps process overhead low in tests.
 _CFG = Config(max_workers=1, test_module_pattern=re.compile(r"(^|/)test_[^/]*\.py$|_test\.py$"))
 
 _FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 
 def _module_names(pkg: Package) -> set[str]:
@@ -54,14 +46,9 @@ def _function_names(module: Module) -> set[str]:
     return {f.name for f in module.functions}
 
 
-# ---------------------------------------------------------------------------
-# simple_pkg — flat package, __all__ = ['MyClass', 'my_func']
-# private modules: _models, _utils
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture(scope="module")
 def simple_pkg() -> Package:
+    """Flat package with ``__all__ = ['MyClass', 'my_func']`` and private modules ``_models`` and ``_utils``."""
     path = _FIXTURES_DIR / "simple_pkg"
     return get_public_api(path, config=_CFG)
 
@@ -106,14 +93,12 @@ def test_simple_pkg_my_func_hoisted(simple_pkg: Package) -> None:
     assert "my_func" in _function_names(init_mod)
 
 
-# ---------------------------------------------------------------------------
-# nested_pkg — has public subpackage public_sub/ and private _private_sub/;
-# private module _private.py; __all__ = ['PublicSub', 'top_level_func']
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture(scope="module")
 def nested_pkg() -> Package:
+    """Package with public subpackage ``public_sub/``, private ``_private_sub/`` and ``_private.py``.
+
+    ``__all__ = ['PublicSub', 'top_level_func']``.
+    """
     path = _FIXTURES_DIR / "nested_pkg"
     return get_public_api(path, config=_CFG)
 
@@ -165,14 +150,9 @@ def test_nested_pkg_no_subpackages(nested_pkg: Package) -> None:
     assert nested_pkg.subpackages == ()
 
 
-# ---------------------------------------------------------------------------
-# reexport_pkg — re-exports Alpha, Beta, gamma from private submodules;
-# __all__ = ['Alpha', 'Beta', 'gamma']
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture(scope="module")
 def reexport_pkg() -> Package:
+    """Package that re-exports ``Alpha``, ``Beta`` and ``gamma`` from private submodules."""
     path = _FIXTURES_DIR / "reexport_pkg"
     return get_public_api(path, config=_CFG)
 
@@ -214,14 +194,12 @@ def test_reexport_pkg_gamma_hoisted(reexport_pkg: Package) -> None:
     assert "gamma" in _function_names(init_mod)
 
 
-# ---------------------------------------------------------------------------
-# mixed_pkg — public_module.py is in __all__; _private_module.py is not;
-# __all__ = ['PublicThing', 'public_module']
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture(scope="module")
 def mixed_pkg() -> Package:
+    """Package whose ``__all__`` lists ``public_module`` but not ``_private_module``.
+
+    ``__all__ = ['PublicThing', 'public_module']``.
+    """
     path = _FIXTURES_DIR / "mixed_pkg"
     return get_public_api(path, config=_CFG)
 

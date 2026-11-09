@@ -15,10 +15,6 @@ from sheridan.iceberg._config import Config
 from sheridan.iceberg._exceptions import InvalidPathError
 from sheridan.iceberg._models import Class, Function, Module, Package
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 _CFG = Config(max_workers=1)
 
 
@@ -54,20 +50,10 @@ def _find_module(pkg: Package, dotted_name: str) -> Module | None:
     return None
 
 
-# ---------------------------------------------------------------------------
-# Scenario: invalid path raises InvalidPathError
-# ---------------------------------------------------------------------------
-
-
 def test_nonexistent_path_raises_invalid_path_error(tmp_path: Path) -> None:
     nonexistent = tmp_path / "does_not_exist"
     with pytest.raises(InvalidPathError):
         get_public_api(nonexistent, config=_CFG)
-
-
-# ---------------------------------------------------------------------------
-# Scenario 1: Single-module package (one .py file as the root)
-# ---------------------------------------------------------------------------
 
 
 def test_single_file_returns_module(tmp_path: Path) -> None:
@@ -97,11 +83,6 @@ class Converter:
     assert "helper" in _function_names(result)
     assert "_private" not in _function_names(result)
     assert "Converter" in _class_names(result)
-
-
-# ---------------------------------------------------------------------------
-# Scenario 2: Flat single-module package directory
-# ---------------------------------------------------------------------------
 
 
 def test_flat_package_single_module(tmp_path: Path) -> None:
@@ -137,11 +118,6 @@ def _internal() -> None:
     # greet must be reachable somewhere in the trie
     assert "greet" in _all_function_names(pkg)
     assert "_internal" not in _all_function_names(pkg)
-
-
-# ---------------------------------------------------------------------------
-# Scenario 3: Multi-module package with __init__ re-exports
-# ---------------------------------------------------------------------------
 
 
 def test_multi_module_package_with_init_reexports(tmp_path: Path) -> None:
@@ -191,11 +167,6 @@ def area(width: float, height: float) -> float:
     assert "area" in all_funcs
 
 
-# ---------------------------------------------------------------------------
-# Scenario 4: Class defined in submodule, re-exported via __init__
-# ---------------------------------------------------------------------------
-
-
 def test_class_in_submodule_reexported_via_init(tmp_path: Path) -> None:
     """A class defined in a submodule and re-exported in __init__ must be reachable."""
     pkg_dir = tmp_path / "transport"
@@ -233,11 +204,6 @@ class HttpClient:
     # http.py is not in __all__, so it is suppressed from the trie.
     assert _find_module(pkg, "transport.http") is None
     assert pkg.subpackages == ()
-
-
-# ---------------------------------------------------------------------------
-# Scenario 5: Nested subpackage — class defined three levels deep
-# ---------------------------------------------------------------------------
 
 
 def test_nested_subpackage_class_reachable(tmp_path: Path) -> None:
@@ -287,11 +253,6 @@ class Store:
     assert "Store" in _class_names(storage_init)
 
 
-# ---------------------------------------------------------------------------
-# Scenario 6: Package with __all__ on __init__ and locally-defined function
-# ---------------------------------------------------------------------------
-
-
 def test_locally_defined_function_in_init_reachable(tmp_path: Path) -> None:
     """A function defined directly in __init__.py appears in the init Module."""
     pkg_dir = tmp_path / "utils"
@@ -316,11 +277,6 @@ def add(a: int, b: int) -> int:
     assert init_mod is not None
     assert "add" in _function_names(init_mod)
     assert "PI" in {a.name for a in init_mod.assignments}
-
-
-# ---------------------------------------------------------------------------
-# Scenario 7: Module with no public symbols produces empty collections
-# ---------------------------------------------------------------------------
 
 
 def test_module_with_only_private_names_has_empty_collections(tmp_path: Path) -> None:
@@ -349,11 +305,6 @@ class _InternalHelper:
     assert impl_mod.classes == ()
 
 
-# ---------------------------------------------------------------------------
-# Scenario 8: Package returns correct Package.path
-# ---------------------------------------------------------------------------
-
-
 def test_package_path_matches_directory(tmp_path: Path) -> None:
     """Package.path must equal the directory passed to get_public_api."""
     pkg_dir = tmp_path / "mything"
@@ -363,11 +314,6 @@ def test_package_path_matches_directory(tmp_path: Path) -> None:
     pkg = get_public_api(pkg_dir, config=_CFG)
 
     assert pkg.path == pkg_dir
-
-
-# ---------------------------------------------------------------------------
-# Scenario 9: Async function is captured correctly
-# ---------------------------------------------------------------------------
 
 
 def test_async_function_is_captured(tmp_path: Path) -> None:
@@ -389,11 +335,6 @@ async def fetch(url: str) -> bytes:
     assert func_map["fetch"].is_async is True
 
 
-# ---------------------------------------------------------------------------
-# Scenario 10: Return-type annotation is preserved end-to-end
-# ---------------------------------------------------------------------------
-
-
 def test_function_return_annotation_preserved(tmp_path: Path) -> None:
     """Return-type annotations on functions survive the full pipeline."""
     src = tmp_path / "math_utils.py"
@@ -410,11 +351,6 @@ def square(n: int) -> int:
     assert isinstance(result, Module)
     func_map: dict[str, Function] = {f.name: f for f in result.functions}
     assert func_map["square"].returns == "int"
-
-
-# ---------------------------------------------------------------------------
-# Scenario 11: Class methods are captured on re-exported class
-# ---------------------------------------------------------------------------
 
 
 def test_class_methods_present_after_reexport(tmp_path: Path) -> None:

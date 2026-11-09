@@ -17,10 +17,6 @@ from sheridan.iceberg._models import (
     Reference,
 )
 
-# ---------------------------------------------------------------------------
-# Tree formatter
-# ---------------------------------------------------------------------------
-
 _BRANCH = "├── "
 """Connector string for a non-last tree node."""
 
@@ -292,10 +288,6 @@ def format_tree(api: Package | Module, *, show_overload_implementation: bool = F
     body = _render_lines(api, prefix="", show_overload_implementation=show_overload_implementation)
     return "\n".join([header, *body])
 
-
-# ---------------------------------------------------------------------------
-# JSON formatter
-# ---------------------------------------------------------------------------
 
 JSON_SCHEMA_VERSION = 1
 """Version of the JSON output format, emitted as the top-level ``schema_version``.

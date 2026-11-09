@@ -12,10 +12,6 @@ from sheridan.iceberg._exceptions import InvalidPathError, ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Package, Parameter
 from sheridan.iceberg.utilities import get_assignment, get_class, get_function, get_module, get_package
 
-# ---------------------------------------------------------------------------
-# str overload
-# ---------------------------------------------------------------------------
-
 
 def test_str_simple_function_name() -> None:
     result: Function = get_function("def foo(x: int) -> str:\n    ...")
@@ -60,11 +56,6 @@ def test_str_no_function_raises_parse_error() -> None:
         get_function("x = 1")
 
 
-# ---------------------------------------------------------------------------
-# AST node overload
-# ---------------------------------------------------------------------------
-
-
 def test_ast_functiondef_name() -> None:
     tree = ast.parse("def baz(a, b): pass")
     node = tree.body[0]
@@ -105,11 +96,6 @@ def test_ast_asyncfunctiondef_two_positional_params() -> None:
     assert isinstance(node, ast.AsyncFunctionDef)
     result: Function = get_function(node)
     assert len(result.positional_parameters) == 2
-
-
-# ---------------------------------------------------------------------------
-# Path overload
-# ---------------------------------------------------------------------------
 
 
 def test_path_function_found(tmp_path: Path) -> None:
@@ -216,11 +202,6 @@ def test_path_missing_name_raises_type_error(tmp_path: Path) -> None:
         get_function(file)  # type: ignore[call-overload]
 
 
-# ---------------------------------------------------------------------------
-# Callable overload
-# ---------------------------------------------------------------------------
-
-
 def _sample_callable(a: int, b: str) -> float:
     return float(a)
 
@@ -259,11 +240,6 @@ def test_callable_lambda_raises_invalid_path_error() -> None:
         get_function(lambda x: x)
 
 
-# ---------------------------------------------------------------------------
-# get_class — str overload
-# ---------------------------------------------------------------------------
-
-
 def test_get_class_str_simple_name() -> None:
     result: Class = get_class("class Foo:\n    x: int = 1")
     assert result.name == "Foo"
@@ -279,22 +255,12 @@ def test_get_class_str_syntax_error_raises_parse_error() -> None:
         get_class("class (")
 
 
-# ---------------------------------------------------------------------------
-# get_class — AST node overload
-# ---------------------------------------------------------------------------
-
-
 def test_get_class_ast_node_name() -> None:
     tree = ast.parse("class Bar:\n    pass")
     node = tree.body[0]
     assert isinstance(node, ast.ClassDef)
     result: Class = get_class(node)
     assert result.name == "Bar"
-
-
-# ---------------------------------------------------------------------------
-# get_class — Path overload
-# ---------------------------------------------------------------------------
 
 
 def test_get_class_path_found(tmp_path: Path) -> None:
@@ -355,11 +321,6 @@ def test_get_class_path_missing_name_raises_type_error(tmp_path: Path) -> None:
         get_class(file)  # type: ignore[call-overload]
 
 
-# ---------------------------------------------------------------------------
-# get_class — type overload
-# ---------------------------------------------------------------------------
-
-
 class _TestClass:
     pass
 
@@ -379,11 +340,6 @@ def test_get_class_without_source_raises_invalid_path_error() -> None:
     exec("class MadeAtRuntime: pass", namespace)
     with pytest.raises(InvalidPathError, match="Cannot locate source"):
         get_class(namespace["MadeAtRuntime"])  # type: ignore[arg-type]
-
-
-# ---------------------------------------------------------------------------
-# get_assignment — str overload
-# ---------------------------------------------------------------------------
 
 
 def test_get_assignment_str_annotated_name() -> None:
@@ -424,11 +380,6 @@ def test_get_assignment_str_no_assignment_raises_parse_error() -> None:
         get_assignment("def foo(): pass")
 
 
-# ---------------------------------------------------------------------------
-# get_assignment — AST node overload
-# ---------------------------------------------------------------------------
-
-
 def test_get_assignment_ast_ann_assign_name() -> None:
     tree = ast.parse("z: float")
     node = tree.body[0]
@@ -461,11 +412,6 @@ def test_get_assignment_ast_type_alias_annotation() -> None:
     assert result.annotation == "TypeAlias"
 
 
-# ---------------------------------------------------------------------------
-# get_assignment — Path overload
-# ---------------------------------------------------------------------------
-
-
 def test_get_assignment_path_found(tmp_path: Path) -> None:
     src = "MY_CONST: int = 99\n"
     file: Path = tmp_path / "consts.py"
@@ -490,10 +436,6 @@ def test_get_assignment_path_name_not_found_raises_invalid_path_error(tmp_path: 
     with pytest.raises(InvalidPathError):
         get_assignment(file, name="MISSING")
 
-
-# ---------------------------------------------------------------------------
-# get_assignment — chained, unpacked, and if/try-block targets (#145)
-# ---------------------------------------------------------------------------
 
 _BOUND_NAMES_SRC = """\
 a = b = 1
@@ -562,11 +504,6 @@ def test_get_assignment_str_attribute_target_not_found() -> None:
         get_assignment("obj.attr = 1", name="attr")
 
 
-# ---------------------------------------------------------------------------
-# get_module — str overload
-# ---------------------------------------------------------------------------
-
-
 def test_get_module_str_default_name() -> None:
     result: Module = get_module("x = 1\ndef foo(): pass")
     assert result.name == "<module>"
@@ -580,11 +517,6 @@ def test_get_module_str_custom_name() -> None:
 def test_get_module_str_syntax_error_raises_parse_error() -> None:
     with pytest.raises(ParseError):
         get_module("def (")
-
-
-# ---------------------------------------------------------------------------
-# get_module — Path overload
-# ---------------------------------------------------------------------------
 
 
 def test_get_module_path_name_is_stem(tmp_path: Path) -> None:
@@ -620,11 +552,6 @@ def test_get_module_path_all_warning_names_file(tmp_path: Path) -> None:
     assert any(str(file) in str(w.message) for w in record)
 
 
-# ---------------------------------------------------------------------------
-# get_module — ModuleType overload
-# ---------------------------------------------------------------------------
-
-
 def test_get_module_module_type_returns_module() -> None:
     import textwrap
 
@@ -644,10 +571,6 @@ def test_get_module_builtin_module_raises_invalid_path_error() -> None:
         get_module(sys)
 
 
-# ---------------------------------------------------------------------------
-# get_package — Path overload
-# ---------------------------------------------------------------------------
-
 _ICEBERG_PKG_PATH = Path(__file__).parent.parent.parent / "src" / "sheridan" / "iceberg"
 
 
@@ -656,19 +579,9 @@ def test_get_package_path_returns_package() -> None:
     assert isinstance(result, Package)
 
 
-# ---------------------------------------------------------------------------
-# get_package — str overload
-# ---------------------------------------------------------------------------
-
-
 def test_get_package_str_returns_package() -> None:
     result: Package = get_package(str(_ICEBERG_PKG_PATH))
     assert isinstance(result, Package)
-
-
-# ---------------------------------------------------------------------------
-# get_package — ModuleType overload
-# ---------------------------------------------------------------------------
 
 
 def test_get_package_module_type_returns_package() -> None:
@@ -714,11 +627,6 @@ def test_get_package_namespace_package_with_many_portions_raises(tmp_path: Path)
 
     with pytest.raises(InvalidPathError, match="2 portions"):
         get_package(mod)
-
-
-# ---------------------------------------------------------------------------
-# get_package — invalid path
-# ---------------------------------------------------------------------------
 
 
 def test_get_package_nonexistent_path_raises_invalid_path_error() -> None:

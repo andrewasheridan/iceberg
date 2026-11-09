@@ -9,18 +9,9 @@ from sheridan.iceberg._exceptions import ParseError
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Parameter, Reference
 from sheridan.iceberg._visitor import visit_module
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def _visit(source: str, name: str = "mymodule") -> Module:
     return visit_module(source, name)
-
-
-# ---------------------------------------------------------------------------
-# Scenario 1: __all__ filters public names
-# ---------------------------------------------------------------------------
 
 
 def test_all_filters_out_non_listed_function() -> None:
@@ -51,11 +42,6 @@ y: int = 2
     assert "y" not in names
 
 
-# ---------------------------------------------------------------------------
-# Scenario 2: Private name in __all__ is still exposed
-# ---------------------------------------------------------------------------
-
-
 def test_private_name_in_all_is_exposed() -> None:
     source = """
 __all__ = ["_helper"]
@@ -70,11 +56,6 @@ def public():
     names = {f.name for f in module.functions}
     assert "_helper" in names
     assert "public" not in names
-
-
-# ---------------------------------------------------------------------------
-# Scenario 3: No __all__ — underscore names excluded, public ones included
-# ---------------------------------------------------------------------------
 
 
 def test_no_all_excludes_underscore_functions() -> None:
@@ -114,11 +95,6 @@ _Y: int = 2
     names = {a.name for a in module.assignments}
     assert "X" in names
     assert "_Y" not in names
-
-
-# ---------------------------------------------------------------------------
-# Scenario 4: Function with every parameter kind
-# ---------------------------------------------------------------------------
 
 
 def test_function_all_parameter_kinds() -> None:
@@ -233,11 +209,6 @@ def fn(*, required: str) -> None:
     assert kw.default is None
 
 
-# ---------------------------------------------------------------------------
-# Scenario 5: async def produces Function.is_async is True
-# ---------------------------------------------------------------------------
-
-
 def test_async_function_is_async_true() -> None:
     source = """
 async def fetch(url: str) -> bytes:
@@ -255,11 +226,6 @@ def compute(x: int) -> int:
 """
     module = _visit(source)
     assert module.functions[0].is_async is False
-
-
-# ---------------------------------------------------------------------------
-# Scenario 6: Class with nested class plus method; no bases/decorators/docstring
-# ---------------------------------------------------------------------------
 
 
 def test_class_with_nested_class_and_method() -> None:
@@ -315,11 +281,6 @@ class MyClass:
     module = _visit(source)
     cls = module.classes[0]
     assert not hasattr(cls, "docstring")
-
-
-# ---------------------------------------------------------------------------
-# Scenario 7: Decorators decide the kind of a method
-# ---------------------------------------------------------------------------
 
 
 def test_staticmethod_has_staticmethod_kind() -> None:
@@ -454,11 +415,6 @@ def compute(n: int) -> int:
     assert dataclasses.replace(decorated, decorators=()) == plain
 
 
-# ---------------------------------------------------------------------------
-# Scenario 8: Module-level annotated assignment captures annotation
-# ---------------------------------------------------------------------------
-
-
 def test_annotated_assignment_simple_literal() -> None:
     source = """
 TIMEOUT: int = 30
@@ -498,11 +454,6 @@ LIMIT = 100
     a = module.assignments[0]
     assert a.name == "LIMIT"
     assert a.annotation is None
-
-
-# ---------------------------------------------------------------------------
-# Scenario 9: Chained and unpacked assignments bind one entry per name
-# ---------------------------------------------------------------------------
 
 
 def test_chained_assignment_captures_every_name() -> None:
@@ -567,11 +518,6 @@ obj.attr = 42
     assert len(module.assignments) == 0
 
 
-# ---------------------------------------------------------------------------
-# Scenario 10: PEP 695 type alias captured as Assignment with TypeAlias annotation
-# ---------------------------------------------------------------------------
-
-
 def test_type_alias_pep695() -> None:
     source = "type X = int\n"
     module = _visit(source)
@@ -605,11 +551,6 @@ type MyAlias = str
     assert module.assignments[0].name == "MyAlias"
 
 
-# ---------------------------------------------------------------------------
-# Scenario 11: Syntax error source raises ParseError
-# ---------------------------------------------------------------------------
-
-
 def test_syntax_error_raises_parse_error() -> None:
     source = "def broken(:"
     with pytest.raises(ParseError):
@@ -630,20 +571,10 @@ def test_syntax_error_not_swallowed() -> None:
         _visit(source)
 
 
-# ---------------------------------------------------------------------------
-# Module name is preserved
-# ---------------------------------------------------------------------------
-
-
 def test_module_dotted_name_preserved() -> None:
     source = ""
     module = _visit(source, name="my_pkg.sub.core")
     assert module.name == "my_pkg.sub.core"
-
-
-# ---------------------------------------------------------------------------
-# Scenario 12: Class body privacy filtering
-# ---------------------------------------------------------------------------
 
 
 def test_class_private_method_excluded() -> None:
@@ -781,11 +712,6 @@ class Service:
     assert "_State" not in nested_names
 
 
-# ---------------------------------------------------------------------------
-# References: names in __all__ with no local definition
-# ---------------------------------------------------------------------------
-
-
 def test_all_reexport_of_import_becomes_reference() -> None:
     source = """
 from math import sqrt
@@ -812,11 +738,6 @@ def test_all_unbound_name_becomes_reference_without_source() -> None:
 def test_no_all_means_no_references() -> None:
     module = _visit("from math import sqrt\n\ndef f():\n    pass\n")
     assert module.references == ()
-
-
-# ---------------------------------------------------------------------------
-# Definitions inside module-level if / try blocks
-# ---------------------------------------------------------------------------
 
 
 def test_type_checking_block_definitions_captured() -> None:
@@ -990,11 +911,6 @@ def test_syntax_error_without_path_has_no_path() -> None:
     assert info.value.lineno == 1
 
 
-# ---------------------------------------------------------------------------
-# Star imports
-# ---------------------------------------------------------------------------
-
-
 def test_star_import_from_module_with_known_all_binds_its_names() -> None:
     source = 'from ._c import *\nfrom os import *\n__all__ = ["X", "ghost"]\n'
     known_all: dict[str, frozenset[str] | None] = {"pkg._c": frozenset({"X"})}
@@ -1008,11 +924,6 @@ def test_star_import_from_module_with_known_all_binds_its_names() -> None:
 def test_star_import_from_unknown_module_is_candidate() -> None:
     module = visit_module('from os.path import *\n__all__ = ["join"]\n', "pkg.mod")
     assert module.references == (Reference(name="join", module="os.path", attribute="join"),)
-
-
-# ---------------------------------------------------------------------------
-# typing.overload grouping
-# ---------------------------------------------------------------------------
 
 
 def test_module_level_overloads_are_grouped_into_the_implementation() -> None:

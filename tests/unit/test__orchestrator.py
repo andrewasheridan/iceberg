@@ -14,10 +14,6 @@ from sheridan.iceberg._config import Config
 from sheridan.iceberg._models import Function, Module, Package, Reference
 from sheridan.iceberg._orchestrator import build_package
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def _write(path: Path, text: str = "") -> Path:
     """Write *text* to *path*, creating parents as needed."""
@@ -37,11 +33,6 @@ def _all_module_names(pkg: Package) -> set[str]:
     for sub in pkg.subpackages:
         names |= _all_module_names(sub)
     return names
-
-
-# ---------------------------------------------------------------------------
-# Scenario 1 — Single .py file → one-module Package
-# ---------------------------------------------------------------------------
 
 
 def test_single_file_returns_module(tmp_path: Path) -> None:
@@ -67,11 +58,6 @@ def test_single_file_module_has_correct_name(tmp_path: Path) -> None:
 
     assert isinstance(result, Module)
     assert result.name == "utils"
-
-
-# ---------------------------------------------------------------------------
-# Scenario 2 — Flat package → Package with modules, subpackages empty
-# ---------------------------------------------------------------------------
 
 
 def test_flat_package_modules_populated(tmp_path: Path) -> None:
@@ -103,11 +89,6 @@ def test_flat_package_subpackages_empty(tmp_path: Path) -> None:
     result = build_package(pkg, config)
 
     assert result.subpackages == ()
-
-
-# ---------------------------------------------------------------------------
-# Scenario 3 — Three-level nested package → correct trie depth
-# ---------------------------------------------------------------------------
 
 
 def test_nested_package_three_levels_deep(tmp_path: Path) -> None:
@@ -143,11 +124,6 @@ def test_nested_trie_root_subpackage_name(tmp_path: Path) -> None:
 
     sub = result.subpackages[0]
     assert sub.name == "mypkg.inner"
-
-
-# ---------------------------------------------------------------------------
-# Scenario 4 — __init__.py re-exports a function from a sibling
-# ---------------------------------------------------------------------------
 
 
 def test_init_reexport_function_appears_in_init_module(tmp_path: Path) -> None:
@@ -198,11 +174,6 @@ def test_init_reexport_function_is_correct_type(tmp_path: Path) -> None:
     assert any(isinstance(fn, Function) and fn.name == "compute" for fn in init_module.functions)
 
 
-# ---------------------------------------------------------------------------
-# Scenario 5 — Explicit config= passed to get_public_api bypasses discovery
-# ---------------------------------------------------------------------------
-
-
 def test_explicit_config_bypasses_file_discovery(tmp_path: Path) -> None:
     """When config= is supplied to get_public_api, no .iceberg.toml is sought."""
     pkg = tmp_path / "pkg"
@@ -239,11 +210,6 @@ def test_explicit_config_max_workers_respected(tmp_path: Path) -> None:
     all_names = _all_module_names(result)
     assert "pkg.a" in all_names
     assert "pkg.b" in all_names
-
-
-# ---------------------------------------------------------------------------
-# Scenario 6 — ≥ 8 non-init modules all appear in the result
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("module_count", [8, 10])
@@ -306,11 +272,6 @@ def test_default_config_safe_in_unguarded_script(tmp_path: Path) -> None:
     assert completed.stdout.strip() == "pkg"
 
 
-# ---------------------------------------------------------------------------
-# Paths that are not Python identifiers
-# ---------------------------------------------------------------------------
-
-
 def test_hyphenated_directory_does_not_create_phantom_root(tmp_path: Path) -> None:
     """A hyphenated subdirectory does not add a second root or an empty root name."""
     pkg = tmp_path / "pkg"
@@ -335,11 +296,6 @@ def test_non_identifier_root_directory_has_non_empty_name(tmp_path: Path) -> Non
 
     assert isinstance(result, Package)
     assert result.name == "my-project"
-
-
-# ---------------------------------------------------------------------------
-# __all__ built up from other modules
-# ---------------------------------------------------------------------------
 
 
 def _init_module(result: Package, name: str) -> Module:
@@ -385,11 +341,6 @@ def test_unevaluable_all_warns_and_falls_back(tmp_path: Path) -> None:
     assert {fn.name for fn in core.functions} == {"run", "other"}
 
 
-# ---------------------------------------------------------------------------
-# Re-export chains through regular modules
-# ---------------------------------------------------------------------------
-
-
 def test_reexport_chain_through_regular_modules_resolved(tmp_path: Path) -> None:
     """pkg re-exports X from _a, which re-exports it from _b, which defines it."""
     pkg = tmp_path / "pkg"
@@ -418,11 +369,6 @@ def test_reexport_cycle_through_regular_modules_left_unresolved(tmp_path: Path) 
     (init,) = result.modules
     assert init.classes == ()
     assert [ref.name for ref in init.references] == ["X"]
-
-
-# ---------------------------------------------------------------------------
-# Star imports
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(

@@ -13,10 +13,6 @@ from pathlib import Path
 
 import pytest
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
 # The iceberg package itself is a well-known real package on disk that the
 # subprocess can locate via the installed editable path.  We derive its
 # location relative to this file so the tests are portable.
@@ -34,22 +30,12 @@ def real_package_path() -> Path:
     return _REAL_PACKAGE_PATH
 
 
-# ---------------------------------------------------------------------------
-# Helper
-# ---------------------------------------------------------------------------
-
-
 def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-m", "sheridan.iceberg", *args],
         capture_output=True,
         text=True,
     )
-
-
-# ---------------------------------------------------------------------------
-# Test 1: tree output, exit code 0
-# ---------------------------------------------------------------------------
 
 
 def test_tree_output_exit_code_zero(real_package_path: Path) -> None:
@@ -71,11 +57,6 @@ def test_tree_output_contains_known_public_symbol(real_package_path: Path) -> No
     assert result.returncode == 0
     # get_public_api is the primary entry-point and must appear in the tree.
     assert "get_public_api" in result.stdout
-
-
-# ---------------------------------------------------------------------------
-# Test 2: --json flag, exit code 0, valid JSON
-# ---------------------------------------------------------------------------
 
 
 def test_json_output_exit_code_zero(real_package_path: Path) -> None:
@@ -111,11 +92,6 @@ def test_json_output_stable_across_two_runs(real_package_path: Path) -> None:
     )
 
 
-# ---------------------------------------------------------------------------
-# Test 3: non-existent path exits non-zero with error on stderr
-# ---------------------------------------------------------------------------
-
-
 def test_nonexistent_path_exits_nonzero(tmp_path: Path) -> None:
     """Passing a path that does not exist exits with a non-zero code."""
     nonexistent = tmp_path / "definitely_does_not_exist"
@@ -147,11 +123,6 @@ def test_nonexistent_path_stdout_is_empty(tmp_path: Path) -> None:
     assert not result.stdout.strip(), f"Expected empty stdout on failure, got: {result.stdout!r}"
 
 
-# ---------------------------------------------------------------------------
-# Test 4: exit code 1 specifically (IcebergError path)
-# ---------------------------------------------------------------------------
-
-
 def test_nonexistent_path_exits_with_code_1(tmp_path: Path) -> None:
     """A nonexistent path triggers an IcebergError, so the exit code must be 1."""
     nonexistent = tmp_path / "definitely_does_not_exist"
@@ -161,11 +132,6 @@ def test_nonexistent_path_exits_with_code_1(tmp_path: Path) -> None:
     assert result.returncode == 1, (
         f"Expected exit code 1 (IcebergError), got {result.returncode}.\nstderr: {result.stderr!r}"
     )
-
-
-# ---------------------------------------------------------------------------
-# JSON output does not depend on where the source lives
-# ---------------------------------------------------------------------------
 
 
 def test_json_output_is_identical_for_copies_in_different_directories(tmp_path: Path) -> None:

@@ -8,10 +8,6 @@ from sheridan.iceberg._exceptions import ParseError
 from sheridan.iceberg._init_resolver import ResolveReport, resolve_init, resolve_module_references
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Reference
 
-# ---------------------------------------------------------------------------
-# Shared helpers / fixtures
-# ---------------------------------------------------------------------------
-
 _EMPTY_MODULE = Module(name="", assignments=(), classes=(), functions=())
 _EMPTY_SIBLINGS: dict[str, Module] = {}
 _EMPTY_SUBPKGS: frozenset[str] = frozenset()
@@ -59,11 +55,6 @@ def _resolve(
         sibling_modules=siblings if siblings is not None else {},
         subpackage_names=subpackage_names,
     )
-
-
-# ---------------------------------------------------------------------------
-# Scenario 1: No __all__ — underscore-prefix filtering
-# ---------------------------------------------------------------------------
 
 
 def test_no_all_public_function_included() -> None:
@@ -125,11 +116,6 @@ _INTERNAL: int = 0
     names = {a.name for a in module.assignments}
     assert "VERSION" in names
     assert "_INTERNAL" not in names
-
-
-# ---------------------------------------------------------------------------
-# Scenario 2: __all__-driven re-export — objects attached by equality
-# ---------------------------------------------------------------------------
 
 
 def test_all_driven_function_reexport() -> None:
@@ -216,11 +202,6 @@ def local_fn() -> None:
     assert report.unresolved == ()
 
 
-# ---------------------------------------------------------------------------
-# Scenario 3: Unresolvable name recorded in ResolveReport, no exception
-# ---------------------------------------------------------------------------
-
-
 def test_unresolvable_name_in_report() -> None:
     source = """
 __all__ = ["ghost"]
@@ -272,11 +253,6 @@ from .core import real_func
     assert "real_func" not in report.unresolved
 
 
-# ---------------------------------------------------------------------------
-# Scenario 4: Deep relative import — from .sub.deep import X
-# ---------------------------------------------------------------------------
-
-
 def test_deep_relative_import_resolved() -> None:
     source = """
 __all__ = ["deep_fn"]
@@ -315,11 +291,6 @@ from .utils.strings import helper
     assert module.functions[0] == fn
 
 
-# ---------------------------------------------------------------------------
-# Scenario 5: subpackage names are skipped, not reported
-# ---------------------------------------------------------------------------
-
-
 def test_subpackage_names_excluded_from_members() -> None:
     source = """
 __all__ = ["sub", "real_fn"]
@@ -336,11 +307,6 @@ from .core import real_fn
     # sub is a subpackage name — resolver skips it silently (not in unresolved)
     assert "sub" not in report.unresolved
     assert module.references == ()
-
-
-# ---------------------------------------------------------------------------
-# Scenario 6: SyntaxError in init_source raises ParseError
-# ---------------------------------------------------------------------------
 
 
 def test_syntax_error_raises_parse_error() -> None:
@@ -375,11 +341,6 @@ def test_valid_empty_source_does_not_raise() -> None:
     assert report.unresolved == ()
 
 
-# ---------------------------------------------------------------------------
-# ResolveReport structural tests
-# ---------------------------------------------------------------------------
-
-
 def test_resolve_report_is_frozen() -> None:
     report = ResolveReport(unresolved=("a",))
     with pytest.raises((AttributeError, TypeError)):
@@ -394,20 +355,10 @@ __all__ = ["x", "y"]
     assert isinstance(report.unresolved, tuple)
 
 
-# ---------------------------------------------------------------------------
-# Module name preserved on returned Module
-# ---------------------------------------------------------------------------
-
-
 def test_returned_module_name_matches_dotted_package() -> None:
     source = "__all__ = []\n"
     module, _ = _resolve(source, package="org.lib.sub")
     assert module.name == "org.lib.sub"
-
-
-# ---------------------------------------------------------------------------
-# Absolute intra-package import resolved
-# ---------------------------------------------------------------------------
 
 
 def test_absolute_sibling_import_resolved() -> None:
@@ -436,11 +387,6 @@ from other_pkg.core import foreign_fn
     assert "foreign_fn" in report.unresolved
 
 
-# ---------------------------------------------------------------------------
-# from . import X (bare relative import, no module part)
-# ---------------------------------------------------------------------------
-
-
 def test_bare_relative_import_resolved() -> None:
     source = """
 __all__ = ["bare_fn"]
@@ -451,11 +397,6 @@ from . import bare_fn
     sibling = _make_module("mypkg", functions=(fn,))
     module, _ = _resolve(source, package="mypkg", siblings={"mypkg": sibling})
     assert module.functions[0] == fn
-
-
-# ---------------------------------------------------------------------------
-# Unresolved names become References
-# ---------------------------------------------------------------------------
 
 
 def test_unresolved_external_reexport_becomes_reference() -> None:
@@ -530,11 +471,6 @@ from pathlib import Path
     assert module.references == ()
 
 
-# ---------------------------------------------------------------------------
-# Imports nested in try / if blocks
-# ---------------------------------------------------------------------------
-
-
 def test_try_except_reexport_resolved_from_first_branch() -> None:
     source = """
 __all__ = ["parse"]
@@ -551,11 +487,6 @@ except ImportError:
     module, report = _resolve(source, siblings=siblings)
     assert module.functions == (fast,)
     assert report.unresolved == ()
-
-
-# ---------------------------------------------------------------------------
-# Absolute imports: whole root package and namespace prefixes
-# ---------------------------------------------------------------------------
 
 
 def test_absolute_import_from_elsewhere_in_root_package_resolved() -> None:
@@ -628,11 +559,6 @@ def test_syntax_error_reports_init_path() -> None:
         resolve_init("def broken(:", "pkg", {}, frozenset(), path=Path("src/pkg/__init__.py"))
     assert info.value.path == "src/pkg/__init__.py"
     assert info.value.lineno == 1
-
-
-# ---------------------------------------------------------------------------
-# resolve_module_references — re-export chains between regular modules
-# ---------------------------------------------------------------------------
 
 
 def test_module_references_follow_three_module_chain() -> None:

@@ -9,10 +9,6 @@ import pytest
 from sheridan.iceberg._config import Config, load_config
 from sheridan.iceberg._exceptions import ConfigError
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 _DEFAULT_PATTERN_SRC = r"(^|/)tests?(/|$)|(^|/)test_[^/]*\.py$|_test\.py$"
 
 
@@ -21,11 +17,6 @@ def _write(path: Path, text: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     return path
-
-
-# ---------------------------------------------------------------------------
-# Config dataclass - unit tests (no filesystem)
-# ---------------------------------------------------------------------------
 
 
 def test_config_defaults() -> None:
@@ -57,21 +48,11 @@ def test_config_explicit_values() -> None:
     assert cfg.max_workers == 4
 
 
-# ---------------------------------------------------------------------------
-# 1. Defaults returned when no config file exists in any ancestor
-# ---------------------------------------------------------------------------
-
-
 def test_load_config_no_file_returns_defaults(tmp_path: Path) -> None:
     # tmp_path/src does not exist; the walk resolves to tmp_path itself
     cfg = load_config(tmp_path / "src")
     assert cfg.test_module_pattern.pattern == _DEFAULT_PATTERN_SRC
     assert cfg.max_workers == 1
-
-
-# ---------------------------------------------------------------------------
-# 2. .iceberg.toml wins when both files are present in the same directory
-# ---------------------------------------------------------------------------
 
 
 def test_load_config_iceberg_toml_wins_over_pyproject(tmp_path: Path) -> None:
@@ -85,11 +66,6 @@ def test_load_config_iceberg_toml_wins_over_pyproject(tmp_path: Path) -> None:
     )
     cfg = load_config(tmp_path)
     assert cfg.max_workers == 2
-
-
-# ---------------------------------------------------------------------------
-# 3. pyproject.toml [tool.iceberg] is respected when .iceberg.toml is absent
-# ---------------------------------------------------------------------------
 
 
 def test_load_config_pyproject_toml_respected(tmp_path: Path) -> None:
@@ -114,11 +90,6 @@ def test_load_config_pyproject_without_iceberg_table_returns_defaults(tmp_path: 
     assert cfg == Config()
 
 
-# ---------------------------------------------------------------------------
-# 4. test_module_pattern from config compiles to a re.Pattern
-# ---------------------------------------------------------------------------
-
-
 def test_load_config_custom_pattern_compiles(tmp_path: Path) -> None:
     _write(
         tmp_path / ".iceberg.toml",
@@ -129,11 +100,6 @@ def test_load_config_custom_pattern_compiles(tmp_path: Path) -> None:
     assert cfg.test_module_pattern.pattern == "^tests/"
     assert cfg.test_module_pattern.match("tests/foo.py") is not None
     assert cfg.test_module_pattern.match("src/foo.py") is None
-
-
-# ---------------------------------------------------------------------------
-# 5. Invalid regex raises ConfigError
-# ---------------------------------------------------------------------------
 
 
 def test_load_config_invalid_regex_raises(tmp_path: Path) -> None:
@@ -154,11 +120,6 @@ def test_load_config_invalid_regex_in_pyproject_raises(tmp_path: Path) -> None:
         load_config(tmp_path)
 
 
-# ---------------------------------------------------------------------------
-# 6. Malformed TOML raises ConfigError
-# ---------------------------------------------------------------------------
-
-
 def test_load_config_malformed_iceberg_toml_raises(tmp_path: Path) -> None:
     _write(tmp_path / ".iceberg.toml", "max_workers = [not valid toml!!!\n")
     with pytest.raises(ConfigError, match="Failed to parse TOML"):
@@ -169,11 +130,6 @@ def test_load_config_malformed_pyproject_toml_raises(tmp_path: Path) -> None:
     _write(tmp_path / "pyproject.toml", "[tool.iceberg\nbad syntax =\n")
     with pytest.raises(ConfigError, match="Failed to parse TOML"):
         load_config(tmp_path)
-
-
-# ---------------------------------------------------------------------------
-# 7. Unknown key raises ConfigError
-# ---------------------------------------------------------------------------
 
 
 def test_load_config_unknown_key_in_iceberg_toml_raises(tmp_path: Path) -> None:
@@ -191,11 +147,6 @@ def test_load_config_unknown_key_in_pyproject_raises(tmp_path: Path) -> None:
         load_config(tmp_path)
 
 
-# ---------------------------------------------------------------------------
-# 8. max_workers with a non-integer value raises ConfigError
-# ---------------------------------------------------------------------------
-
-
 def test_load_config_max_workers_non_integer_raises(tmp_path: Path) -> None:
     _write(tmp_path / ".iceberg.toml", 'max_workers = "four"\n')
     with pytest.raises(ConfigError, match="'max_workers' must be an integer"):
@@ -206,11 +157,6 @@ def test_load_config_max_workers_float_raises(tmp_path: Path) -> None:
     _write(tmp_path / ".iceberg.toml", "max_workers = 2.5\n")
     with pytest.raises(ConfigError, match="'max_workers' must be an integer"):
         load_config(tmp_path)
-
-
-# ---------------------------------------------------------------------------
-# Ancestor walk - config found in a parent directory
-# ---------------------------------------------------------------------------
 
 
 def test_load_config_found_in_parent(tmp_path: Path) -> None:
@@ -271,21 +217,11 @@ def test_load_config_iceberg_toml_above_project_root_ignored(tmp_path: Path) -> 
     assert load_config(project).max_workers == 1
 
 
-# ---------------------------------------------------------------------------
-# max_workers positive integer constraint
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.parametrize("value", [0, -1, -100])
 def test_load_config_max_workers_non_positive_raises(tmp_path: Path, value: int) -> None:
     _write(tmp_path / ".iceberg.toml", f"max_workers = {value}\n")
     with pytest.raises(ConfigError, match="positive integer"):
         load_config(tmp_path)
-
-
-# ---------------------------------------------------------------------------
-# exclude
-# ---------------------------------------------------------------------------
 
 
 def test_exclude_defaults_to_empty() -> None:
