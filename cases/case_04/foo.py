@@ -71,6 +71,15 @@ class Waldo:
     def bar(cls):
         """Case 04 - foo.waldo.bar."""
 
+    @property
+    def baz(self) -> int:
+        """Case 04 - foo.waldo.baz."""
+        return 0
+
+    @baz.setter
+    def baz(self, value: int) -> None:
+        """Case 04 - foo.waldo.baz setter."""
+
     class Fred:
         """Case 04 - foo.Waldo.Fred."""
 

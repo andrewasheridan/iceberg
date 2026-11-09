@@ -25,7 +25,13 @@ PEP 695 ``type X = int`` statements are captured as ``Assignment`` with
 used for ``X: TypeAlias = int`` style aliases so downstream tools see a
 consistent representation regardless of which form the source uses.
 
-Explicitly excluded from capture: docstrings, decorators, class bases.
+Function decorators are captured as source strings, and decide the
+``Function.kind`` of a method: ``@property`` and ``@cached_property``
+make a ``"property"``, ``@classmethod`` and ``@staticmethod`` make those
+kinds, and any other method is a ``"method"``. Property setters, getters and
+deleters (``@p.setter``) are not reported, because they add no new name.
+
+Explicitly excluded from capture: docstrings, class decorators, class bases.
 """
 
 __all__ = ["visit_module"]
@@ -35,7 +41,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from sheridan.iceberg._exceptions import ParseError
-from sheridan.iceberg._models import Assignment, Class, Function, Module, Parameter, Reference
+from sheridan.iceberg._models import Assignment, Class, Function, FunctionKind, Module, Parameter, Reference
 from sheridan.iceberg._utilities import (
     bound_names,
     collect_imports,
@@ -209,15 +215,20 @@ def _build_references(
 
 def _build_function(
     node: ast.FunctionDef | ast.AsyncFunctionDef,
+    *,
+    in_class: bool = False,
 ) -> Function:
     """Build a ``Function`` model from a function definition node.
 
     Args:
         node: A ``FunctionDef`` or ``AsyncFunctionDef`` AST node.
+        in_class: ``True`` when *node* is in a class body, so that its
+            decorators decide whether it is a method, classmethod,
+            staticmethod or property.
 
     Returns:
-        A ``Function`` capturing the name, parameters, return annotation, and
-        whether the function is async.
+        A ``Function`` capturing the name, parameters, return annotation,
+        whether the function is async, its kind and its decorators.
     """
     positional, keyword_only, var_positional, var_keyword = _build_parameters(node.args)
     return Function(
@@ -228,6 +239,76 @@ def _build_function(
         var_keyword=var_keyword,
         returns=_annotation_source(node.returns),
         is_async=isinstance(node, ast.AsyncFunctionDef),
+        kind=_method_kind(node.decorator_list) if in_class else "function",
+        decorators=tuple(ast.unparse(decorator) for decorator in node.decorator_list),
+    )
+
+
+_PROPERTY_DECORATORS = frozenset({"property", "cached_property", "abstractproperty"})
+"""Decorator names (the last dotted part) that make a method a property."""
+
+_ACCESSOR_ATTRIBUTES = frozenset({"setter", "getter", "deleter"})
+"""Attributes of a property that redefine one of its accessors (``@p.setter``)."""
+
+
+def _decorator_name(decorator: ast.expr) -> str | None:
+    """Find the last dotted part of a decorator's name.
+
+    Args:
+        decorator: A decorator expression, for example ``functools.cached_property``
+            or ``lru_cache(maxsize=None)``.
+
+    Returns:
+        ``"cached_property"`` for ``functools.cached_property``, the called
+        name for a call such as ``lru_cache(...)``, or ``None`` for any other
+        expression.
+    """
+    match decorator:
+        case ast.Call(func=func):
+            return _decorator_name(func)
+        case ast.Name(id=name) | ast.Attribute(attr=name):
+            return name
+        case _:
+            return None
+
+
+def _method_kind(decorators: list[ast.expr]) -> FunctionKind:
+    """Decide the kind of a method from its decorators.
+
+    A property decorator wins over ``classmethod`` and ``staticmethod``.
+
+    Args:
+        decorators: The ``decorator_list`` of a function defined in a class body.
+
+    Returns:
+        ``"property"``, ``"classmethod"``, ``"staticmethod"`` or ``"method"``.
+    """
+    names = {_decorator_name(decorator) for decorator in decorators}
+    if names & _PROPERTY_DECORATORS:
+        return "property"
+    if "classmethod" in names:
+        return "classmethod"
+    if "staticmethod" in names:
+        return "staticmethod"
+    return "method"
+
+
+def _is_property_accessor(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """Check whether *node* redefines an accessor of a property with the same name.
+
+    Args:
+        node: A function defined in a class body.
+
+    Returns:
+        ``True`` for ``@p.setter``, ``@p.getter`` or ``@p.deleter`` on a
+        function named ``p``.
+    """
+    return any(
+        isinstance(decorator, ast.Attribute)
+        and decorator.attr in _ACCESSOR_ATTRIBUTES
+        and isinstance(decorator.value, ast.Name)
+        and decorator.value.id == node.name
+        for decorator in node.decorator_list
     )
 
 
@@ -311,8 +392,8 @@ def _build_class(node: ast.ClassDef) -> Class:
     """Build a ``Class`` model from a class definition node.
 
     Recurses into nested class definitions. Extracts methods and class-level
-    assignments. Does **not** read ``node.bases``, ``node.decorator_list``,
-    or any docstring.
+    assignments, skipping property setters, getters and deleters. Does **not**
+    read ``node.bases``, ``node.decorator_list``, or any docstring.
 
     Args:
         node: A ``ClassDef`` AST node.
@@ -328,7 +409,9 @@ def _build_class(node: ast.ClassDef) -> Class:
     for child in node.body:
         match child:
             case (ast.FunctionDef() | ast.AsyncFunctionDef()) as fn_child:
-                fn = _build_function(fn_child)
+                if _is_property_accessor(fn_child):
+                    continue
+                fn = _build_function(fn_child, in_class=True)
                 if fn.is_public:
                     methods.append(fn)
 

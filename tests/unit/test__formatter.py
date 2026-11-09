@@ -11,6 +11,7 @@ from sheridan.iceberg._models import (
     Assignment,
     Class,
     Function,
+    FunctionKind,
     Module,
     Package,
     Parameter,
@@ -38,6 +39,7 @@ def _make_function(
     var_keyword: Parameter | None = None,
     returns: str | None = None,
     is_async: bool = False,
+    kind: FunctionKind = "function",
 ) -> Function:
     return Function(
         name=name,
@@ -47,6 +49,7 @@ def _make_function(
         var_keyword=var_keyword,
         returns=returns,
         is_async=is_async,
+        kind=kind,
     )
 
 
@@ -175,6 +178,35 @@ def test_format_tree_async_function() -> None:
     pkg = _make_package(name="mylib", modules=(mod,))
     result = format_tree(pkg)
     assert "async def fetch() -> str" in result
+
+
+@pytest.mark.parametrize(
+    ("returns", "expected"),
+    [("int", "property p: int"), (None, "property p")],
+)
+def test_format_tree_property(returns: str | None, expected: str) -> None:
+    """A property renders as the attribute callers read, not as a call."""
+    self_param = _make_parameter(name="self", annotation=None)
+    fn = _make_function(name="p", positional_parameters=(self_param,), returns=returns, kind="property")
+    mod = _make_module(name="ops", functions=(fn,))
+    result = format_tree(mod)
+    assert result.splitlines()[-1].endswith(expected)
+    assert "def p" not in result
+
+
+@pytest.mark.parametrize("kind", ["classmethod", "staticmethod"])
+def test_format_tree_classmethod_and_staticmethod_are_prefixed(kind: FunctionKind) -> None:
+    """Classmethods and staticmethods are prefixed with their kind."""
+    fn = _make_function(name="build", returns="None", kind=kind)
+    mod = _make_module(name="ops", functions=(fn,))
+    assert f"{kind} def build() -> None" in format_tree(mod)
+
+
+def test_format_tree_method_has_no_prefix() -> None:
+    """A plain method renders like a function."""
+    fn = _make_function(name="run", kind="method")
+    mod = _make_module(name="ops", functions=(fn,))
+    assert format_tree(mod).splitlines()[-1].endswith("── def run()")
 
 
 def test_format_tree_function_positional_params() -> None:
