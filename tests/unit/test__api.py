@@ -1,4 +1,4 @@
-"""Tests for sheridan.iceberg._api."""
+"""Test sheridan.iceberg._api."""
 
 from pathlib import Path
 
@@ -25,7 +25,7 @@ def test_get_public_api_non_py_file_raises_invalid_path_error(tmp_path: Path, na
 
 
 class TestGetPublicApiReport:
-    """``get_public_api_report`` returns the API with its diagnostics."""
+    """``get_public_api_report`` gives the API with its diagnostics."""
 
     def test_keep_going_reports_errors_before_warnings(self, tmp_path: Path) -> None:
         pkg = tmp_path / "pkg"

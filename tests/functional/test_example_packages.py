@@ -1,16 +1,16 @@
-"""Functional tests using fixture packages in tests/fixtures/.
+"""Test get_public_api with the fixture packages in tests/fixtures/.
 
-Each test exercises get_public_api against a real on-disk fixture package and
-verifies the three behaviours introduced by __all__-driven filtering:
+Each test runs get_public_api on a real fixture package on disk. The tests
+examine the three effects of the __all__ filter:
 
-1. Private modules (e.g. _models, _utils, _private) do NOT appear in
-   Package.modules.  Only the init module (or a module whose name is in
-   __all__) appears.
-2. Private subpackages (e.g. _private_sub) do NOT appear in
-   Package.subpackages.  Only subpackages named in __all__ appear.
-3. Symbols listed in __init__.__all__ are hoisted into the package-level
-   Module (the resolved init module, always the first and only entry in
-   Package.modules when __all__ is defined).
+1. Package.modules does NOT contain private modules (for example _models,
+   _utils, _private). It contains only the init module and the modules with a
+   name in __all__.
+2. Package.subpackages does NOT contain private subpackages (for example
+   _private_sub). It contains only the subpackages with a name in __all__.
+3. iceberg moves the symbols in __init__.__all__ up into the package-level
+   Module. This is the resolved init module. If the package defines __all__,
+   it is the first and only item in Package.modules.
 """
 
 import re
@@ -22,14 +22,14 @@ from sheridan.iceberg import get_public_api
 from sheridan.iceberg._config import Config
 from sheridan.iceberg._models import Module, Package
 
-# A single worker keeps process overhead low in tests.
+# One worker keeps the process overhead low in tests.
 _CFG = Config(max_workers=1, test_module_pattern=re.compile(r"(^|/)test_[^/]*\.py$|_test\.py$"))
 
 _FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
 
 def _snapshot_package(path: Path) -> Package:
-    """Snapshot a fixture package, narrowing the ``Package | Module`` result."""
+    """Snapshot a fixture package, and narrow the ``Package | Module`` result."""
     result = get_public_api(path, config=_CFG)
 
     assert isinstance(result, Package)
@@ -37,12 +37,12 @@ def _snapshot_package(path: Path) -> Package:
 
 
 def _module_names(pkg: Package) -> set[str]:
-    """Collect the set of short module names (last dotted component) at the top level."""
+    """Collect the set of short module names (the last dotted component) at the top level."""
     return {m.name for m in pkg.modules}
 
 
 def _subpackage_names(pkg: Package) -> set[str]:
-    """Collect the set of top-level subpackage names (last dotted component)."""
+    """Collect the set of top-level subpackage names (the last dotted component)."""
     return {sp.name for sp in pkg.subpackages}
 
 
@@ -56,7 +56,7 @@ def _function_names(module: Module) -> set[str]:
 
 @pytest.fixture(scope="module")
 def simple_pkg() -> Package:
-    """Flat package with ``__all__ = ['MyClass', 'my_func']`` and private modules ``_models`` and ``_utils``."""
+    """A flat package with ``__all__ = ['MyClass', 'my_func']`` and the private modules ``_models`` and ``_utils``."""
     path = _FIXTURES_DIR / "simple_pkg"
     return _snapshot_package(path)
 
@@ -70,41 +70,41 @@ def test_simple_pkg_no_subpackages(simple_pkg: Package) -> None:
 
 
 def test_simple_pkg_private_modules_excluded(simple_pkg: Package) -> None:
-    """_models and _utils must not appear as modules."""
+    """The modules must not include _models and _utils."""
     names = _module_names(simple_pkg)
 
     assert "simple_pkg._models" not in names
     assert "simple_pkg._utils" not in names
-    # Also check short names just in case
+    # Also examine the short names, as an additional check
     assert "_models" not in names
     assert "_utils" not in names
 
 
 def test_simple_pkg_has_exactly_one_module(simple_pkg: Package) -> None:
-    """With __all__ defined, only the init module is included."""
+    """If the package defines __all__, the modules include only the init module."""
     assert len(simple_pkg.modules) == 1
 
 
 def test_simple_pkg_init_module_name(simple_pkg: Package) -> None:
-    """The single module's name should be the package name (the init module)."""
+    """The name of the one module must be the package name (the init module)."""
     assert simple_pkg.modules[0].name == "simple_pkg"
 
 
 def test_simple_pkg_myclass_hoisted(simple_pkg: Package) -> None:
-    """MyClass (re-exported from _models) must be hoisted into the init module."""
+    """iceberg must move MyClass (re-exported from _models) up into the init module."""
     init_mod = simple_pkg.modules[0]
     assert "MyClass" in _class_names(init_mod)
 
 
 def test_simple_pkg_my_func_hoisted(simple_pkg: Package) -> None:
-    """my_func (re-exported from _utils) must be hoisted into the init module."""
+    """iceberg must move my_func (re-exported from _utils) up into the init module."""
     init_mod = simple_pkg.modules[0]
     assert "my_func" in _function_names(init_mod)
 
 
 @pytest.fixture(scope="module")
 def nested_pkg() -> Package:
-    """Package with public subpackage ``public_sub/``, private ``_private_sub/`` and ``_private.py``.
+    """A package with the public subpackage ``public_sub/``, the private ``_private_sub/`` and ``_private.py``.
 
     ``__all__ = ['PublicSub', 'top_level_func']``.
     """
@@ -117,7 +117,7 @@ def test_nested_pkg_name(nested_pkg: Package) -> None:
 
 
 def test_nested_pkg_private_module_excluded(nested_pkg: Package) -> None:
-    """_private.py must not appear as a module."""
+    """The modules must not include _private.py."""
     names = _module_names(nested_pkg)
 
     assert "nested_pkg._private" not in names
@@ -125,7 +125,7 @@ def test_nested_pkg_private_module_excluded(nested_pkg: Package) -> None:
 
 
 def test_nested_pkg_private_subpackage_excluded(nested_pkg: Package) -> None:
-    """_private_sub subpackage must not appear in subpackages."""
+    """The subpackages must not include _private_sub."""
     names = _subpackage_names(nested_pkg)
 
     assert "nested_pkg._private_sub" not in names
@@ -133,10 +133,10 @@ def test_nested_pkg_private_subpackage_excluded(nested_pkg: Package) -> None:
 
 
 def test_nested_pkg_public_sub_not_a_subpackage(nested_pkg: Package) -> None:
-    """public_sub's directory name is not listed in __all__, so it must not appear as a subpackage.
+    """__all__ does not list the directory name of public_sub. Thus, it must not be a subpackage.
 
     __all__ = ['PublicSub', 'top_level_func'] names the class, not the subpackage directory.
-    Per the design contract, only subpackages whose short name appears in __all__ are included.
+    The design includes only the subpackages with a short name in __all__.
     """
     names = _subpackage_names(nested_pkg)
 
@@ -145,7 +145,7 @@ def test_nested_pkg_public_sub_not_a_subpackage(nested_pkg: Package) -> None:
 
 
 def test_nested_pkg_top_level_func_hoisted(nested_pkg: Package) -> None:
-    """top_level_func is defined directly in __init__ and named in __all__."""
+    """__init__ defines top_level_func directly, and __all__ names it."""
     assert len(nested_pkg.modules) == 1
     init_mod = nested_pkg.modules[0]
 
@@ -153,19 +153,19 @@ def test_nested_pkg_top_level_func_hoisted(nested_pkg: Package) -> None:
 
 
 def test_nested_pkg_public_sub_hoisted(nested_pkg: Package) -> None:
-    """PublicSub is imported from public_sub subpackage and named in __all__; must be hoisted."""
+    """__init__ imports PublicSub from the public_sub subpackage, and __all__ names it. iceberg must move it up."""
     init_mod = nested_pkg.modules[0]
     assert "PublicSub" in _class_names(init_mod)
 
 
 def test_nested_pkg_no_subpackages(nested_pkg: Package) -> None:
-    """With __all__ listing only symbols (not subpackage names), subpackages is empty."""
+    """If __all__ lists only symbols (not subpackage names), subpackages is empty."""
     assert nested_pkg.subpackages == ()
 
 
 @pytest.fixture(scope="module")
 def reexport_pkg() -> Package:
-    """Package that re-exports ``Alpha``, ``Beta`` and ``gamma`` from private submodules."""
+    """A package that re-exports ``Alpha``, ``Beta`` and ``gamma`` from private submodules."""
     path = _FIXTURES_DIR / "reexport_pkg"
     return _snapshot_package(path)
 
@@ -179,7 +179,7 @@ def test_reexport_pkg_no_subpackages(reexport_pkg: Package) -> None:
 
 
 def test_reexport_pkg_private_modules_excluded(reexport_pkg: Package) -> None:
-    """_alpha, _beta, _gamma must not appear as top-level modules."""
+    """The top-level modules must not include _alpha, _beta and _gamma."""
     names = _module_names(reexport_pkg)
     for private in ("_alpha", "_beta", "_gamma", "reexport_pkg._alpha", "reexport_pkg._beta", "reexport_pkg._gamma"):
         assert private not in names
@@ -190,26 +190,26 @@ def test_reexport_pkg_has_exactly_one_module(reexport_pkg: Package) -> None:
 
 
 def test_reexport_pkg_alpha_hoisted(reexport_pkg: Package) -> None:
-    """Alpha must be hoisted into the init module."""
+    """iceberg must move Alpha up into the init module."""
     init_mod = reexport_pkg.modules[0]
     assert "Alpha" in _class_names(init_mod)
 
 
 def test_reexport_pkg_beta_hoisted(reexport_pkg: Package) -> None:
-    """Beta must be hoisted into the init module."""
+    """iceberg must move Beta up into the init module."""
     init_mod = reexport_pkg.modules[0]
     assert "Beta" in _class_names(init_mod)
 
 
 def test_reexport_pkg_gamma_hoisted(reexport_pkg: Package) -> None:
-    """gamma must be hoisted into the init module."""
+    """iceberg must move gamma up into the init module."""
     init_mod = reexport_pkg.modules[0]
     assert "gamma" in _function_names(init_mod)
 
 
 @pytest.fixture(scope="module")
 def mixed_pkg() -> Package:
-    """Package whose ``__all__`` lists ``public_module`` but not ``_private_module``.
+    """A package with an ``__all__`` that lists ``public_module`` but not ``_private_module``.
 
     ``__all__ = ['PublicThing', 'public_module']``.
     """
@@ -222,7 +222,7 @@ def test_mixed_pkg_name(mixed_pkg: Package) -> None:
 
 
 def test_mixed_pkg_private_module_excluded(mixed_pkg: Package) -> None:
-    """_private_module must not appear anywhere in the package."""
+    """The package must not include _private_module at any level."""
     names = _module_names(mixed_pkg)
 
     assert "_private_module" not in names
@@ -230,24 +230,24 @@ def test_mixed_pkg_private_module_excluded(mixed_pkg: Package) -> None:
 
 
 def test_mixed_pkg_public_thing_hoisted(mixed_pkg: Package) -> None:
-    """PublicThing is re-exported via __init__; it must be on the init module."""
+    """__init__ re-exports PublicThing. Thus, the init module must have it."""
     init_mod = mixed_pkg.modules[0]
     assert "PublicThing" in _class_names(init_mod)
 
 
 @pytest.mark.parametrize("private_name", ["_private_module", "mixed_pkg._private_module"])
 def test_mixed_pkg_private_module_not_in_any_module(mixed_pkg: Package, private_name: str) -> None:
-    """_private_module must not be the name of any Module in the trie."""
+    """No Module in the trie can have the name _private_module."""
     all_mod_names = {m.name for m in mixed_pkg.modules}
     assert private_name not in all_mod_names
 
 
 def test_mixed_pkg_public_module_present(mixed_pkg: Package) -> None:
-    """public_module is listed in __all__; it must appear as a Module in the package."""
+    """__all__ lists public_module. Thus, the package must have it as a Module."""
     assert "mixed_pkg.public_module" in _module_names(mixed_pkg)
 
 
 def test_mixed_pkg_public_module_has_members(mixed_pkg: Package) -> None:
-    """public_module must surface its own public members."""
+    """public_module must show its public members."""
     public_mod = next(m for m in mixed_pkg.modules if m.name == "mixed_pkg.public_module")
     assert "public_fn" in _function_names(public_mod)

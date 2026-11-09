@@ -1,4 +1,4 @@
-"""Dataclass models representing the public API surface captured by iceberg."""
+"""Define the dataclass models for the public API that iceberg collects."""
 
 __all__ = [
     "Assignment",
@@ -19,36 +19,37 @@ from pathlib import Path
 from typing import Literal
 
 type FunctionKind = Literal["function", "method", "classmethod", "staticmethod", "property"]
-"""How a function is called: a plain function, or one of the kinds of class member.
+"""How callers use a function: a plain function, or one of the kinds of class member.
 
-``"function"`` is a module-level function. Inside a class body, ``"method"`` is
-an instance method, ``"classmethod"`` and ``"staticmethod"`` come from those
-decorators, and ``"property"`` is a ``@property`` or
-``@functools.cached_property`` getter, which callers read as an attribute
-(``obj.p``) rather than call.
+``"function"`` is a module-level function. In a class body, these kinds apply:
+
+- ``"method"`` is an instance method.
+- ``"classmethod"`` and ``"staticmethod"`` come from the decorators with these names.
+- ``"property"`` is a getter with ``@property`` or ``@functools.cached_property``.
+  Callers read it as an attribute (``obj.p``). They do not call it.
 """
 
 type Severity = Literal["error", "warning"]
 """How serious a ``Diagnostic`` is.
 
-An ``"error"`` is a module that could not be read or parsed and was skipped. A
-``"warning"`` is a public name that is exported but never bound.
+An ``"error"`` is a module that iceberg cannot read or parse, and skipped. A
+``"warning"`` is a public name that a module exports but never binds.
 """
 
 
 def _is_public_name(name: str) -> bool:
-    """Check whether a function, class, attribute, or parameter name is public.
+    """Check if the name of a function, class, attribute or parameter is public.
 
     Names without a leading underscore are public. Dunder names such as
-    ``__init__``, ``__call__`` or ``__slots__`` are public too, because they
-    define how users interact with a class. Names with one leading underscore
+    ``__init__``, ``__call__`` or ``__slots__`` are also public, because they
+    define how users work with a class. Names with one leading underscore
     (``_x``) and name-mangled names (``__x``) are private.
 
     Args:
         name: The bare name to check.
 
     Returns:
-        ``True`` when the name is public.
+        ``True`` if the name is public.
     """
     is_dunder = len(name) > 4 and name.startswith("__") and name.endswith("__")
 
@@ -56,38 +57,38 @@ def _is_public_name(name: str) -> bool:
 
 
 def _is_public_module_stem(stem: str) -> bool:
-    """Check whether a module or package stem is public.
+    """Check if the stem of a module or package is public.
 
-    ``__init__`` is public; any other stem with a leading underscore
-    (including ``__main__``) is private.
+    ``__init__`` is public. All other stems with a leading underscore (also
+    ``__main__``) are private.
 
     Args:
         stem: The last component of a dotted module or package name.
 
     Returns:
-        ``True`` when the stem is public.
+        ``True`` if the stem is public.
     """
     return stem == "__init__" or not stem.startswith("_")
 
 
 @dataclass(frozen=True, slots=True)
 class Parameter:
-    """A single function parameter.
+    """One function parameter.
 
     Attributes:
-        name: The bare parameter name as written in the source.
-        annotation: The unparsed annotation string, or ``None`` when absent.
-        default: The unparsed default-value string, or ``None`` when absent.
+        name: The bare parameter name, as the source gives it.
+        annotation: The unparsed annotation string, or ``None`` if there is none.
+        default: The unparsed default-value string, or ``None`` if there is none.
     """
 
     name: str
-    """Bare parameter name as written in the source."""
+    """The bare parameter name, as the source gives it."""
 
     annotation: str | None
-    """Unparsed type annotation string, or ``None`` when absent."""
+    """The unparsed type annotation string, or ``None`` if there is none."""
 
     default: str | None
-    """Unparsed default-value string, or ``None`` when absent."""
+    """The unparsed default-value string, or ``None`` if there is none."""
 
     @property
     def is_public(self) -> bool:
@@ -96,51 +97,51 @@ class Parameter:
 
 @dataclass(frozen=True, slots=True)
 class Function:
-    """A function or method in the captured public API.
+    """A function or method in the public API that iceberg collected.
 
     Attributes:
         name: The unqualified function or method name.
-        positional_parameters: Ordered tuple of positional-only and
+        positional_parameters: An ordered tuple of the positional-only and
             positional-or-keyword parameters.
-        keyword_parameters: Unordered frozenset of keyword-only parameters.
-        var_positional: The ``*args`` parameter, or ``None`` when absent.
-        var_keyword: The ``**kwargs`` parameter, or ``None`` when absent.
-        returns: Unparsed return-annotation string, or ``None`` when absent.
+        keyword_parameters: An unordered frozenset of the keyword-only parameters.
+        var_positional: The ``*args`` parameter, or ``None`` if there is none.
+        var_keyword: The ``**kwargs`` parameter, or ``None`` if there is none.
+        returns: The unparsed return-annotation string, or ``None`` if there is none.
         is_async: ``True`` for ``async def`` functions.
-        kind: How the function is called; see ``FunctionKind``.
-        decorators: Unparsed decorator expressions in source order, for
+        kind: How callers use the function. See ``FunctionKind``.
+        decorators: The unparsed decorator expressions in source order, for
             example ``("property", "abc.abstractmethod")``.
         overloads: The ``typing.overload`` signatures of this function in
-            source order, or ``()`` when it has none. Each overload is a
-            ``Function`` with no overloads of its own.
+            source order, or ``()`` if it has none. Each overload is a
+            ``Function`` without overloads.
     """
 
     name: str
-    """Unqualified function or method name."""
+    """The unqualified function or method name."""
 
     positional_parameters: tuple[Parameter, ...]
-    """Ordered tuple of positional-only and positional-or-keyword parameters."""
+    """An ordered tuple of the positional-only and positional-or-keyword parameters."""
 
     keyword_parameters: frozenset[Parameter]
-    """Unordered frozenset of keyword-only parameters."""
+    """An unordered frozenset of the keyword-only parameters."""
 
     var_positional: Parameter | None
-    """The ``*args`` parameter, or ``None`` when absent."""
+    """The ``*args`` parameter, or ``None`` if there is none."""
 
     var_keyword: Parameter | None
-    """The ``**kwargs`` parameter, or ``None`` when absent."""
+    """The ``**kwargs`` parameter, or ``None`` if there is none."""
 
     returns: str | None
-    """Unparsed return-annotation string, or ``None`` when absent."""
+    """The unparsed return-annotation string, or ``None`` if there is none."""
 
     is_async: bool
-    """``True`` for ``async def`` functions, ``False`` otherwise."""
+    """``True`` for ``async def`` functions. ``False`` for all other functions."""
 
     kind: FunctionKind = "function"
-    """How the function is called: function, method, classmethod, staticmethod or property."""
+    """How callers use the function: function, method, classmethod, staticmethod or property."""
 
     decorators: tuple[str, ...] = ()
-    """Unparsed decorator expressions in source order, without the leading ``@``."""
+    """The unparsed decorator expressions in source order, without the leading ``@``."""
 
     overloads: tuple[Function, ...] = ()
     """The ``typing.overload`` signatures of this function in source order, or ``()``."""
@@ -152,19 +153,19 @@ class Function:
 
 @dataclass(frozen=True, slots=True)
 class Assignment:
-    """A module- or class-level assignment.
+    """An assignment at module level or class level.
 
     Attributes:
-        name: The target name as written in the source.
-        annotation: Unparsed annotation string (from annotated assignments),
-            or ``None`` for plain assignments.
+        name: The target name, as the source gives it.
+        annotation: The unparsed annotation string (from annotated
+            assignments), or ``None`` for plain assignments.
     """
 
     name: str
-    """Target name as written in the source."""
+    """The target name, as the source gives it."""
 
     annotation: str | None
-    """Unparsed annotation string, or ``None`` for plain assignments."""
+    """The unparsed annotation string, or ``None`` for plain assignments."""
 
     @property
     def is_public(self) -> bool:
@@ -173,32 +174,35 @@ class Assignment:
 
 @dataclass(frozen=True, slots=True)
 class Reference:
-    """A public name that iceberg could not resolve to a definition.
+    """A public name that iceberg cannot resolve to a definition.
 
-    References cover names that a module exports (usually via ``__all__``) but
-    whose definition lives outside the analyzed source, for example a
-    re-export from another distribution (``from math import sqrt``), or a name
-    that is never bound statically at all (for example one provided by a
-    module-level ``__getattr__``). They are reported rather than dropped so
-    that the public surface never silently shrinks.
+    A module exports these names (usually through ``__all__``), but their
+    definition is not in the analyzed source. Examples:
+
+    - A re-export from a different distribution (``from math import sqrt``).
+    - A name that no code binds statically, for example a name that a
+      module-level ``__getattr__`` supplies.
+
+    iceberg reports these names and does not remove them. Thus, the public API
+    never becomes smaller silently.
 
     Attributes:
-        name: The public name as it is exported.
-        module: Fully-qualified module the name was imported from, or ``None``
-            when no import binding the name was found.
+        name: The public name, as the module exports it.
+        module: The fully qualified module that the name comes from, or
+            ``None`` if no import binds the name.
         attribute: The original attribute name for ``from module import
-            attribute`` imports, or ``None`` for ``import module`` bindings and
-            names with no import.
+            attribute`` imports. ``None`` for ``import module`` bindings and
+            for names without an import.
     """
 
     name: str
-    """Public name as it is exported."""
+    """The public name, as the module exports it."""
 
     module: str | None
-    """Fully-qualified source module, or ``None`` when no import binds the name."""
+    """The fully qualified source module, or ``None`` if no import binds the name."""
 
     attribute: str | None
-    """Original attribute name for ``from ... import`` bindings, otherwise ``None``."""
+    """The original attribute name for ``from ... import`` bindings. ``None`` for all other names."""
 
     @property
     def is_public(self) -> bool:
@@ -207,36 +211,36 @@ class Reference:
 
 @dataclass(frozen=True, slots=True)
 class Class:
-    """A class in the captured public API.
+    """A class in the public API that iceberg collected.
 
     Attributes:
         name: The unqualified class name.
-        bases: Unparsed base class expressions in source order, for example
+        bases: The unparsed base class expressions in source order, for example
             ``("Base", "Generic[T]")``.
-        keywords: Unparsed keyword arguments of the class statement in source
-            order, for example ``("metaclass=ABCMeta",)``.
-        assignments: Tuple of class-level assignments (class variables).
-        methods: Tuple of methods defined directly in the class body.
-        nested_classes: Tuple of classes nested inside this class.
+        keywords: The unparsed keyword arguments of the class statement in
+            source order, for example ``("metaclass=ABCMeta",)``.
+        assignments: A tuple of the class-level assignments (class variables).
+        methods: A tuple of the methods that the class body defines directly.
+        nested_classes: A tuple of the classes in this class.
     """
 
     name: str
-    """Unqualified class name."""
+    """The unqualified class name."""
 
     bases: tuple[str, ...]
-    """Unparsed base class expressions in source order."""
+    """The unparsed base class expressions in source order."""
 
     keywords: tuple[str, ...]
-    """Unparsed keyword arguments of the class statement, such as ``metaclass=ABCMeta``, in source order."""
+    """The unparsed keyword arguments of the class statement, such as ``metaclass=ABCMeta``, in source order."""
 
     assignments: tuple[Assignment, ...]
-    """Class-level assignments (class variables) in source order."""
+    """The class-level assignments (class variables) in source order."""
 
     methods: tuple[Function, ...]
-    """Methods defined directly in the class body, in source order."""
+    """The methods that the class body defines directly, in source order."""
 
     nested_classes: tuple[Class, ...]
-    """Classes nested inside this class, in source order."""
+    """The classes in this class, in source order."""
 
     @property
     def is_public(self) -> bool:
@@ -245,31 +249,31 @@ class Class:
 
 @dataclass(frozen=True, slots=True)
 class Module:
-    """A Python module's public API surface.
+    """The public API of a Python module.
 
     Attributes:
-        name: Fully-qualified dotted module name (e.g. ``"pkg.sub.mod"``).
-        assignments: Public module-level assignments in source order.
-        classes: Public classes in source order.
-        functions: Public functions in source order.
-        references: Public names that could not be resolved to a definition,
-            sorted by name.
+        name: The fully qualified dotted module name (for example ``"pkg.sub.mod"``).
+        assignments: The public module-level assignments in source order.
+        classes: The public classes in source order.
+        functions: The public functions in source order.
+        references: The public names that iceberg cannot resolve to a
+            definition, sorted by name.
     """
 
     name: str
-    """Fully-qualified dotted module name, e.g. ``"pkg.sub.mod"``."""
+    """The fully qualified dotted module name, for example ``"pkg.sub.mod"``."""
 
     assignments: tuple[Assignment, ...]
-    """Public module-level assignments in source order."""
+    """The public module-level assignments in source order."""
 
     classes: tuple[Class, ...]
-    """Public classes defined in this module, in source order."""
+    """The public classes that this module defines, in source order."""
 
     functions: tuple[Function, ...]
-    """Public functions defined in this module, in source order."""
+    """The public functions that this module defines, in source order."""
 
     references: tuple[Reference, ...] = ()
-    """Public names that could not be resolved to a definition, sorted by name."""
+    """The public names that iceberg cannot resolve to a definition, sorted by name."""
 
     @property
     def is_public(self) -> bool:
@@ -279,26 +283,27 @@ class Module:
 
 @dataclass(frozen=True, slots=True)
 class Package:
-    """A Python package's public API surface (a trie of modules).
+    """The public API of a Python package (a trie of modules).
 
     Attributes:
-        name: Fully-qualified dotted package name (e.g. ``"pkg.sub"``).
-        path: Path to the package directory on disk. JSON output renders it relative to the analyzed root.
-        modules: Tuple of ``Module`` objects belonging directly to this package.
-        subpackages: Tuple of child ``Package`` objects, sorted by name.
+        name: The fully qualified dotted package name (for example ``"pkg.sub"``).
+        path: The path to the package directory on disk. The JSON output shows
+            it relative to the analyzed root.
+        modules: A tuple of the ``Module`` objects directly in this package.
+        subpackages: A tuple of the child ``Package`` objects, sorted by name.
     """
 
     name: str
-    """Fully-qualified dotted package name, e.g. ``"pkg.sub"``."""
+    """The fully qualified dotted package name, for example ``"pkg.sub"``."""
 
     path: Path
-    """Path to the package directory on disk. JSON output renders it relative to the analyzed root."""
+    """The path to the package directory on disk. The JSON output shows it relative to the analyzed root."""
 
     modules: tuple[Module, ...]
-    """Modules belonging directly to this package."""
+    """The modules directly in this package."""
 
     subpackages: tuple[Package, ...]
-    """Child packages nested one level below this package, sorted by name."""
+    """The child packages one level below this package, sorted by name."""
 
     @property
     def _init_module(self) -> Module | None:
@@ -344,49 +349,49 @@ class Package:
 
 @dataclass(frozen=True, slots=True)
 class Diagnostic:
-    """A problem found while analyzing one module.
+    """A problem that iceberg found in the analysis of one module.
 
     Attributes:
-        severity: ``"error"`` for a module that was skipped because it could
-            not be read or parsed, ``"warning"`` for an unresolved public name.
-        module: Fully-qualified dotted name of the module the problem is in.
-        path: The module's source file. JSON output renders it relative to the
-            analyzed root.
-        message: What went wrong, without the location.
-        lineno: The 1-based line of the problem, or ``None`` when not known.
+        severity: ``"error"`` for a module that iceberg skipped, because it
+            cannot read or parse it. ``"warning"`` for an unresolved public name.
+        module: The fully qualified dotted name of the module that has the problem.
+        path: The source file of the module. The JSON output shows it relative
+            to the analyzed root.
+        message: A description of the problem, without the location.
+        lineno: The 1-based line of the problem, or ``None`` if it is not known.
     """
 
     severity: Severity
-    """``"error"`` for a skipped module, ``"warning"`` for an unresolved name."""
+    """``"error"`` for a skipped module. ``"warning"`` for an unresolved name."""
 
     module: str
-    """Fully-qualified dotted name of the module the problem is in."""
+    """The fully qualified dotted name of the module that has the problem."""
 
     path: Path
-    """The module's source file."""
+    """The source file of the module."""
 
     message: str
-    """What went wrong, without the location."""
+    """A description of the problem, without the location."""
 
     lineno: int | None = None
-    """The 1-based line of the problem, or ``None`` when not known."""
+    """The 1-based line of the problem, or ``None`` if it is not known."""
 
 
 @dataclass(frozen=True, slots=True)
 class Report:
-    """The public API of a path together with the problems found on the way.
+    """The public API of a path, together with the problems that the analysis found.
 
     Attributes:
-        api: The analyzed package, or the module when a single file was given.
-        diagnostics: Errors for skipped modules, then warnings for unresolved
-            public names, each group sorted by module.
+        api: The analyzed package, or the module if the input was one file.
+        diagnostics: The errors for skipped modules, then the warnings for
+            unresolved public names. Each group is sorted by module.
     """
 
     api: Package | Module
-    """The analyzed package, or the module when a single file was given."""
+    """The analyzed package, or the module if the input was one file."""
 
     diagnostics: tuple[Diagnostic, ...] = ()
-    """Errors for skipped modules, then warnings for unresolved public names."""
+    """The errors for skipped modules, then the warnings for unresolved public names."""
 
     @property
     def has_errors(self) -> bool:

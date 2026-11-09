@@ -1,4 +1,4 @@
-"""Functional tests for the public surface of sheridan.iceberg."""
+"""Test the public API of sheridan.iceberg."""
 
 import importlib
 import types
@@ -12,13 +12,13 @@ _CFG = Config(max_workers=1)
 
 
 def test_import_succeeds() -> None:
-    """Importing sheridan.iceberg must not raise."""
+    """The import of sheridan.iceberg must not raise an exception."""
     module = importlib.import_module("sheridan.iceberg")
     assert isinstance(module, types.ModuleType)
 
 
 def test_all_equals_expected_names() -> None:
-    """__all__ must contain exactly the documented public names."""
+    """__all__ must contain exactly the public names in the documentation."""
     import sheridan.iceberg as iceberg
 
     expected: set[str] = {
@@ -71,17 +71,17 @@ def test_all_equals_expected_names() -> None:
     ],
 )
 def test_all_names_are_accessible_as_attributes(name: str) -> None:
-    """Every name in __all__ must be accessible as an attribute of the module."""
+    """Each name in __all__ must be an attribute of the module."""
     import sheridan.iceberg as iceberg
 
     assert hasattr(iceberg, name), f"sheridan.iceberg has no attribute {name!r}"
-    # getattr must not raise
+    # getattr must not raise an exception
     attr = getattr(iceberg, name)
     assert attr is not None
 
 
 def test_single_file_returns_bare_module(tmp_path: Path) -> None:
-    """A single .py file must return a bare Module, not a Package."""
+    """One .py file must give a bare Module, not a Package."""
     from sheridan.iceberg._models import Module
     from sheridan.iceberg._orchestrator import build_package
 
@@ -94,7 +94,7 @@ def test_single_file_returns_bare_module(tmp_path: Path) -> None:
 
 
 def test_single_file_module_name_is_stem(tmp_path: Path) -> None:
-    """The Module returned for a single file carries the file's stem as its name."""
+    """The name of the Module for one file is the stem of the file."""
     from sheridan.iceberg._models import Module
     from sheridan.iceberg._orchestrator import build_package
 
@@ -108,7 +108,7 @@ def test_single_file_module_name_is_stem(tmp_path: Path) -> None:
 
 
 def test_directory_returns_package(tmp_path: Path) -> None:
-    """A directory root must return a Package."""
+    """A directory root must give a Package."""
     from sheridan.iceberg._models import Package
     from sheridan.iceberg._orchestrator import build_package
 
@@ -122,7 +122,7 @@ def test_directory_returns_package(tmp_path: Path) -> None:
 
 
 def test_directory_package_name_equals_dir_stem(tmp_path: Path) -> None:
-    """Package.name must equal the directory stem, not include any parent components."""
+    """Package.name must be the directory stem, without parent components."""
     from sheridan.iceberg._models import Package
     from sheridan.iceberg._orchestrator import build_package
 
@@ -137,21 +137,21 @@ def test_directory_package_name_equals_dir_stem(tmp_path: Path) -> None:
 
 
 def test_naming_boundary_is_root_parent(tmp_path: Path) -> None:
-    """root.parent is always the naming boundary.
+    """root.parent is always the limit for names.
 
-    When the caller passes ``src/sheridan``, module names start with
+    If the caller gives ``src/sheridan``, the module names start with
     ``sheridan.*``, not ``src.sheridan.*``.
     """
     from sheridan.iceberg._models import Package
     from sheridan.iceberg._orchestrator import build_package
 
-    # Build: src/sheridan/tools.py
+    # Make src/sheridan/tools.py
     src = tmp_path / "src"
     sheridan_ns = src / "sheridan"
     sheridan_ns.mkdir(parents=True)
     (sheridan_ns / "tools.py").write_text("def helper() -> None:\n    pass\n", encoding="utf-8")
 
-    # Pass src/sheridan as the root → name_root = src → names start with sheridan.*
+    # Give src/sheridan as the root → name_root = src → the names start with sheridan.*
     result = build_package(sheridan_ns, _CFG)
 
     assert isinstance(result, Package)
@@ -163,10 +163,10 @@ def test_naming_boundary_is_root_parent(tmp_path: Path) -> None:
 
 
 def test_package_name_is_root_dir_name(tmp_path: Path) -> None:
-    """Package.name is the root directory name regardless of the parent directory.
+    """Package.name is the name of the root directory. The parent directory has no effect.
 
-    Passing ``src/mypkg`` yields a package named ``mypkg`` because root.parent
-    is the naming boundary and the parent's name never appears in the result.
+    ``src/mypkg`` gives a package with the name ``mypkg``. root.parent is the
+    limit for names, so the result never shows the name of the parent.
     """
     from sheridan.iceberg._models import Package
     from sheridan.iceberg._orchestrator import build_package

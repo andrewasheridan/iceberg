@@ -1,4 +1,4 @@
-"""Guard the docstring conventions that ruff's D401 cannot enforce."""
+"""Check the docstring conventions that D401 of ruff cannot check."""
 
 import ast
 import re
@@ -51,12 +51,12 @@ def test_return_verb_pattern_ignores(text: str) -> None:
 
 
 def test_no_docstring_starts_with_return() -> None:
-    """Use a specific verb (build, find, list, ...) instead of "Return"."""
+    """Use a specific verb (build, find, list, ...), not "Return"."""
     offenders: list[str] = []
     for path in _python_files():
         offenders.extend(_return_docstrings(path))
 
     assert offenders == [], (
-        "Docstrings must not start with 'Return' or 'Returns'; use a specific "
-        "imperative verb instead (see CONTRIBUTING.md):\n" + "\n".join(offenders)
+        "Docstrings must not start with 'Return' or 'Returns'. Use a specific "
+        "imperative verb (see CONTRIBUTING.md):\n" + "\n".join(offenders)
     )

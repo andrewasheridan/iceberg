@@ -1,26 +1,26 @@
-"""AST visitor that converts a Python source file into a ``Module`` snapshot.
+"""Visit the AST of a Python source file and make a ``Module`` snapshot from it.
 
-Public names are determined as follows:
+These rules find the public names:
 
-- If the source defines ``__all__``, only the literal string values listed
-  there are considered public.
-- Otherwise every top-level name that does **not** start with ``_`` is public.
+- If the source defines ``__all__``, only the literal string values in it are
+  public.
+- If not, each top-level name that does **not** start with ``_`` is public.
 
-Top-level means module level: definitions inside module-level ``if`` and
-``try`` blocks (every branch) count, so ``if TYPE_CHECKING:`` blocks,
-``sys.version_info`` checks and ``except ImportError:`` fallbacks are
-captured. When a name is defined more than once, the first definition in
-source order is kept.
+Top level means module level. Definitions in module-level ``if`` and ``try``
+blocks (in all branches) are included. Thus, the visitor collects
+``if TYPE_CHECKING:`` blocks, ``sys.version_info`` checks and
+``except ImportError:`` fallbacks. If the module defines a name more than one
+time, the visitor keeps the first definition in source order.
 
-Class bodies follow the same rule: methods, nested classes and class
-variables inside ``if`` and ``try`` blocks of a class body (every branch)
-are captured, and the first definition of a member name is kept.
+Class bodies obey the same rule. The visitor collects methods, nested classes
+and class variables in the ``if`` and ``try`` blocks of a class body (in all
+branches). It keeps the first definition of a member name.
 
-Names listed in ``__all__`` that are not defined in the module itself (for
-example re-exports of imported names) are captured as ``Reference`` entries so
-they are never silently dropped.
+``__all__`` can list names that the module does not define (for example
+re-exports of imported names). The visitor collects these names as
+``Reference`` items. Thus, it never removes them silently.
 
-Each definition is turned into a model by the builders in ``_builders``.
+The builders in ``_builders`` make a model from each definition.
 """
 
 __all__ = ["visit_module"]
@@ -56,25 +56,26 @@ def visit_module(
     *,
     tree: ast.Module | None = None,
 ) -> Module:
-    """Parse *source* and return the public API surface as a ``Module``.
+    """Parse *source* and collect its public API in a ``Module``.
 
     Args:
-        source: Raw Python source text.
-        dotted_name: Fully-qualified module name (e.g. ``"my_pkg.core"``).
-        path: The file *source* was read from. It is reported in the
-            ``ParseError`` when *source* has a syntax error.
+        source: The raw Python source text.
+        dotted_name: The fully qualified module name (for example ``"my_pkg.core"``).
+        path: The file that contains *source*. If *source* has a syntax error,
+            the ``ParseError`` shows this path.
         known_all: The evaluated ``__all__`` of each module in the analyzed
-            tree, by dotted name. When it holds *dotted_name*, that value is
-            used as is; otherwise ``__all__`` is evaluated from *source*, and
-            this mapping resolves ``__all__ += other.__all__``.
-        tree: *source* already parsed, so the caller can parse each file
-            once. *source* is not parsed again when it is given.
+            tree, by dotted name. If it has *dotted_name*, the function uses
+            that value. If not, the function evaluates ``__all__`` from
+            *source*, and this mapping resolves ``__all__ += other.__all__``.
+        tree: The parsed *source*. With it, the caller parses each file only
+            one time. If you give it, the function does not parse *source*
+            again.
 
     Returns:
-        A ``Module`` containing only the public names found in *source*.
+        A ``Module`` that contains only the public names in *source*.
 
     Raises:
-        ParseError: When *source* cannot be parsed as valid Python.
+        ParseError: If *source* is not valid Python.
     """
     if tree is None:
         tree = parse_source(source, path)
@@ -94,8 +95,8 @@ def visit_module(
     assignments: list[Assignment] = []
     classes: list[Class] = []
     functions: list[Function] = []
-    # The first definition of a name wins, as in ``collect_imports``: in
-    # ``if``/``else`` or ``try``/``except`` branches, the first branch is reported.
+    # The first definition of a name has priority, as in ``collect_imports``. In
+    # ``if``/``else`` or ``try``/``except`` branches, the visitor reports the first branch.
     seen: set[str] = set()
     statements = list(module_level_statements(tree.body))
     overloads, grouped = group_overloads(statements)
@@ -157,15 +158,16 @@ def _top_level_public_names(
     tree: ast.Module,
     explicit_all: frozenset[str] | None,
 ) -> frozenset[str]:
-    """Compute the public-name set for a module.
+    """Compute the set of public names of a module.
 
     Args:
-        tree: Parsed module AST.
-        explicit_all: Literal names from ``__all__``, or ``None`` when absent.
+        tree: The parsed module AST.
+        explicit_all: The literal names from ``__all__``, or ``None`` if there
+            is no ``__all__``.
 
     Returns:
-        Names to expose: the explicit list when present, otherwise every
-        top-level name not starting with ``_``.
+        The names to show. If there is an explicit list, that list. If not,
+        each top-level name that does not start with ``_``.
     """
     if explicit_all is not None:
         return explicit_all
@@ -179,24 +181,24 @@ def _build_references(
     package: str,
     known_all: Mapping[str, frozenset[str] | None],
 ) -> tuple[Reference, ...]:
-    """Build ``Reference`` entries for exported names with no local definition.
+    """Build ``Reference`` items for the exported names that the module does not define.
 
-    A star import from a module whose ``__all__`` is known binds the names in
-    that ``__all__``. Any other star-imported module (outside the analyzed
-    tree, or without ``__all__``) is recorded as the candidate source of a
-    name no import binds; ``resolve_module_references`` later resolves it when
-    the module is in the tree.
+    A star import from a module with a known ``__all__`` binds the names in that
+    ``__all__``. The function records other star-imported modules (outside the
+    analyzed tree, or without ``__all__``) as the possible source of a name
+    that no import binds. If the module is in the tree,
+    ``resolve_module_references`` resolves the name later.
 
     Args:
-        tree: Parsed module AST.
-        names: Exported names that were not captured as a definition.
-        package: Dotted name of the containing package, used to absolutize
-            relative imports.
+        tree: The parsed module AST.
+        names: The exported names that the visitor did not collect as a definition.
+        package: The dotted name of the package that holds the module. The
+            function uses it to make relative imports absolute.
         known_all: The evaluated ``__all__`` of each module in the analyzed
             tree, by dotted name.
 
     Returns:
-        One ``Reference`` per name, sorted by name.
+        One ``Reference`` for each name, sorted by name.
     """
     imports = collect_imports(tree, package, known_all.get)
     candidate = star_candidate(tree, package, known_all.get)

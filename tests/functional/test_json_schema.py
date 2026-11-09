@@ -1,4 +1,4 @@
-"""The JSON Schema in ``docs/schema/`` accepts the ``--json`` output of every case and fixture."""
+"""Test that the JSON Schema in ``docs/schema/`` accepts the ``--json`` output of each case and fixture."""
 
 import json
 from pathlib import Path
@@ -41,7 +41,7 @@ def test_schema_is_valid_draft_2020_12(schema: dict[str, Any]) -> None:
 
 
 def test_schema_version_matches_formatter(schema: dict[str, Any]) -> None:
-    """Bumping ``JSON_SCHEMA_VERSION`` without updating the schema fails here."""
+    """If you increase ``JSON_SCHEMA_VERSION`` and do not update the schema, this test fails."""
     assert schema["properties"]["schema_version"]["const"] == JSON_SCHEMA_VERSION
 
 
@@ -53,7 +53,7 @@ def test_output_matches_schema(target: Path, validator: Draft202012Validator) ->
 
 
 def test_output_with_diagnostics_matches_schema(tmp_path: Path, validator: Draft202012Validator) -> None:
-    """``--keep-going --json`` output, with an error and a warning, matches the schema."""
+    """The ``--keep-going --json`` output, with an error and a warning, matches the schema."""
     (tmp_path / "pkg").mkdir()
     (tmp_path / "pkg" / "__init__.py").write_text('__all__ = ["lazy"]\n', encoding="utf-8")
     (tmp_path / "pkg" / "broken.py").write_text("def (:\n", encoding="utf-8")
@@ -65,7 +65,7 @@ def test_output_with_diagnostics_matches_schema(tmp_path: Path, validator: Draft
 
 
 class TestSchemaRejects:
-    """The schema is strict enough to catch drift between it and the formatter."""
+    """The schema is strict enough to find differences between it and the formatter."""
 
     @pytest.fixture
     def document(self) -> dict[str, Any]:
@@ -107,7 +107,7 @@ class TestSchemaRejects:
 
 
 def _all_modules(package: dict[str, Any]) -> list[dict[str, Any]]:
-    """Collect every module object in a package object and its subpackages."""
+    """Collect each module object in a package object and its subpackages."""
     modules = list(package["modules"])
 
     for subpackage in package["subpackages"]:

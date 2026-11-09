@@ -1,4 +1,4 @@
-"""Unit tests for sheridan.iceberg.utilities.get_function."""
+"""Test the functions in sheridan.iceberg.utilities."""
 
 import ast
 import importlib
@@ -249,14 +249,14 @@ def test_callable_positional_params() -> None:
 
 
 def test_callable_builtin_raises_invalid_path_error() -> None:
-    with pytest.raises(InvalidPathError, match="Cannot locate source"):
+    with pytest.raises(InvalidPathError, match="Cannot find the source"):
         get_function(len)
 
 
 def test_callable_without_source_raises_invalid_path_error() -> None:
     namespace: dict[str, object] = {}
     exec("def made_at_runtime(): pass", namespace)
-    with pytest.raises(InvalidPathError, match="Cannot locate source"):
+    with pytest.raises(InvalidPathError, match="Cannot find the source"):
         get_function(namespace["made_at_runtime"])  # type: ignore[arg-type]
 
 
@@ -369,14 +369,14 @@ def test_get_class_type_overload_name() -> None:
 
 
 def test_get_class_c_extension_type_raises_invalid_path_error() -> None:
-    with pytest.raises(InvalidPathError, match="Cannot locate source"):
+    with pytest.raises(InvalidPathError, match="Cannot find the source"):
         get_class(int)
 
 
 def test_get_class_without_source_raises_invalid_path_error() -> None:
     namespace: dict[str, object] = {}
     exec("class MadeAtRuntime: pass", namespace)
-    with pytest.raises(InvalidPathError, match="Cannot locate source"):
+    with pytest.raises(InvalidPathError, match="Cannot find the source"):
         get_class(namespace["MadeAtRuntime"])  # type: ignore[arg-type]
 
 
@@ -564,7 +564,7 @@ def test_get_assignment_ast_unpacking_target_raises_parse_error() -> None:
     node = ast.parse("a, b = 1, 2").body[0]
     assert isinstance(node, ast.Assign)
 
-    with pytest.raises(ParseError, match="non-simple target"):
+    with pytest.raises(ParseError, match="not a simple name"):
         get_assignment(node)
 
 
@@ -641,7 +641,7 @@ def test_get_module_module_type_name_contains_textwrap() -> None:
 
 
 def test_get_module_builtin_module_raises_invalid_path_error() -> None:
-    with pytest.raises(InvalidPathError, match="Cannot locate source"):
+    with pytest.raises(InvalidPathError, match="Cannot find the source"):
         get_module(sys)
 
 
@@ -725,5 +725,5 @@ def test_get_package_path_to_module_raises_invalid_path_error(tmp_path: Path) ->
     module = tmp_path / "mod.py"
     module.write_text("x = 1\n", encoding="utf-8")
 
-    with pytest.raises(InvalidPathError, match="use get_module"):
+    with pytest.raises(InvalidPathError, match="Use get_module"):
         get_package(module)

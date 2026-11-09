@@ -1,4 +1,4 @@
-"""Tests for sheridan.iceberg._init_resolver."""
+"""Test sheridan.iceberg._init_resolver."""
 
 from pathlib import Path
 
@@ -58,7 +58,7 @@ def _resolve(
 
 
 def _unresolved(module: Module) -> tuple[str, ...]:
-    """Names in the init's public surface that resolved to no concrete object."""
+    """Find the names in the public API of the init that have no concrete object."""
     return tuple(reference.name for reference in module.references)
 
 
@@ -191,7 +191,7 @@ from .c import CONST_C
 
 
 def test_all_driven_aliased_import_resolved() -> None:
-    """import X as Y — the resolved symbol must use the local alias Y, not the source name X."""
+    """import X as Y: the resolved symbol must use the local alias Y, not the source name X."""
     source = """
 __all__ = ["Y"]
 from .core import X as Y
@@ -230,7 +230,7 @@ def test_unresolvable_name_does_not_raise() -> None:
     source = """
 __all__ = ["missing_a", "missing_b"]
 """
-    # Must not raise; both names go into unresolved
+    # Must not raise an exception. The two names go into unresolved.
     module = _resolve(source)
     assert set(_unresolved(module)) == {"missing_a", "missing_b"}
 
@@ -240,7 +240,7 @@ def test_unresolvable_sibling_module_not_in_mapping() -> None:
 __all__ = ["something"]
 from .absent_module import something
 """
-    # sibling_modules is empty — module not found
+    # sibling_modules is empty. The resolver cannot find the module.
     module = _resolve(source, siblings={})
     assert "something" in _unresolved(module)
 
@@ -326,7 +326,7 @@ from .core import real_fn
     )
 
     assert module.functions == (fn,)
-    # sub is a subpackage name — resolver skips it silently (not in unresolved)
+    # sub is a subpackage name. The resolver skips it silently (not in unresolved).
     assert "sub" not in _unresolved(module)
     assert module.references == ()
 
@@ -383,16 +383,16 @@ from mypkg.core import abs_fn
 
 
 def test_absolute_import_outside_package_ignored() -> None:
-    """Absolute import from a different top-level package should not be resolved."""
+    """The resolver must not resolve an absolute import from a different top-level package."""
     source = """
 __all__ = ["foreign_fn"]
 from other_pkg.core import foreign_fn
 """
     fn = _make_function("foreign_fn")
     sibling = _make_module("other_pkg.core", functions=(fn,))
-    # sibling is provided but shouldn't be used — it's outside mypkg
+    # The test gives a sibling, but the resolver must not use it. It is outside mypkg.
     module = _resolve(source, package="mypkg", siblings={"other_pkg.core": sibling})
-    # foreign_fn should be unresolved since other_pkg is not a sibling of mypkg
+    # foreign_fn must stay unresolved, because other_pkg is not a sibling of mypkg.
     assert "foreign_fn" in _unresolved(module)
 
 
@@ -402,7 +402,7 @@ __all__ = ["bare_fn"]
 from . import bare_fn
 """
     fn = _make_function("bare_fn")
-    # level=1, no module → resolves to dotted_package itself
+    # level=1, no module → the result is dotted_package
     sibling = _make_module("mypkg", functions=(fn,))
     module = _resolve(source, package="mypkg", siblings={"mypkg": sibling})
     assert module.functions[0] == fn

@@ -1,4 +1,4 @@
-"""Tests for sheridan.iceberg._config (Config dataclass, load_config and load_config_file)."""
+"""Test sheridan.iceberg._config (the Config dataclass, load_config and load_config_file)."""
 
 import dataclasses
 import re
@@ -13,7 +13,7 @@ _DEFAULT_PATTERN_SRC = r"(^|/)tests?(/|$)|(^|/)test_[^/]*\.py$|_test\.py$"
 
 
 def _write(path: Path, text: str) -> Path:
-    """Write *text* to *path*, creating parent directories as needed."""
+    """Write *text* to *path*. Make the parent directories if necessary."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     return path
@@ -51,7 +51,7 @@ def test_config_explicit_values() -> None:
 
 
 def test_load_config_no_file_returns_defaults(tmp_path: Path) -> None:
-    # tmp_path/src does not exist; the walk resolves to tmp_path itself
+    # tmp_path/src does not exist. The walk resolves to tmp_path.
     cfg = load_config(tmp_path / "src")
     assert cfg.test_module_pattern.pattern == _DEFAULT_PATTERN_SRC
     assert cfg.max_workers == 1
@@ -81,7 +81,7 @@ def test_load_config_pyproject_toml_respected(tmp_path: Path) -> None:
 
 
 def test_load_config_removed_include_subpackages_key_rejected(tmp_path: Path) -> None:
-    """``include_subpackages_in_all`` was removed in 4.0 and is now an unknown key."""
+    """Version 4.0 removed ``include_subpackages_in_all``. It is now an unknown key."""
     _write(tmp_path / ".iceberg.toml", "include_subpackages_in_all = false\n")
     with pytest.raises(ConfigError, match="include_subpackages_in_all"):
         load_config(tmp_path)
@@ -126,13 +126,13 @@ def test_load_config_invalid_regex_in_pyproject_raises(tmp_path: Path) -> None:
 
 def test_load_config_malformed_iceberg_toml_raises(tmp_path: Path) -> None:
     _write(tmp_path / ".iceberg.toml", "max_workers = [not valid toml!!!\n")
-    with pytest.raises(ConfigError, match="Failed to parse TOML"):
+    with pytest.raises(ConfigError, match="Cannot parse the TOML"):
         load_config(tmp_path)
 
 
 def test_load_config_malformed_pyproject_toml_raises(tmp_path: Path) -> None:
     _write(tmp_path / "pyproject.toml", "[tool.iceberg\nbad syntax =\n")
-    with pytest.raises(ConfigError, match="Failed to parse TOML"):
+    with pytest.raises(ConfigError, match="Cannot parse the TOML"):
         load_config(tmp_path)
 
 
@@ -160,7 +160,7 @@ def test_load_config_max_workers_non_integer_raises(tmp_path: Path) -> None:
 @pytest.mark.parametrize("value", ["true", "false"])
 def test_load_config_max_workers_boolean_raises(tmp_path: Path, value: str) -> None:
     _write(tmp_path / ".iceberg.toml", f"max_workers = {value}\n")
-    with pytest.raises(ConfigError, match="'max_workers' must be an integer, got 'bool'"):
+    with pytest.raises(ConfigError, match="'max_workers' must be an integer, not 'bool'"):
         load_config(tmp_path)
 
 
@@ -180,7 +180,7 @@ def test_load_config_found_in_parent(tmp_path: Path) -> None:
 
 
 def test_load_config_closer_ancestor_wins(tmp_path: Path) -> None:
-    # Parent has max_workers = 1; child has max_workers = 7
+    # The parent has max_workers = 1. The child has max_workers = 7.
     _write(tmp_path / ".iceberg.toml", "max_workers = 1\n")
     child = tmp_path / "subdir"
     child.mkdir()
@@ -191,7 +191,7 @@ def test_load_config_closer_ancestor_wins(tmp_path: Path) -> None:
 
 
 def test_load_config_nearer_pyproject_wins_over_distant_iceberg_toml(tmp_path: Path) -> None:
-    # A distant .iceberg.toml (for example ~/.iceberg.toml) must not override the project.
+    # An .iceberg.toml far above (for example ~/.iceberg.toml) must not replace the project configuration.
     _write(tmp_path / ".iceberg.toml", "max_workers = 5\n")
     project = tmp_path / "project"
     _write(project / "pyproject.toml", "[tool.iceberg]\nmax_workers = 3\n")
@@ -201,7 +201,7 @@ def test_load_config_nearer_pyproject_wins_over_distant_iceberg_toml(tmp_path: P
 
 
 def test_load_config_stops_at_pyproject_without_iceberg_table(tmp_path: Path) -> None:
-    # The project root has no [tool.iceberg] table; the parent project's config must not apply.
+    # The project root has no [tool.iceberg] table. The configuration of the parent project must not apply.
     _write(tmp_path / "pyproject.toml", "[tool.iceberg]\nmax_workers = 4\n")
     _write(tmp_path / ".iceberg.toml", "max_workers = 6\n")
     project = tmp_path / "vendor" / "project"
@@ -247,7 +247,7 @@ def test_exclude_defaults_to_empty() -> None:
 
 
 def test_exclude_loaded_from_pyproject(tmp_path: Path) -> None:
-    """The exclude list in [tool.iceberg] is loaded as a tuple."""
+    """load_config loads the exclude list in [tool.iceberg] as a tuple."""
     _write(tmp_path / "pyproject.toml", '[tool.iceberg]\nexclude = ["legacy", "**/*_pb2.py"]\n')
 
     assert load_config(tmp_path).exclude == ("legacy", "**/*_pb2.py")
@@ -255,7 +255,7 @@ def test_exclude_loaded_from_pyproject(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("value", ['"legacy"', "[1, 2]", '["ok", 3]'])
 def test_exclude_must_be_list_of_strings(tmp_path: Path, value: str) -> None:
-    """A non-list or a list with non-string items raises ConfigError."""
+    """A value that is not a list, or a list with items that are not strings, raises ConfigError."""
     _write(tmp_path / ".iceberg.toml", f"exclude = {value}\n")
 
     with pytest.raises(ConfigError, match="'exclude' must be a list of strings"):
@@ -263,7 +263,7 @@ def test_exclude_must_be_list_of_strings(tmp_path: Path, value: str) -> None:
 
 
 def test_load_config_file_reads_top_level_keys(tmp_path: Path) -> None:
-    """A file not named pyproject.toml is read with its keys at the top level."""
+    """load_config_file reads a file with a name that is not pyproject.toml with its keys at the top level."""
     path = _write(tmp_path / "custom.toml", 'max_workers = 3\nexclude = ["a"]\n')
 
     config = load_config_file(path)
@@ -273,7 +273,7 @@ def test_load_config_file_reads_top_level_keys(tmp_path: Path) -> None:
 
 
 def test_load_config_file_does_not_search_upward(tmp_path: Path) -> None:
-    """load_config_file ignores configuration files next to or above the named file."""
+    """load_config_file ignores configuration files next to the named file or above it."""
     _write(tmp_path / ".iceberg.toml", "max_workers = 9\n")
     path = _write(tmp_path / "sub" / "custom.toml", "")
 
@@ -281,14 +281,14 @@ def test_load_config_file_does_not_search_upward(tmp_path: Path) -> None:
 
 
 def test_load_config_file_reads_pyproject_table(tmp_path: Path) -> None:
-    """A file named pyproject.toml is read from its [tool.iceberg] table."""
+    """load_config_file reads a file with the name pyproject.toml from its [tool.iceberg] table."""
     path = _write(tmp_path / "pyproject.toml", "[project]\nname = 'x'\n\n[tool.iceberg]\nmax_workers = 2\n")
 
     assert load_config_file(path).max_workers == 2
 
 
 def test_load_config_file_pyproject_without_table_returns_defaults(tmp_path: Path) -> None:
-    """A pyproject.toml without [tool.iceberg] gives the defaults."""
+    """A pyproject.toml without [tool.iceberg] gives the default values."""
     path = _write(tmp_path / "pyproject.toml", "[project]\nname = 'x'\n")
 
     assert load_config_file(path) == Config()
@@ -296,18 +296,18 @@ def test_load_config_file_pyproject_without_table_returns_defaults(tmp_path: Pat
 
 def test_load_config_file_missing_raises(tmp_path: Path) -> None:
     """A path that is not a file raises ConfigError."""
-    with pytest.raises(ConfigError, match="Configuration file not found"):
+    with pytest.raises(ConfigError, match="configuration file does not exist"):
         load_config_file(tmp_path / "missing.toml")
 
 
 def test_load_config_file_directory_raises(tmp_path: Path) -> None:
-    """A directory is not accepted as a configuration file."""
-    with pytest.raises(ConfigError, match="Configuration file not found"):
+    """load_config_file does not accept a directory as a configuration file."""
+    with pytest.raises(ConfigError, match="configuration file does not exist"):
         load_config_file(tmp_path)
 
 
 def test_load_config_file_validates_keys(tmp_path: Path) -> None:
-    """Unknown keys in the named file are rejected."""
+    """load_config_file does not accept unknown keys in the named file."""
     path = _write(tmp_path / "custom.toml", "bogus = 1\n")
 
     with pytest.raises(ConfigError, match="Unknown configuration key"):

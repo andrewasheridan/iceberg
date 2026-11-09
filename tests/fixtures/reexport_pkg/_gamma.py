@@ -1,4 +1,4 @@
-"""Internal module defining gamma."""
+"""An internal module that defines gamma."""
 
 __all__ = ["gamma"]
 

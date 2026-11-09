@@ -1,4 +1,4 @@
-"""Tests for the AST visitor module sheridan.iceberg._visitor."""
+"""Test the AST visitor module sheridan.iceberg._visitor."""
 
 import dataclasses
 from pathlib import Path
@@ -113,7 +113,7 @@ def full(pos_only: int, /, pos_or_kw: str, *args: float, kw_only: bool = True, *
     assert len(module.functions) == 1
     fn: Function = module.functions[0]
 
-    # positional_parameters covers posonly + pos_or_kw (ordered tuple)
+    # positional_parameters holds posonly + pos_or_kw (ordered tuple)
     pos_names = tuple(p.name for p in fn.positional_parameters)
     assert pos_names == ("pos_only", "pos_or_kw")
 
@@ -641,7 +641,7 @@ def test_module_dotted_name_preserved() -> None:
 
 
 def test_class_private_method_excluded() -> None:
-    """A method whose name starts with ``_`` (but is not a dunder) is excluded."""
+    """The visitor skips a method with a name that starts with ``_`` (but is not a dunder)."""
     source = """
 class MyClass:
     def public_method(self) -> None:
@@ -659,7 +659,7 @@ class MyClass:
 
 
 def test_class_private_attribute_excluded() -> None:
-    """An annotated class attribute whose name starts with ``_`` is excluded."""
+    """The visitor skips an annotated class attribute with a name that starts with ``_``."""
     source = """
 class MyClass:
     count: int = 0
@@ -674,7 +674,7 @@ class MyClass:
 
 
 def test_class_private_nested_class_excluded() -> None:
-    """A nested class whose name starts with ``_`` is excluded."""
+    """The visitor skips a nested class with a name that starts with ``_``."""
     source = """
 class Outer:
     class PublicInner:
@@ -692,7 +692,7 @@ class Outer:
 
 
 def test_class_dunder_method_included() -> None:
-    """Dunder methods like ``__init__`` are treated as public and included."""
+    """Dunder methods such as ``__init__`` are public, and the visitor includes them."""
     source = """
 class MyClass:
     def __init__(self, value: int) -> None:
@@ -710,7 +710,7 @@ class MyClass:
 
 
 def test_class_dunder_methods_are_public_but_private_and_mangled_are_not() -> None:
-    """``__call__`` and ``__eq__`` are public; ``_x`` and mangled ``__x`` are private."""
+    """``__call__`` and ``__eq__`` are public. ``_x`` and mangled ``__x`` are private."""
     source = """
 class MyClass:
     def __call__(self) -> None:
@@ -732,7 +732,7 @@ class MyClass:
 
 
 def test_class_dunder_attributes_are_public_but_private_and_mangled_are_not() -> None:
-    """Class attributes of the form ``__x__`` are public; ``_x`` and ``__x`` are private."""
+    """Class attributes of the form ``__x__`` are public. ``_x`` and ``__x`` are private."""
     source = """
 class MyClass:
     __slots__ = ("a",)
@@ -747,7 +747,7 @@ class MyClass:
 
 
 def test_class_mixed_members_all_filtered_correctly() -> None:
-    """All three member kinds are filtered in a single class definition."""
+    """The visitor filters all three member kinds in one class definition."""
     source = """
 class Service:
     timeout: int = 30

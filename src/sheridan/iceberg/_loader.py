@@ -1,4 +1,4 @@
-"""Loader that rebuilds iceberg models from the JSON written by ``format_json``."""
+"""Make the iceberg models again from the JSON that ``format_json`` writes."""
 
 __all__ = ["load_json"]
 
@@ -21,29 +21,29 @@ from sheridan.iceberg._models import (
 )
 
 _FUNCTION_KINDS: frozenset[str] = frozenset(get_args(FunctionKind.__value__))
-"""The ``kind`` values a serialized function may carry."""
+"""The ``kind`` values that a serialized function can have."""
 
 
 def _field(data: dict[str, Any], key: str, kind: type | tuple[type, ...]) -> Any:
-    """Read ``data[key]`` after checking that it exists and has the expected type.
+    """Read ``data[key]``. First, make sure that it exists and has the expected type.
 
     Args:
         data: A JSON object.
         key: The field to read.
-        kind: The type or types the value may have.
+        kind: The type or types that the value can have.
 
     Returns:
         The value of the field.
 
     Raises:
-        SnapshotError: When the field is missing or has the wrong type.
+        SnapshotError: If the field is missing or has the wrong type.
     """
     if key not in data:
         raise SnapshotError(f"missing field {key!r} in {_describe(data)}")
 
     value = data[key]
     allowed = kind if isinstance(kind, tuple) else (kind,)
-    # bool is a subclass of int, so reject it unless bool itself is allowed.
+    # bool is a subclass of int. Thus, reject a bool, unless the allowed types include bool.
     is_unwanted_bool = isinstance(value, bool) and bool not in allowed
 
     if not isinstance(value, allowed) or is_unwanted_bool:
@@ -89,31 +89,31 @@ def _object(value: Any, node_type: str | None) -> dict[str, Any]:
 
     Args:
         value: The decoded JSON value.
-        node_type: The required ``node_type``, or ``None`` for objects that
+        node_type: The necessary ``node_type``, or ``None`` for objects that
             have no ``node_type`` (parameters).
 
     Returns:
-        *value*, typed as a dict.
+        *value*, with the type dict.
 
     Raises:
-        SnapshotError: When *value* is not an object or has another ``node_type``.
+        SnapshotError: If *value* is not an object or has a different ``node_type``.
     """
     if not isinstance(value, dict):
-        raise SnapshotError(f"expected a JSON object, got {type(value).__name__}")
+        raise SnapshotError(f"the value must be a JSON object, not {type(value).__name__}")
 
     if node_type is not None and value.get("node_type") != node_type:
-        raise SnapshotError(f"expected node_type {node_type!r}, got {value.get('node_type')!r}")
+        raise SnapshotError(f"node_type must be {node_type!r}, not {value.get('node_type')!r}")
 
     return value
 
 
 def _list[T](data: dict[str, Any], key: str, load: Callable[[Any], T]) -> tuple[T, ...]:
-    """Load every item of a list field.
+    """Load each item of a list field.
 
     Args:
         data: A JSON object.
         key: The list field to read.
-        load: Builds one model from one list item.
+        load: A function that builds one model from one list item.
 
     Returns:
         The loaded items in order.
@@ -122,7 +122,7 @@ def _list[T](data: dict[str, Any], key: str, load: Callable[[Any], T]) -> tuple[
 
 
 def _str_list(data: dict[str, Any], key: str) -> tuple[str, ...]:
-    """Read a list field whose items are strings.
+    """Read a list field that holds strings.
 
     Args:
         data: A JSON object.
@@ -132,7 +132,7 @@ def _str_list(data: dict[str, Any], key: str) -> tuple[str, ...]:
         The strings in order.
 
     Raises:
-        SnapshotError: When an item is not a string.
+        SnapshotError: If an item is not a string.
     """
     items = _field(data, key, list)
     if not all(isinstance(item, str) for item in items):
@@ -232,25 +232,25 @@ def _load_package(value: Any, root: Path) -> Package:
 def load_json(text: str, *, root: Path | None = None) -> Package | Module:
     """Rebuild a ``Package`` or ``Module`` from the JSON that ``iceberg --json`` prints.
 
-    The JSON stores package paths relative to the analyzed root, so the loaded
-    paths are relative too unless *root* is given. With *root* set to the path
-    that was analyzed, ``load_json(format_json(api), root=api.path) == api``.
+    The JSON keeps package paths relative to the analyzed root. Thus, the
+    loaded paths are also relative, unless you give *root*. If *root* is the
+    analyzed path, ``load_json(format_json(api), root=api.path) == api``.
 
-    Fields that the current schema does not know are ignored.
+    The function ignores the fields that the current schema does not know.
 
     Args:
         text: The JSON text.
-        root: The directory to resolve package paths against. Defaults to
-            leaving them relative (the root package's path is ``Path(".")``).
+        root: The directory for the package paths. If you do not give it, the
+            paths stay relative (the path of the root package is ``Path(".")``).
 
     Returns:
-        The rebuilt root package or module.
+        The root package or module that the function made again.
 
     Raises:
-        SnapshotError: When *text* is not valid JSON, its ``schema_version`` is
-            missing or not one this version of iceberg can read, or a node is
-            missing a field, has a field of the wrong type, or has an
-            unexpected ``node_type``.
+        SnapshotError: If *text* is not valid JSON, if its ``schema_version`` is
+            missing or this version of iceberg cannot read it, or if a node has
+            a missing field, a field of the wrong type or an unexpected
+            ``node_type``.
     """
     try:
         data = json.loads(text)
@@ -258,12 +258,12 @@ def load_json(text: str, *, root: Path | None = None) -> Package | Module:
         raise SnapshotError(f"invalid JSON: {exc}") from exc
 
     if not isinstance(data, dict):
-        raise SnapshotError(f"expected a JSON object, got {type(data).__name__}")
+        raise SnapshotError(f"the value must be a JSON object, not {type(data).__name__}")
 
     version = data.get("schema_version")
     if version != JSON_SCHEMA_VERSION or isinstance(version, bool):
         raise SnapshotError(
-            f"unsupported schema_version {version!r}; this version of iceberg reads {JSON_SCHEMA_VERSION}"
+            f"unsupported schema_version {version!r}. This version of iceberg reads {JSON_SCHEMA_VERSION}."
         )
 
     match data.get("node_type"):
@@ -274,4 +274,4 @@ def load_json(text: str, *, root: Path | None = None) -> Package | Module:
             return _load_module(data)
 
         case other:
-            raise SnapshotError(f"expected a package or module at the top level, got node_type {other!r}")
+            raise SnapshotError(f"the top level must be a package or module, not node_type {other!r}")

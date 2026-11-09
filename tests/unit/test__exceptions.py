@@ -1,4 +1,4 @@
-"""Tests for sheridan.iceberg._exceptions."""
+"""Test sheridan.iceberg._exceptions."""
 
 import pytest
 

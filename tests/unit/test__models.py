@@ -1,4 +1,4 @@
-"""Tests for the frozen dataclass models in sheridan.iceberg._models."""
+"""Test the frozen dataclass models in sheridan.iceberg._models."""
 
 import dataclasses
 from pathlib import Path
@@ -194,7 +194,7 @@ def test_function_positional_order_sensitive_equality() -> None:
 def test_parameter_hashable_in_set() -> None:
     p1 = _make_parameter(name="a", annotation="int")
     p2 = _make_parameter(name="b", annotation="str", default="'hello'")
-    p3 = _make_parameter(name="a", annotation="int")  # duplicate of p1
+    p3 = _make_parameter(name="a", annotation="int")  # the same as p1
 
     s: set[Parameter] = {p1, p2, p3}
     assert len(s) == 2

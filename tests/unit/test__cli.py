@@ -1,4 +1,4 @@
-"""Tests for sheridan.iceberg._cli."""
+"""Test sheridan.iceberg._cli."""
 
 import json
 import os
@@ -41,7 +41,7 @@ def test_main_success_tree_stdout(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_main_success_tree_uses_path_argument(capsys: pytest.CaptureFixture[str]) -> None:
-    """main passes the path argument as a Path object to get_public_api_report."""
+    """main gives the path argument to get_public_api_report as a Path object."""
 
     fake_package = MagicMock()
 
@@ -57,7 +57,7 @@ def test_main_success_tree_uses_path_argument(capsys: pytest.CaptureFixture[str]
 
 
 def test_main_success_stderr_is_empty(capsys: pytest.CaptureFixture[str]) -> None:
-    """On success, nothing is written to stderr."""
+    """If the run is successful, main writes nothing to stderr."""
     fake_package = MagicMock()
 
     with (
@@ -71,7 +71,7 @@ def test_main_success_stderr_is_empty(capsys: pytest.CaptureFixture[str]) -> Non
 
 
 def test_main_json_flag_stdout(capsys: pytest.CaptureFixture[str]) -> None:
-    """main returns 0 and writes JSON output to stdout when --json is passed."""
+    """With --json, main returns 0 and writes JSON output to stdout."""
     fake_package = MagicMock()
 
     with (
@@ -93,7 +93,7 @@ def test_main_json_flag_stdout(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_main_json_flag_stderr_is_empty(capsys: pytest.CaptureFixture[str]) -> None:
-    """On success with --json, nothing is written to stderr."""
+    """If the run with --json is successful, main writes nothing to stderr."""
     fake_package = MagicMock()
 
     with (
@@ -107,7 +107,7 @@ def test_main_json_flag_stderr_is_empty(capsys: pytest.CaptureFixture[str]) -> N
 
 
 def test_main_iceberg_error_returns_1(capsys: pytest.CaptureFixture[str]) -> None:
-    """main returns 1 when get_public_api_report raises an IcebergError."""
+    """main returns 1 if get_public_api_report raises an IcebergError."""
     with patch(
         "sheridan.iceberg._cli.get_public_api_report",
         side_effect=InvalidPathError("path does not exist: /bad/path"),
@@ -118,7 +118,7 @@ def test_main_iceberg_error_returns_1(capsys: pytest.CaptureFixture[str]) -> Non
 
 
 def test_main_iceberg_error_message_to_stderr(capsys: pytest.CaptureFixture[str]) -> None:
-    """main writes 'error: <msg>' to stderr on IcebergError."""
+    """For an IcebergError, main writes 'error: <msg>' to stderr."""
     error_msg = "path does not exist: /bad/path"
 
     with patch(
@@ -133,7 +133,7 @@ def test_main_iceberg_error_message_to_stderr(capsys: pytest.CaptureFixture[str]
 
 
 def test_main_iceberg_error_nothing_to_stdout(capsys: pytest.CaptureFixture[str]) -> None:
-    """On IcebergError, nothing is written to stdout."""
+    """For an IcebergError, main writes nothing to stdout."""
     with patch(
         "sheridan.iceberg._cli.get_public_api_report",
         side_effect=IcebergError("some iceberg error"),
@@ -156,7 +156,7 @@ def test_main_iceberg_error_subclasses_return_1(
     exc: IcebergError,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Any IcebergError subclass causes exit code 1."""
+    """All IcebergError subclasses cause exit code 1."""
     with patch("sheridan.iceberg._cli.get_public_api_report", side_effect=exc):
         exit_code = main(["any/path"])
 
@@ -164,7 +164,7 @@ def test_main_iceberg_error_subclasses_return_1(
 
 
 def test_main_unexpected_error_returns_2(capsys: pytest.CaptureFixture[str]) -> None:
-    """main returns 2 when get_public_api_report raises an unexpected exception."""
+    """main returns 2 if get_public_api_report raises an unexpected exception."""
     with patch(
         "sheridan.iceberg._cli.get_public_api_report",
         side_effect=RuntimeError("something went very wrong"),
@@ -175,7 +175,7 @@ def test_main_unexpected_error_returns_2(capsys: pytest.CaptureFixture[str]) -> 
 
 
 def test_main_unexpected_error_message_to_stderr(capsys: pytest.CaptureFixture[str]) -> None:
-    """main writes 'unexpected error: <type>: <msg>' to stderr on unexpected exceptions."""
+    """For an unexpected exception, main writes 'unexpected error: <type>: <msg>' to stderr."""
     with patch(
         "sheridan.iceberg._cli.get_public_api_report",
         side_effect=RuntimeError("something went very wrong"),
@@ -230,7 +230,7 @@ def test_main_iceberg_debug_env_prints_full_traceback(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """ICEBERG_DEBUG=1 works like --traceback; other values do not."""
+    """ICEBERG_DEBUG=1 has the same effect as --traceback. Other values do not."""
     monkeypatch.setenv("ICEBERG_DEBUG", value)
 
     with patch("sheridan.iceberg._cli.get_public_api_report", side_effect=RuntimeError("boom")):
@@ -243,7 +243,7 @@ def test_main_iceberg_debug_env_prints_full_traceback(
 
 
 def test_main_traceback_option_does_not_affect_iceberg_errors(capsys: pytest.CaptureFixture[str]) -> None:
-    """Known iceberg errors keep their one-line message under --traceback."""
+    """With --traceback, known iceberg errors keep their one-line message."""
     with patch("sheridan.iceberg._cli.get_public_api_report", side_effect=IcebergError("bad")):
         exit_code = main(["any/path", "--traceback"])
 
@@ -254,7 +254,7 @@ def test_main_traceback_option_does_not_affect_iceberg_errors(capsys: pytest.Cap
 
 
 def test_main_unexpected_error_nothing_to_stdout(capsys: pytest.CaptureFixture[str]) -> None:
-    """On an unexpected exception, nothing is written to stdout."""
+    """For an unexpected exception, main writes nothing to stdout."""
     with patch(
         "sheridan.iceberg._cli.get_public_api_report",
         side_effect=ValueError("oops"),
@@ -299,7 +299,7 @@ def test_main_unexpected_error_includes_type_name(
     ids=["format_tree", "format_json", "_write_output"],
 )
 class TestUnexpectedErrorAfterAnalysis:
-    """Unexpected errors while formatting or writing the report go through the bug-report handler."""
+    """If an unexpected error occurs when main formats or writes the report, the bug-report handler gets it."""
 
     def test_returns_2_with_bug_report_message(
         self,
@@ -347,7 +347,7 @@ class TestUnexpectedErrorAfterAnalysis:
 
 
 def test_main_argv_none_reads_sys_argv(capsys: pytest.CaptureFixture[str]) -> None:
-    """When argv is None, main reads from sys.argv[1:]."""
+    """If argv is None, main reads from sys.argv[1:]."""
     fake_package = MagicMock()
 
     with (
@@ -365,7 +365,7 @@ def test_main_non_py_file_returns_1_with_message(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A file target that is not a .py file exits 1 with a clear message."""
+    """A file target that is not a .py file gives exit code 1 and a clear message."""
     target = tmp_path / "README.md"
     target.write_text("# Title\n")
 
@@ -404,7 +404,7 @@ def _package(tmp_path: Path, module_bytes: bytes) -> Path:
 
 
 def test_main_latin1_declaration_is_used(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    """A module with a PEP 263 latin-1 declaration is decoded with latin-1."""
+    """iceberg decodes a module with a PEP 263 latin-1 declaration with latin-1."""
     source = "# -*- coding: latin-1 -*-\ndef café() -> None: ...\n"
     pkg = _package(tmp_path, source.encode("latin-1"))
 
@@ -413,7 +413,7 @@ def test_main_latin1_declaration_is_used(tmp_path: Path, capsys: pytest.CaptureF
 
 
 def test_main_undecodable_file_returns_1(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    """A module that is not valid UTF-8 is an IcebergError naming the file."""
+    """A module that is not valid UTF-8 gives an IcebergError that names the file."""
     pkg = _package(tmp_path, 'NAME = "café"\n'.encode("latin-1"))
 
     assert main([str(pkg)]) == 1
@@ -424,7 +424,7 @@ def test_main_undecodable_file_returns_1(tmp_path: Path, capsys: pytest.CaptureF
 
 
 def test_main_broken_symlink_returns_1(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    """A module that is a broken symlink is an IcebergError naming the file."""
+    """A module that is a broken symlink gives an IcebergError that names the file."""
     pkg = _package(tmp_path, b"")
     (pkg / "mod.py").unlink()
     (pkg / "mod.py").symlink_to(tmp_path / "missing.py")
@@ -437,7 +437,7 @@ def test_main_broken_symlink_returns_1(tmp_path: Path, capsys: pytest.CaptureFix
 
 
 def test_main_exclude_extends_configured_list(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    """Repeated --exclude options are appended to the configured exclude list."""
+    """main adds each --exclude option to the exclude list from the configuration."""
     (tmp_path / "pyproject.toml").write_text('[tool.iceberg]\nexclude = ["a"]\n', encoding="utf-8")
 
     with (
@@ -451,7 +451,7 @@ def test_main_exclude_extends_configured_list(tmp_path: Path, capsys: pytest.Cap
 
 
 def test_main_exclude_skips_modules_end_to_end(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    """--exclude removes matching modules from the real output."""
+    """--exclude removes the modules that match from the real output."""
     (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
     root = tmp_path / "pkg"
     root.mkdir()
@@ -469,7 +469,7 @@ def test_main_exclude_skips_modules_end_to_end(tmp_path: Path, capsys: pytest.Ca
 
 
 def test_main_config_error_returns_1(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    """An invalid configuration file is reported as an error with exit code 1."""
+    """main reports an incorrect configuration file as an error with exit code 1."""
     (tmp_path / ".iceberg.toml").write_text('exclude = "nope"\n', encoding="utf-8")
 
     exit_code = main([str(tmp_path)])
@@ -493,7 +493,7 @@ def test_main_show_overload_implementations_flag_reaches_format_tree() -> None:
 
 
 def test_main_version_prints_installed_version(capsys: pytest.CaptureFixture[str]) -> None:
-    """--version prints 'iceberg <version>' from package metadata and exits 0."""
+    """--version prints 'iceberg <version>' from the package metadata and gives exit code 0."""
     with pytest.raises(SystemExit) as exc_info:
         main(["--version"])
 
@@ -502,7 +502,7 @@ def test_main_version_prints_installed_version(capsys: pytest.CaptureFixture[str
 
 
 def _config_passed_to_api(argv: list[str]) -> Config:
-    """Run main with get_public_api_report mocked and return the Config it received."""
+    """Run main with a mock get_public_api_report, and get the Config that the mock got."""
     with (
         patch("sheridan.iceberg._cli.get_public_api_report", return_value=Report(api=MagicMock())) as mock_api,
         patch("sheridan.iceberg._cli.format_tree", return_value=_TREE_OUTPUT),
@@ -516,7 +516,7 @@ def _config_passed_to_api(argv: list[str]) -> Config:
 
 
 def test_main_config_option_replaces_discovered_file(tmp_path: Path) -> None:
-    """--config reads the named file and ignores the one found by walking up."""
+    """--config reads the named file. It ignores the file that the upward search finds."""
     (tmp_path / ".iceberg.toml").write_text('exclude = ["found"]\nmax_workers = 2\n', encoding="utf-8")
     explicit = tmp_path / "other.toml"
     explicit.write_text('exclude = ["explicit"]\n', encoding="utf-8")
@@ -539,29 +539,29 @@ def test_main_config_option_reads_pyproject_table(tmp_path: Path) -> None:
 
 
 def test_main_config_option_missing_file_returns_1(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    """--config with a path that does not exist is an error with exit code 1."""
+    """--config with a path that does not exist gives an error with exit code 1."""
     missing = tmp_path / "missing.toml"
 
     assert main([str(tmp_path), "--config", str(missing)]) == 1
-    assert f"Configuration file not found: {missing}" in capsys.readouterr().err
+    assert f"The configuration file does not exist: {missing}" in capsys.readouterr().err
 
 
 def test_main_no_config_ignores_discovered_file(tmp_path: Path) -> None:
-    """--no-config uses the defaults even when a configuration file exists."""
+    """--no-config uses the default values, also if a configuration file exists."""
     (tmp_path / ".iceberg.toml").write_text('exclude = ["found"]\nmax_workers = 2\n', encoding="utf-8")
 
     assert _config_passed_to_api([str(tmp_path), "--no-config"]) == Config()
 
 
 def test_main_no_config_skips_invalid_file(tmp_path: Path) -> None:
-    """--no-config does not read the discovered file, so an invalid one is not an error."""
+    """--no-config does not read the file that the search finds. Thus, an incorrect file does not cause an error."""
     (tmp_path / ".iceberg.toml").write_text("not = [valid toml", encoding="utf-8")
 
     assert _config_passed_to_api([str(tmp_path), "--no-config"]) == Config()
 
 
 def test_main_config_and_no_config_are_mutually_exclusive(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    """Passing both --config and --no-config is a usage error."""
+    """--config together with --no-config is a usage error."""
     with pytest.raises(SystemExit) as exc_info:
         main([str(tmp_path), "--config", "x.toml", "--no-config"])
 
@@ -570,14 +570,14 @@ def test_main_config_and_no_config_are_mutually_exclusive(tmp_path: Path, capsys
 
 
 def test_main_max_workers_overrides_file_value(tmp_path: Path) -> None:
-    """--max-workers takes precedence over max_workers in the discovered file."""
+    """--max-workers has priority over max_workers in the file that the search finds."""
     (tmp_path / ".iceberg.toml").write_text("max_workers = 2\n", encoding="utf-8")
 
     assert _config_passed_to_api([str(tmp_path), "--max-workers", "3"]).max_workers == 3
 
 
 def test_main_max_workers_overrides_config_option_file(tmp_path: Path) -> None:
-    """--max-workers takes precedence over max_workers in the --config file."""
+    """--max-workers has priority over max_workers in the --config file."""
     explicit = tmp_path / "other.toml"
     explicit.write_text("max_workers = 2\n", encoding="utf-8")
 
@@ -587,7 +587,7 @@ def test_main_max_workers_overrides_config_option_file(tmp_path: Path) -> None:
 
 
 def test_main_max_workers_with_no_config(tmp_path: Path) -> None:
-    """--max-workers applies on top of the defaults when --no-config is given."""
+    """With --no-config, --max-workers replaces the default value."""
     (tmp_path / ".iceberg.toml").write_text("max_workers = 2\n", encoding="utf-8")
 
     config = _config_passed_to_api([str(tmp_path), "--no-config", "--max-workers", "5"])
@@ -621,7 +621,7 @@ def test_main_max_workers_rejects_invalid_values(
         main([str(tmp_path), "--max-workers", value])
 
     assert exc_info.value.code == 2
-    assert "expected a positive integer" in capsys.readouterr().err
+    assert "must be a positive integer" in capsys.readouterr().err
 
 
 class TestKeepGoing:
@@ -680,7 +680,7 @@ class TestKeepGoing:
 
 
 class TestOutput:
-    """``-o/--output`` writes the report to a file instead of stdout."""
+    """``-o/--output`` writes the report to a file, not to stdout."""
 
     @pytest.fixture
     def package(self, tmp_path: Path) -> Path:

@@ -1,4 +1,4 @@
-"""Round-trip tests: ``load_json(format_json(api))`` rebuilds ``api`` for every case and fixture."""
+"""Test the round trip: ``load_json(format_json(api))`` makes ``api`` again for each case and fixture."""
 
 from pathlib import Path
 
@@ -31,7 +31,7 @@ def test_load_json_round_trips(target: Path) -> None:
 
 @pytest.mark.parametrize("target", _TARGETS, ids=lambda path: path.relative_to(_PROJECT_ROOT).as_posix())
 def test_reformatting_loaded_json_is_identical(target: Path) -> None:
-    """Without a root, paths stay relative but the JSON is byte-identical."""
+    """Without a root, the paths stay relative, but the JSON has the same bytes."""
     text = format_json(get_public_api(target, config=_CFG))
 
     assert format_json(load_json(text)) == text

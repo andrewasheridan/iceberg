@@ -1,8 +1,7 @@
-"""Shared AST utility helpers for the iceberg package.
+"""Provide the AST helper functions that the iceberg modules share.
 
-These helpers are used by both ``_visitor.py`` and ``_init_resolver.py``.
-They operate on the stdlib ``ast`` module and carry no external dependencies
-beyond the standard library.
+``_visitor.py`` and ``_init_resolver.py`` use these helper functions. They use
+the ``ast`` module of the standard library. They have no external dependencies.
 """
 
 __all__ = [
@@ -25,21 +24,22 @@ from pathlib import Path
 
 from sheridan.iceberg._exceptions import ParseError, SourceReadError
 
-#: Look up the evaluated ``__all__`` of another module by dotted name. Returns
-#: ``None`` when the module is not in the analyzed tree or its ``__all__`` is
-#: unknown.
+#: Find the evaluated ``__all__`` of a different module by dotted name. The
+#: result is ``None`` if the module is not in the analyzed tree, or if its
+#: ``__all__`` is not known.
 type AllLookup = Callable[[str], frozenset[str] | None]
 
-#: Look up the names that ``from module import *`` binds, by dotted module
-#: name. Returns ``None`` when the module is not in the analyzed tree.
+#: Find the names that ``from module import *`` binds, by dotted module name.
+#: The result is ``None`` if the module is not in the analyzed tree.
 type StarExports = Callable[[str], Collection[str] | None]
 
 
 def read_source(path: Path) -> str:
     """Read and decode a Python source file.
 
-    The bytes are decoded the way the interpreter decodes them: UTF-8 unless
-    a PEP 263 encoding declaration or a BOM says otherwise.
+    The function decodes the bytes in the same way as the interpreter. The
+    encoding is UTF-8, unless a PEP 263 encoding declaration or a BOM gives a
+    different encoding.
 
     Args:
         path: The source file to read.
@@ -48,8 +48,8 @@ def read_source(path: Path) -> str:
         The decoded source text, with universal newlines.
 
     Raises:
-        SourceReadError: If the file cannot be read, or its bytes cannot be
-            decoded with its encoding.
+        SourceReadError: If the function cannot read the file, or cannot decode
+            its bytes with its encoding.
     """
     try:
         data = path.read_bytes()
@@ -66,18 +66,18 @@ def read_source(path: Path) -> str:
 def parse_source(source: str, path: Path | str | None = None) -> ast.Module:
     """Parse Python source into a module AST.
 
-    The grammar is the running interpreter's, so any syntax it accepts is
-    accepted here.
+    The function uses the grammar of the current interpreter. Thus, it accepts
+    all the syntax that the interpreter accepts.
 
     Args:
-        source: Raw Python source text.
-        path: The file *source* was read from, reported in the error.
+        source: The raw Python source text.
+        path: The file that contains *source*. The error shows this path.
 
     Returns:
         The parsed module.
 
     Raises:
-        ParseError: When *source* is not valid Python.
+        ParseError: If *source* is not valid Python.
     """
     try:
         return ast.parse(source, filename="<unknown>" if path is None else str(path))
@@ -86,7 +86,7 @@ def parse_source(source: str, path: Path | str | None = None) -> ast.Module:
 
 
 class _NotStaticError(Exception):
-    """Signal that a statement changes ``__all__`` in a way iceberg cannot evaluate."""
+    """Signal that a statement changes ``__all__`` in a way that iceberg cannot evaluate."""
 
     def __init__(self, node: ast.AST, reason: str) -> None:
         super().__init__(reason)
@@ -95,7 +95,7 @@ class _NotStaticError(Exception):
 
 
 def _is_int_literal(node: ast.expr) -> bool:
-    """Check whether *node* is an integer literal such as ``0`` or ``-1``."""
+    """Check if *node* is an integer literal such as ``0`` or ``-1``."""
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub | ast.UAdd):
         node = node.operand
 
@@ -111,8 +111,9 @@ def extract_all(
 ) -> frozenset[str] | None:
     """Evaluate ``__all__`` statically from the module-level statements.
 
-    Applies, in source order, every module-level statement that changes
-    ``__all__``, including those inside ``if`` and ``try`` blocks:
+    The function applies, in source order, each module-level statement that
+    changes ``__all__``. This includes the statements in ``if`` and ``try``
+    blocks:
 
     - ``__all__ = ...``, ``__all__ = x = ...`` and ``__all__: list[str] = ...``
     - ``__all__ += ...``
@@ -121,34 +122,40 @@ def extract_all(
     - ``__all__.sort(...)`` and ``__all__.reverse()``, which keep the names
     - ``from .sub import __all__``, which takes the ``__all__`` of ``sub``
 
-    A value may be a list or tuple of string literals, a concatenation of
-    values with ``+``, the current ``__all__``, or the ``__all__`` of another
-    module in the analyzed tree (``sub.__all__`` after ``from . import sub``,
-    or a name bound by ``from .sub import __all__ as sub_all``). Other modules
-    are looked up with *lookup*.
+    A value can be one of these:
 
-    The branches of an ``if`` or ``try`` block are evaluated separately and
-    their results are joined, so ``__all__`` keeps every name that any branch
-    adds. A ``try`` handler starts from ``__all__`` as it was before the block.
+    - A list or tuple of string literals.
+    - A concatenation of values with ``+``.
+    - The current ``__all__``.
+    - The ``__all__`` of a different module in the analyzed tree. Examples are
+      ``sub.__all__`` after ``from . import sub``, or a name that
+      ``from .sub import __all__ as sub_all`` binds. The function uses
+      *lookup* to find other modules.
 
-    Any other statement that binds ``__all__``, such as ``import x as __all__``
-    or ``for __all__ in ...``, cannot be evaluated.
+    The function evaluates the branches of an ``if`` or ``try`` block
+    separately and joins their results. Thus, ``__all__`` keeps each name that
+    a branch adds. A ``try`` handler starts from the ``__all__`` before the
+    block.
 
-    When a statement cannot be evaluated, a ``UserWarning`` names the file and
-    line, and the function returns ``None`` so the caller falls back to
-    underscore inference.
+    The function cannot evaluate other statements that bind ``__all__``, such
+    as ``import x as __all__`` or ``for __all__ in ...``.
+
+    If the function cannot evaluate a statement, it gives a ``UserWarning``
+    with the file and the line. Then it gives ``None``, and the caller uses the
+    underscore rule.
 
     Args:
-        tree: Parsed module AST.
-        package: Dotted name of the package the module lives in, used to
-            resolve relative imports of other modules.
-        lookup: Returns the ``__all__`` of another module by dotted name, or
-            ``None`` when it is unknown.
-        path: The file *tree* was parsed from, used in the warning.
+        tree: The parsed module AST.
+        package: The dotted name of the package that holds the module. The
+            function uses it to resolve relative imports of other modules.
+        lookup: A function that gives the ``__all__`` of a different module by
+            dotted name, or ``None`` if it is not known.
+        path: The file that the function parsed into *tree*. The warning
+            shows this path.
 
     Returns:
-        The names in ``__all__``, or ``None`` when ``__all__`` is absent or
-        cannot be evaluated statically.
+        The names in ``__all__``. ``None`` if there is no ``__all__``, or if
+        the function cannot evaluate it statically.
     """
     imports: dict[str, tuple[str, str | None]] | None = None
 
@@ -170,7 +177,7 @@ def extract_all(
 
         module, attribute = source
         # ``import pkg.sub as sub`` and ``from .sub import __all__`` name the
-        # module itself; ``from . import sub`` names a submodule of ``pkg``.
+        # module. ``from . import sub`` names a submodule of ``pkg``.
         target = module if attribute in {None, "__all__"} else f"{module}.{attribute}"
         return module_all(node, target)
 
@@ -199,7 +206,7 @@ def extract_all(
 
             case ast.Name(id="__all__"):
                 if current is None:
-                    raise _NotStaticError(node, "__all__ is used before it is assigned")
+                    raise _NotStaticError(node, "the code uses __all__ before it assigns it")
 
                 return list(current)
 
@@ -218,7 +225,7 @@ def extract_all(
                 "__all__" in bound_names(target) for target in targets
             ):
                 if not any(isinstance(target, ast.Name) and target.id == "__all__" for target in targets):
-                    raise _NotStaticError(node, "__all__ is bound by unpacking")
+                    raise _NotStaticError(node, "an unpacking assignment binds __all__")
 
                 return evaluate(value, current)
 
@@ -227,16 +234,16 @@ def extract_all(
 
             case ast.AugAssign(target=ast.Name(id="__all__"), op=op, value=value):
                 if current is None:
-                    raise _NotStaticError(node, "__all__ is changed before it is assigned")
+                    raise _NotStaticError(node, "the code changes __all__ before it assigns it")
 
                 if not isinstance(op, ast.Add):
-                    raise _NotStaticError(node, "only += is supported")
+                    raise _NotStaticError(node, "iceberg supports only +=")
 
                 return current + evaluate(value, current)
 
             case ast.Expr(value=ast.Call(func=ast.Attribute(value=ast.Name(id="__all__"), attr=method)) as call):
                 if current is None:
-                    raise _NotStaticError(node, "__all__ is changed before it is assigned")
+                    raise _NotStaticError(node, "the code changes __all__ before it assigns it")
 
                 match method, call.args, call.keywords:
                     case "extend", [arg], []:
@@ -246,25 +253,25 @@ def extract_all(
                         return [*current, s]
 
                     case "insert", [index, ast.Constant(value=str(s))], [] if _is_int_literal(index):
-                        # Only membership matters, so the position is ignored.
+                        # Only the membership is important. Thus, ignore the position.
                         return [*current, s]
 
                     case "remove", [ast.Constant(value=str(s))], []:
                         if s not in current:
-                            raise _NotStaticError(node, f"__all__.remove({s!r}) removes a missing name")
+                            raise _NotStaticError(node, f"__all__.remove({s!r}) removes a name that is not in __all__")
 
                         current = list(current)
                         current.remove(s)
                         return current
 
                     case "sort", [], keywords if all(kw.arg in {"key", "reverse"} for kw in keywords):
-                        return current  # reordering keeps the membership
+                        return current  # a new order keeps the membership
 
                     case "reverse", [], []:
                         return current
 
                     case _:
-                        raise _NotStaticError(node, f"__all__.{method}(...) is not supported")
+                        raise _NotStaticError(node, f"iceberg does not support __all__.{method}(...)")
 
             case ast.ImportFrom(names=aliases) if any(
                 alias.name == "__all__" and alias.asname in {None, "__all__"} for alias in aliases
@@ -272,14 +279,14 @@ def extract_all(
                 return module_all(node, _import_from_source(node, package))
 
             case _ if _binds_all(node):
-                raise _NotStaticError(node, "__all__ is bound by a statement iceberg does not evaluate")
+                raise _NotStaticError(node, "a statement that iceberg does not evaluate binds __all__")
 
             case _:
                 return current
 
     def union(*branches: list[str] | None) -> list[str] | None:
-        # Which branch runs is unknown statically, so a name that any branch
-        # exports is kept, the same way definitions in every branch count.
+        # Without a run of the code, the branch that runs is not known. Thus, keep
+        # each name that a branch exports, as for the definitions in all branches.
         assigned = [branch for branch in branches if branch is not None]
         if not assigned:
             return None
@@ -300,9 +307,9 @@ def extract_all(
                     ast.Try(body=try_body, handlers=handlers, orelse=orelse, finalbody=finalbody)
                     | ast.TryStar(body=try_body, handlers=handlers, orelse=orelse, finalbody=finalbody)
                 ):
-                    # A handler may start anywhere in the try body; starting it
-                    # from the state before the try is the common case, an
-                    # ImportError on the first line.
+                    # A handler can start at any line of the try body. The usual
+                    # case is an ImportError on the first line. Thus, start the
+                    # handler from the state before the try.
                     completed = run(orelse, run(try_body, current))
                     handled = [run(handler.body, current) for handler in handlers]
                     current = run(finalbody, union(completed, *handled))
@@ -318,8 +325,8 @@ def extract_all(
         parts = [str(part) for part in (path, exc.lineno) if part is not None]
         prefix = f"{':'.join(parts)}: " if parts else ""
         warnings.warn(
-            f"{prefix}cannot evaluate __all__ statically ({exc.reason}); "
-            "falling back to names without a leading underscore",
+            f"{prefix}cannot evaluate __all__ statically ({exc.reason}). "
+            "iceberg uses the names without a leading underscore.",
             UserWarning,
             stacklevel=2,
         )
@@ -329,10 +336,10 @@ def extract_all(
 
 
 def _binds_all(node: ast.AST) -> bool:
-    """Check whether *node* binds or deletes the module-level name ``__all__``.
+    """Check if *node* binds or deletes the module-level name ``__all__``.
 
-    Function, class and lambda bodies are skipped, because names bound there
-    are local to them.
+    The function skips function, class and lambda bodies, because the names
+    that they bind are local.
     """
     match node:
         case ast.FunctionDef(name=name) | ast.AsyncFunctionDef(name=name) | ast.ClassDef(name=name):
@@ -342,7 +349,7 @@ def _binds_all(node: ast.AST) -> bool:
             return False
 
         case ast.AnnAssign(value=None):
-            return False  # a bare annotation binds nothing
+            return False  # a bare annotation does not bind a name
 
         case ast.Import(names=aliases) | ast.ImportFrom(names=aliases):
             # ``import a.b`` binds ``a``.
@@ -356,16 +363,17 @@ def _binds_all(node: ast.AST) -> bool:
 
 
 def bound_names(target: ast.expr) -> Iterator[str]:
-    """Yield every plain name bound by an assignment target, in source order.
+    """Yield each plain name that an assignment target binds, in source order.
 
-    Recurses into tuple and list unpacking and starred targets. Attribute and
-    subscript targets bind no module-level name and are skipped.
+    The function goes into tuple unpacking, list unpacking and starred targets
+    recursively. It skips attribute targets and subscript targets, because they
+    do not bind a module-level name.
 
     Args:
         target: One target of an ``Assign`` or ``AnnAssign`` node.
 
     Yields:
-        Each name bound by *target*, left to right.
+        Each name that *target* binds, from left to right.
     """
     match target:
         case ast.Name(id=name):
@@ -380,38 +388,38 @@ def bound_names(target: ast.expr) -> Iterator[str]:
 
 
 def infer_all(tree: ast.Module) -> frozenset[str]:
-    """Collect public top-level names defined in a module AST.
+    """Collect the public top-level names that a module AST defines.
 
-    Traverses the module-level statements of the given ``ast.Module``
-    (including those inside ``if`` and ``try`` blocks) and
-    extracts names that would be considered "public" by convention
-    (i.e., names not starting with an underscore). The following node
-    types are inspected:
+    The function goes through the module-level statements of the given
+    ``ast.Module`` (also the statements in ``if`` and ``try`` blocks). It
+    collects the names that are public by convention: the names that do not
+    start with an underscore. It examines these node types:
 
     - Function and async function definitions
     - Class definitions
     - Variable assignments (``Assign`` and ``AnnAssign``)
     - Type aliases (``TypeAlias``)
 
-    Assignments contribute every name they bind, including each target of
-    a chained assignment (``a = b = 1``) and each name in tuple, list, or
+    An assignment gives each name that it binds. This includes each target of
+    a chained assignment (``a = b = 1``) and each name in tuple, list or
     starred unpacking (``c, *rest = ...``).
 
     Args:
-        tree: The ``ast.Module`` node representing the parsed Python module.
+        tree: The ``ast.Module`` node of the parsed Python module.
 
     Returns:
-        A frozenset of public names (strings) defined at the top level
-        of the module.
+        A frozenset of the public names (strings) that the module defines at
+        the top level.
 
     Notes:
-        - This function does not evaluate ``__all__`` and instead infers
-          public names purely by naming convention.
-        - Definitions inside module-level ``if`` / ``try`` blocks (all
-          branches) are included, e.g. ``if TYPE_CHECKING:`` blocks and
+        - This function does not evaluate ``__all__``. It uses only the naming
+          convention to find public names.
+        - The function includes definitions in module-level ``if`` and ``try``
+          blocks (all branches), for example ``if TYPE_CHECKING:`` blocks and
           ``try: ... except ImportError:`` fallbacks.
-        - Nested definitions (e.g., inside functions or classes) are ignored.
-        - Attribute and subscript assignment targets are not included.
+        - The function ignores nested definitions (for example in functions
+          or classes).
+        - The function does not include attribute targets and subscript targets.
     """
     names: set[str] = set()
 
@@ -446,18 +454,18 @@ def infer_all(tree: ast.Module) -> frozenset[str]:
 
 
 def resolve_relative(package: str, module: str | None, level: int) -> str:
-    """Compute the fully-qualified module name for a relative import.
+    """Compute the fully qualified module name of a relative import.
 
     Args:
-        package: Dotted name of the package the importing module lives in
-            (the anchor for a single leading dot).
+        package: The dotted name of the package that holds the module with
+            the import (the anchor for one leading dot).
         module: The module part after the dots, or ``None`` for ``from . import``.
         level: The number of leading dots (always >= 1 for relative imports).
 
     Returns:
-        The fully-qualified dotted module name.
+        The fully qualified dotted module name.
     """
-    # level=1 means "this package"; level>1 means walk up that many levels.
+    # level=1 is "this package". level>1 is the same number of levels up.
     parts = package.split(".")
     anchor = ".".join(parts[: len(parts) - (level - 1)])
 
@@ -468,14 +476,15 @@ def resolve_relative(package: str, module: str | None, level: int) -> str:
 
 
 def module_level_statements(body: list[ast.stmt]) -> Iterator[ast.stmt]:
-    """Yield statements that execute at module import time.
+    """Yield the statements that run when Python imports the module.
 
-    Descends into ``if`` / ``try`` blocks (all branches) because names bound
-    there are still module globals, e.g. the common ``try: from ._version
-    import version`` fallback pattern. Function and class bodies are skipped.
+    The function goes into ``if`` and ``try`` blocks (all branches), because
+    the names that they bind are also module globals. An example is the usual
+    fallback ``try: from ._version import version``. The function skips
+    function and class bodies.
 
     Args:
-        body: A list of statements, typically ``ast.Module.body``.
+        body: A list of statements, usually ``ast.Module.body``.
 
     Yields:
         Each module-level statement, depth first, in source order.
@@ -509,26 +518,27 @@ def collect_imports(
     package: str,
     star_exports: StarExports | None = None,
 ) -> dict[str, tuple[str, str | None]]:
-    """Map each name bound by a module-level import to where it came from.
+    """Map each name that a module-level import binds to its source.
 
-    Relative imports are resolved against *package*. The first binding of a
-    name wins, so in ``try: from .a import x`` / ``except: from .b import x``
-    the ``try`` branch is reported.
+    The function resolves relative imports from *package*. The first binding
+    of a name has priority. Thus, in ``try: from .a import x`` /
+    ``except: from .b import x``, the function reports the ``try`` branch.
 
     Args:
-        tree: Parsed module AST.
-        package: Dotted name of the package the module lives in, used as the
-            anchor for relative imports. For an ``__init__.py`` this is the
-            package itself; for a regular module it is the parent package.
-        star_exports: Returns the names that ``from module import *`` binds,
-            or ``None`` when the module is unknown. Without it, or when it
-            returns ``None``, star imports bind nothing.
+        tree: The parsed module AST.
+        package: The dotted name of the package that holds the module. It is
+            the anchor for relative imports. For an ``__init__.py``, this is
+            the package. For a regular module, it is the parent package.
+        star_exports: A function that gives the names that
+            ``from module import *`` binds, or ``None`` if the module is not
+            known. If you do not give it, or if it gives ``None``, star
+            imports do not bind names.
 
     Returns:
-        A mapping from local name to ``(module, attribute)``. ``attribute`` is
-        the original imported name for ``from module import attribute`` (and
-        for each name a star import binds) and ``None`` for ``import module``
-        bindings.
+        A mapping from local name to ``(module, attribute)``. For
+        ``from module import attribute`` (and for each name that a star import
+        binds), ``attribute`` is the original imported name. For
+        ``import module`` bindings, it is ``None``.
     """
     result: dict[str, tuple[str, str | None]] = {}
 
@@ -563,22 +573,23 @@ def collect_imports(
 
 
 def star_candidate(tree: ast.Module, package: str, star_exports: StarExports) -> str | None:
-    """Name the star-imported module that may provide a name iceberg cannot find.
+    """Find the star-imported module that can supply a name that iceberg cannot find.
 
-    A star import from a module outside the analyzed tree may bind any name.
-    When several do, the last one is returned, because a later import
-    rebinds the names of an earlier one.
+    A star import from a module outside the analyzed tree can bind all names.
+    If there are many such imports, the function gives the last one, because
+    a later import binds the names of an earlier import again.
 
     Args:
-        tree: Parsed module AST.
-        package: Dotted name of the package the module lives in, used as the
-            anchor for relative imports (see ``collect_imports``).
-        star_exports: Returns the names that ``from module import *`` binds,
-            or ``None`` when the module is not in the analyzed tree.
+        tree: The parsed module AST.
+        package: The dotted name of the package that holds the module. It is
+            the anchor for relative imports (see ``collect_imports``).
+        star_exports: A function that gives the names that
+            ``from module import *`` binds, or ``None`` if the module is not
+            in the analyzed tree.
 
     Returns:
-        The absolute dotted name of the last module-level ``from module
-        import *`` whose module is not in the analyzed tree, or ``None``.
+        The absolute dotted name of the module in the last module-level
+        ``from module import *`` that is not in the analyzed tree, or ``None``.
     """
     candidate: str | None = None
 
@@ -597,15 +608,15 @@ def star_candidate(tree: ast.Module, package: str, star_exports: StarExports) ->
 
 
 def _import_from_source(node: ast.ImportFrom, package: str) -> str:
-    """Resolve the absolute module name a ``from ... import`` statement reads.
+    """Resolve the absolute name of the module that a ``from ... import`` statement reads.
 
     Args:
         node: The ``ImportFrom`` statement.
-        package: Dotted name of the package the importing module lives in.
+        package: The dotted name of the package that holds the module with the import.
 
     Returns:
-        The absolute dotted module name, with relative imports resolved
-        against *package*.
+        The absolute dotted module name. The function resolves relative
+        imports from *package*.
     """
     if node.level:
         return resolve_relative(package, node.module, node.level)

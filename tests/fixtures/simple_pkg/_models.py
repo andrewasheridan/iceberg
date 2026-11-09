@@ -1,4 +1,4 @@
-"""Internal models for simple_pkg."""
+"""The internal models of simple_pkg."""
 
 from dataclasses import dataclass
 

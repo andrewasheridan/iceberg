@@ -1,4 +1,4 @@
-"""Tree and JSON formatters for iceberg public API snapshots."""
+"""Format iceberg snapshots of a public API as a tree or as JSON."""
 
 __all__ = ["format_diagnostic", "format_json", "format_tree"]
 
@@ -19,16 +19,16 @@ from sheridan.iceberg._models import (
 )
 
 _BRANCH = "├── "
-"""Connector string for a non-last tree node."""
+"""The connector string for a tree node that is not the last child."""
 
 _LAST = "└── "
-"""Connector string for the final child of a tree node."""
+"""The connector string for the last child of a tree node."""
 
 _PIPE = "│   "
-"""Vertical continuation line used when a parent has more siblings below."""
+"""The vertical line that continues the tree when a parent has more siblings below it."""
 
 _BLANK = "    "
-"""Blank indent used under the last child of a tree node."""
+"""The blank indent below the last child of a tree node."""
 
 
 def _param_str(parameter: Parameter) -> str:
@@ -39,8 +39,8 @@ def _param_str(parameter: Parameter) -> str:
 
     Returns:
         A string in the form ``name``, ``name: annotation``,
-        ``name = default``, or ``name: annotation = default`` depending on
-        which fields are populated.
+        ``name = default`` or ``name: annotation = default``. The form
+        agrees with the fields that have a value.
     """
     parts = [parameter.name]
 
@@ -54,20 +54,21 @@ def _param_str(parameter: Parameter) -> str:
 
 
 def _function_str(function: Function) -> str:
-    """Render a function signature string (including the ``def`` keyword).
+    """Render the signature of a function as a string (with the ``def`` keyword).
 
-    Keyword-only parameters are sorted alphabetically for a stable output.
-    A property is rendered as the attribute callers read, ``property name: type``,
-    and classmethods and staticmethods are prefixed with their kind.
+    The function sorts keyword-only parameters alphabetically, so that the
+    output is stable. It shows a property as the attribute that callers read,
+    ``property name: type``. It puts the kind before classmethods and
+    staticmethods.
 
     Args:
-        function: The function whose signature should be rendered.
+        function: The function to render.
 
     Returns:
         A string such as ``def name(param: type = default) -> return_type``.
-        The ``async `` prefix is prepended for async functions, and
-        ``classmethod `` or ``staticmethod `` for those kinds. A property
-        gives ``property name`` or ``property name: return_type``.
+        Async functions get the prefix ``async ``. Classmethods and
+        staticmethods get the prefix ``classmethod `` or ``staticmethod ``. A
+        property gives ``property name`` or ``property name: return_type``.
     """
     if function.kind == "property":
         if function.returns is None:
@@ -103,18 +104,18 @@ def _function_str(function: Function) -> str:
 
 
 def _function_labels(function: Function, *, show_overload_implementation: bool) -> list[str]:
-    """Render the tree labels for a function: one per overload, then the implementation.
+    """Render the tree labels of a function: one for each overload, then the implementation.
 
     Args:
         function: The function to render.
-        show_overload_implementation: ``True`` to show the implementation
-            signature of an overloaded function after its overloads.
+        show_overload_implementation: ``True`` to show the signature of the
+            implementation of an overloaded function after its overloads.
 
     Returns:
         ``[signature]`` for a function without overloads. For an overloaded
-        function, one signature per overload, followed by the implementation
-        signature when *show_overload_implementation* is ``True`` and the
-        function is not itself one of the overloads.
+        function, one signature for each overload. Then the signature of the
+        implementation, if *show_overload_implementation* is ``True`` and the
+        function is not one of the overloads.
     """
     if not function.overloads:
         return [_function_str(function)]
@@ -135,8 +136,9 @@ def _assignment_str(assignment: Assignment) -> str:
         assignment: The assignment to render.
 
     Returns:
-        A short human-readable label for the assignment: ``name: annotation``
-        when an annotation is present, otherwise the bare ``name``.
+        A short label for the assignment that people can read. If the
+        assignment has an annotation, the label is ``name: annotation``. If
+        not, the label is the bare ``name``.
     """
     if assignment.annotation is not None:
         return f"{assignment.name}: {assignment.annotation}"
@@ -168,7 +170,7 @@ def _reference_str(reference: Reference) -> str:
 
     Returns:
         ``from module import attribute [as name]``, ``import module [as name]``,
-        or ``name (unresolved)`` when no binding import was found.
+        or ``name (unresolved)`` if no import binds the name.
     """
     if reference.module is None:
         return f"{reference.name} (unresolved)"
@@ -187,15 +189,15 @@ def _reference_str(reference: Reference) -> str:
 
 
 def _render_lines(node: Package | Module | Class, prefix: str, *, show_overload_implementation: bool) -> list[str]:
-    """Recursively collect tree lines for *node* using *prefix* for indentation.
+    """Collect the tree lines for *node* recursively, with *prefix* as the indent.
 
     Args:
-        node: The current tree node whose children should be rendered.
-        prefix: The indentation prefix accumulated from parent calls.
-        show_overload_implementation: Passed on to ``_children``.
+        node: The current tree node. The function renders its children.
+        prefix: The indent prefix that the parent calls collected.
+        show_overload_implementation: The function gives this value to ``_children``.
 
     Returns:
-        A list of strings, one per tree row, ready to be joined with newlines.
+        A list of strings, one for each tree row. You can join them with newlines.
     """
     children = _children(node, show_overload_implementation=show_overload_implementation)
     lines: list[str] = []
@@ -222,22 +224,23 @@ def _children(
 ) -> list[tuple[str, Package | Module | Class | None]]:
     """List the children of *node* as ordered ``(label, child_node_or_None)`` pairs.
 
-    Leaf items (assignments, functions, references) have ``None`` as the second element
-    because they have no subtree to recurse into. Container items (modules,
-    subpackages, classes) carry the node itself so ``_render_lines`` can
-    recurse.
+    Leaf items (assignments, functions, references) have ``None`` as the
+    second element, because they have no subtree. Container items (modules,
+    subpackages, classes) hold the node. Thus, ``_render_lines`` can go into
+    the node recursively.
 
-    An overloaded function gives one leaf per overload signature, and its
-    implementation signature only when *show_overload_implementation* is set.
+    An overloaded function gives one leaf for each overload signature. It
+    gives the signature of its implementation only if
+    *show_overload_implementation* is ``True``.
 
     Args:
-        node: A ``Package``, ``Module``, or ``Class`` to enumerate children for.
-        show_overload_implementation: ``True`` to list the implementation
-            signature of an overloaded function after its overloads.
+        node: A ``Package``, ``Module`` or ``Class``. The function lists its children.
+        show_overload_implementation: ``True`` to list the signature of the
+            implementation of an overloaded function after its overloads.
 
     Returns:
-        An ordered list of ``(label, child_or_None)`` pairs where *label* is
-        the display string and *child_or_None* is the node to recurse into, or
+        An ordered list of ``(label, child_or_None)`` pairs. *label* is the
+        string to show. *child_or_None* is the node to go into recursively, or
         ``None`` for leaf items.
     """
     items: list[tuple[str, Package | Module | Class | None]] = []
@@ -246,8 +249,8 @@ def _children(
         case Package():
             for m in node.modules:
                 if m.name == node.name:
-                    # This is the __init__ module: hoist its contents directly
-                    # at the package level rather than nesting under a spurious
+                    # This is the __init__ module. Put its contents directly at
+                    # the package level, not below an unnecessary
                     # "module <name>" node.
                     items.extend(_module_items(m, show_overload_implementation=show_overload_implementation))
                 else:
@@ -281,11 +284,11 @@ def _module_items(
     """List the members of *module* as ``(label, child_node_or_None)`` pairs.
 
     Args:
-        module: The module to enumerate.
-        show_overload_implementation: Passed on to ``_function_labels``.
+        module: The module with the members to list.
+        show_overload_implementation: The function gives this value to ``_function_labels``.
 
     Returns:
-        Its assignments, classes, functions and references, in that order.
+        The assignments, classes, functions and references of the module, in that order.
     """
     items: list[tuple[str, Package | Module | Class | None]] = []
 
@@ -306,19 +309,19 @@ def _module_items(
 
 
 def format_tree(api: Package | Module, *, show_overload_implementation: bool = False) -> str:
-    """Render a Unicode box-drawing tree of *package*'s public API.
+    """Render the public API of *api* as a tree of Unicode box-drawing characters.
 
-    An overloaded function is shown as its ``@overload`` signatures. Its
-    implementation signature is hidden unless *show_overload_implementation*
-    is ``True``.
+    The tree shows an overloaded function as its ``@overload`` signatures. It
+    does not show the signature of the implementation, unless
+    *show_overload_implementation* is ``True``.
 
     Args:
-        api: The root package/module to render.
-        show_overload_implementation: ``True`` to also show the implementation
-            signature of each overloaded function, after its overloads.
+        api: The root package or module to render.
+        show_overload_implementation: ``True`` to also show the signature of
+            the implementation of each overloaded function, after its overloads.
 
     Returns:
-        A multi-line string suitable for printing to a terminal.
+        A string with many lines, for a terminal.
     """
     header = f"package {api.name}" if isinstance(api, Package) else f"module {api.name}"
     body = _render_lines(api, prefix="", show_overload_implementation=show_overload_implementation)
@@ -327,10 +330,10 @@ def format_tree(api: Package | Module, *, show_overload_implementation: bool = F
 
 
 JSON_SCHEMA_VERSION = 2
-"""Version of the JSON output format, emitted as the top-level ``schema_version``.
+"""The version of the JSON output format. The output gives it as the top-level ``schema_version``.
 
-Bump it whenever a change to the JSON output could break a consumer, and
-update ``docs/schema/iceberg.schema.json`` to match.
+If a change to the JSON output can break a program that reads it, increase this
+value. Then update ``docs/schema/iceberg.schema.json`` to agree with it.
 """
 
 _NODE_TYPES: dict[type, str] = {
@@ -341,20 +344,20 @@ _NODE_TYPES: dict[type, str] = {
     Assignment: "assignment",
     Reference: "reference",
 }
-"""The ``node_type`` value serialized for each model class."""
+"""The ``node_type`` value that the JSON output gives for each model class."""
 
 
 def _sort_key(obj: Any) -> str:
-    """Compute a stable sort key for a plain-Python value produced by ``_to_plain``.
+    """Compute a stable sort key for a plain Python value from ``_to_plain``.
 
-    Named dicts (those with a ``"name"`` key) sort by that name; everything
-    else falls back to its JSON representation.
+    The function sorts dicts with a ``"name"`` key by that name. It sorts all
+    other values by their JSON representation.
 
     Args:
-        obj: A value already normalized by ``_to_plain``.
+        obj: A value that ``_to_plain`` normalized.
 
     Returns:
-        A string used as the comparison key.
+        A string to use as the comparison key.
     """
     if isinstance(obj, dict) and "name" in obj:
         return str(obj["name"])
@@ -365,17 +368,17 @@ def _sort_key(obj: Any) -> str:
 def _relative_path(path: Path, root: Path | None) -> str:
     """Render *path* as a POSIX string relative to *root*.
 
-    Absolute paths would make snapshots depend on where the source is checked
-    out, so every path is expressed relative to the analyzed root. The root
-    itself becomes ``"."``.
+    With absolute paths, a snapshot changes when the location of the source
+    changes. Thus, the function gives each path relative to the analyzed root.
+    The root becomes ``"."``.
 
     Args:
         path: The path to render.
-        root: The analyzed root directory, or ``None`` when there is none.
+        root: The analyzed root directory, or ``None`` if there is no root.
 
     Returns:
-        The relative POSIX path, or just the final path component when *path*
-        is not inside *root*.
+        The relative POSIX path. If *path* is not in *root*, only the last
+        component of the path.
     """
     if root is not None and path.is_relative_to(root):
         return path.relative_to(root).as_posix() or "."
@@ -384,16 +387,16 @@ def _relative_path(path: Path, root: Path | None) -> str:
 
 
 def _to_plain(obj: Any, root: Path | None = None) -> Any:
-    """Recursively normalise *obj* to a JSON-serializable plain Python value.
+    """Convert *obj* recursively to a plain Python value that JSON can hold.
 
     Args:
-        obj: Any Python object produced by the iceberg model layer.
-        root: The analyzed root directory; ``Path`` values are rendered
-            relative to it.
+        obj: A Python object from the iceberg model layer.
+        root: The analyzed root directory. The function renders ``Path``
+            values relative to it.
 
     Returns:
-        A ``dict``, ``list``, ``str``, ``int``, ``float``, ``bool``, or
-        ``None`` — all suitable for ``json.dumps``.
+        A ``dict``, ``list``, ``str``, ``int``, ``float``, ``bool`` or
+        ``None``. ``json.dumps`` accepts all these types.
     """
     match obj:
         case _ if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
@@ -426,7 +429,7 @@ def format_diagnostic(diagnostic: Diagnostic) -> str:
         diagnostic: The diagnostic to render.
 
     Returns:
-        The line, with ``:line`` left out when the line is not known.
+        The line. If the line number is not known, the line has no ``:line`` part.
     """
     location = str(diagnostic.path)
     if diagnostic.lineno is not None:
@@ -439,21 +442,23 @@ def format_json(api: Package | Module, diagnostics: tuple[Diagnostic, ...] | Non
     """Render *api* as deterministic, indented JSON.
 
     The top-level object starts with ``schema_version`` (see
-    ``JSON_SCHEMA_VERSION``). Every package, module, class, function,
-    assignment and reference object starts with a ``node_type`` field naming
-    what it is; the other keys follow in model field order.
+    ``JSON_SCHEMA_VERSION``). Each package, module, class, function,
+    assignment and reference object starts with a ``node_type`` field. This
+    field tells the type of the object. The other keys come after it, in the
+    order of the model fields.
 
-    ``frozenset`` fields are serialized as sorted lists so that output is
-    stable across interpreter runs. Package paths are relative to the root
-    package directory (the root itself is ``"."``), so the same source in two
-    different directories gives byte-identical output.
+    The function writes ``frozenset`` fields as sorted lists. Thus, the output
+    is the same for each run of the interpreter. Package paths are relative to
+    the root package directory (the root is ``"."``). Thus, the same source in
+    two different directories gives output with the same bytes.
 
-    When *diagnostics* is given, they follow the API under a top-level
-    ``diagnostics`` key, with paths relative to the root package directory too.
+    If you give *diagnostics*, they come after the API, in a top-level
+    ``diagnostics`` key. Their paths are also relative to the root package
+    directory.
 
     Args:
         api: The root package or module to serialize.
-        diagnostics: Diagnostics to include, or ``None`` to leave the key out.
+        diagnostics: The diagnostics to include, or ``None`` to leave out the key.
 
     Returns:
         A JSON string with two-space indentation and keys in a fixed order.

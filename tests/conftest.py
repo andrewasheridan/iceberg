@@ -1,4 +1,4 @@
-"""Shared fixtures for iceberg tests."""
+"""Provide the fixtures that the iceberg tests share."""
 
 import textwrap
 from collections.abc import Callable
@@ -9,14 +9,14 @@ import pytest
 
 @pytest.fixture
 def tmp_py(tmp_path: Path) -> Callable[[str, str], Path]:
-    """Factory fixture that writes a .py file and returns its Path.
+    """Provide a factory fixture that writes a .py file and gives its Path.
 
     Args:
-        tmp_path: pytest built-in temporary directory.
+        tmp_path: The built-in temporary directory of pytest.
 
     Returns:
-        A callable ``write(filename, source)`` that creates the file and
-        returns its :class:`~pathlib.Path`.
+        A callable ``write(filename, source)``. It makes the file and gives
+        its :class:`~pathlib.Path`.
     """
 
     def write(filename: str, source: str) -> Path:

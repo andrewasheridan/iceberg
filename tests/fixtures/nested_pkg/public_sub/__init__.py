@@ -1,9 +1,9 @@
-"""Public subpackage of nested_pkg."""
+"""A public subpackage of nested_pkg."""
 
 __all__ = ["PublicSub"]
 
 
 class PublicSub:
-    """A public class exported from the public subpackage."""
+    """A public class that the public subpackage exports."""
 
     pass

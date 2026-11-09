@@ -1,12 +1,12 @@
-"""Fail if any source or config file has a banner comment.
+"""Fail if a source or configuration file has a banner comment.
 
-A banner is a comment line made only of ``#`` and a run of ten or more ``-`` or ``=``,
-usually wrapped around a section title. They add noise and go stale, so they are not
-allowed. The same pattern runs as a ``pygrep`` hook in ``.pre-commit-config.yaml``;
-keep the two in sync.
+A banner is a comment line made only of ``#`` and ten or more ``-`` or ``=``. It is
+usually around a section title. Banners add noise and become out of date. Thus, they
+are not permitted. The same pattern runs as a ``pygrep`` hook in
+``.pre-commit-config.yaml``. Keep the two patterns the same.
 
-This scans the tree instead of calling ``git ls-files`` because the CI container has
-no ``git``.
+This test scans the tree. It does not call ``git ls-files``, because the CI container
+has no ``git``.
 """
 
 import re
@@ -24,7 +24,7 @@ _ALLOWED_DOT_DIRS = frozenset({".github"})
 
 
 def _is_skipped_dir(name: str) -> bool:
-    """Check whether a directory name is a cache, build output or hidden directory."""
+    """Check if a directory name is a cache, build output or hidden directory."""
     if name in _SKIP_DIRS:
         return True
 
@@ -32,7 +32,7 @@ def _is_skipped_dir(name: str) -> bool:
 
 
 def _source_files(root: Path) -> Iterator[Path]:
-    """Yield files under *root* to scan, skipping virtualenvs, caches and build output."""
+    """Yield the files below *root* to scan. Skip virtualenvs, caches and build output."""
     for path in sorted(root.rglob("*")):
         if not path.is_file() or path.suffix not in _SUFFIXES:
             continue
@@ -45,7 +45,7 @@ def _source_files(root: Path) -> Iterator[Path]:
 
 
 def _banner_lines(paths: Iterator[Path], root: Path) -> list[str]:
-    """Collect ``path:line: text`` for every banner line in *paths*."""
+    """Collect ``path:line: text`` for each banner line in *paths*."""
     hits: list[str] = []
 
     for path in paths:

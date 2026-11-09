@@ -1,14 +1,17 @@
-"""Orchestrator that threads discovery, visiting, init-resolution, and trie assembly.
+"""Connect the steps of the analysis: discovery, visits, init resolution and trie assembly.
 
-Visits each module's AST (in-process by default, or across worker processes
-via ``concurrent.futures.ProcessPoolExecutor`` when ``Config.max_workers`` is
-greater than 1), then serially resolves each
-``__init__.py`` with full access to the accumulated module map, and finally
-folds everything into a ``Package`` trie.
+The orchestrator does these steps:
 
-When the caller passes an ``errors`` list, a module that cannot be read or
-parsed is recorded there as a ``Diagnostic`` and skipped instead of stopping
-the run.
+1. It visits the AST of each module. By default, it does this in the same
+   process. If ``Config.max_workers`` is more than 1, it uses worker processes
+   through ``concurrent.futures.ProcessPoolExecutor``.
+2. It resolves each ``__init__.py`` in series, with full access to the module
+   map that it collected.
+3. It puts all the modules into a ``Package`` trie.
+
+If the caller gives an ``errors`` list, the orchestrator records each module
+that it cannot read or parse in that list as a ``Diagnostic``. Then it skips
+the module and continues the run.
 """
 
 __all__ = ["build_package", "unresolved_name_warnings"]
@@ -29,16 +32,17 @@ from sheridan.iceberg._visitor import visit_module
 
 
 def _error_diagnostic(name: str, path: Path, exc: IcebergError) -> Diagnostic:
-    """Describe a module that was skipped because of *exc*.
+    """Describe a module that the analysis skipped because of *exc*.
 
     Args:
-        name: Dotted name of the skipped module.
-        path: The module's source file.
-        exc: The error raised while reading, parsing or visiting it.
+        name: The dotted name of the skipped module.
+        path: The source file of the module.
+        exc: The error that occurred when the analysis read, parsed or visited
+            the module.
 
     Returns:
-        An ``"error"`` diagnostic carrying the bare message and, for a
-        ``ParseError``, its line.
+        An ``"error"`` diagnostic with the bare message. For a ``ParseError``,
+        the diagnostic also has the line.
     """
     message = getattr(exc, "message", None) or str(exc)
     lineno = getattr(exc, "lineno", None)
@@ -53,25 +57,25 @@ def _visit_worker(
     *,
     keep_going: bool = False,
 ) -> Module | Diagnostic:
-    """Read source from disk and return a parsed ``Module``.
+    """Read the source from disk and parse it into a ``Module``.
 
-    Runs in a worker process when ``Config.max_workers`` is greater than 1.
-    Files that the parent has not parsed already are parsed here, not in
-    the parent, so that stage runs in parallel.
+    If ``Config.max_workers`` is more than 1, this function runs in a worker
+    process. The function parses the files that the parent did not parse
+    already. Thus, this step runs in parallel.
 
     Args:
-        discovered: Metadata about the module to visit, including its path
-            and dotted name.
-        tree: The module's AST, when the parent has already parsed it.
+        discovered: The metadata of the module to visit, with its path and its
+            dotted name.
+        tree: The AST of the module, if the parent parsed it already.
         known_all: The evaluated ``__all__`` of each module, by dotted name.
-        keep_going: Return a ``Diagnostic`` instead of raising when the module
-            cannot be read or parsed. A diagnostic crosses the process
-            boundary intact, while iceberg's exceptions lose their location
-            when pickled.
+        keep_going: If True and the function cannot read or parse the module,
+            give a ``Diagnostic``. Do not raise an exception. A diagnostic
+            goes to the parent process without changes. The exceptions of
+            iceberg lose their location when they are pickled.
 
     Returns:
-        A ``Module`` capturing the public API surface of the source file, or
-        an error ``Diagnostic`` when *keep_going* is set and it failed.
+        A ``Module`` with the public API of the source file. If *keep_going*
+        is True and the visit failed, an error ``Diagnostic``.
     """
     try:
         source = read_source(discovered.source_path)
@@ -88,25 +92,29 @@ def _evaluate_all(
     trees: dict[str, ast.Module],
     errors: list[Diagnostic] | None = None,
 ) -> dict[str, frozenset[str] | None]:
-    """Evaluate the ``__all__`` of every discovered module.
+    """Evaluate the ``__all__`` of each module that the discovery found.
 
-    A module may extend its ``__all__`` with another module's
-    (``__all__ += sub.__all__``), so each module is evaluated on demand and
-    the result is cached. Files that do not mention ``__all__`` are not
-    parsed. Files with syntax errors are left out; visiting them raises
+    A module can add the ``__all__`` of a different module to its own
+    ``__all__`` (``__all__ += sub.__all__``). Thus, the function evaluates each
+    module only when it is necessary, and keeps the result in a cache.
+
+    The function does not parse files that do not contain ``__all__``. It
+    leaves out files with syntax errors. The visit of such a file raises
     ``ParseError`` later.
 
     Args:
-        discovered: Every module found under the analyzed root.
-        trees: Filled with the AST of each file parsed here, by dotted name,
-            so later stages do not parse it again.
-        errors: When given, a file that cannot be read is recorded here
-            instead of raising ``SourceReadError``.
+        discovered: All the modules below the analyzed root.
+        trees: The function adds the AST of each file that it parses to this
+            mapping, by dotted name. Thus, later steps do not parse the file
+            again.
+        errors: If you give this list, the function records each file that it
+            cannot read in it. It does not raise ``SourceReadError``.
 
     Returns:
-        A mapping from dotted module name to its ``__all__``, or ``None`` when
-        it is absent or cannot be evaluated statically. A file that cannot be
-        read is left out.
+        A mapping from dotted module name to its ``__all__``. The value is
+        ``None`` if the module has no ``__all__``, or if the function cannot
+        evaluate it statically. The mapping does not include files that the
+        function cannot read.
     """
     by_name = {dm.dotted_name: dm for dm in discovered}
     result: dict[str, frozenset[str] | None] = {}
@@ -157,18 +165,18 @@ def _evaluate_all(
 
 
 def _namespace_parents(root: Path) -> tuple[str, ...]:
-    """List the identifier-named directories above *root*, outermost first.
+    """List the directories above *root* that have identifier names, the outermost first.
 
-    These let ``resolve_init`` recognize absolute imports such as
+    With these names, ``resolve_init`` can find absolute imports such as
     ``sheridan.iceberg._api`` when the analyzed root is ``src/sheridan/iceberg``
-    (and so is named ``iceberg``). The walk stops at the first directory whose
-    name is not a valid Python identifier.
+    (with the name ``iceberg``). The walk stops at the first directory with a
+    name that is not a valid Python identifier.
 
     Args:
         root: The analyzed root directory.
 
     Returns:
-        A tuple of directory names, e.g. ``("src", "sheridan")``.
+        A tuple of directory names, for example ``("src", "sheridan")``.
     """
     names: list[str] = []
     for parent in root.parents:
@@ -184,17 +192,18 @@ def _child_names_at_level(
     init_dotted_name: str,
     all_discovered: tuple[DiscoveredModule, ...],
 ) -> frozenset[str]:
-    """List the short names of everything directly below a package.
+    """List the short names of all the items directly below a package.
 
-    That is every sub-module, sub-package, and namespace sub-directory
-    (a directory without ``__init__.py`` that still contains modules).
+    These items are the submodules, the subpackages and the namespace
+    subdirectories. A namespace subdirectory has no ``__init__.py``, but it
+    contains modules.
 
     Args:
-        init_dotted_name: Dotted name of the package itself.
-        all_discovered: All discovered modules from the full walk.
+        init_dotted_name: The dotted name of the package.
+        all_discovered: All the modules that the full walk found.
 
     Returns:
-        A frozenset of short names (not dotted) for each direct child.
+        A frozenset of the short names (not dotted) of the direct children.
     """
     own_parts = init_dotted_name.split(".")
     depth = len(own_parts)
@@ -214,33 +223,35 @@ def _build_trie(
     root: Path,
     package_all_map: dict[str, frozenset[str] | None],
 ) -> Package:
-    """Fold a flat module map into a ``Package`` trie.
+    """Put a flat module map into a ``Package`` trie.
 
-    Uses the ``package_parts`` on each ``DiscoveredModule`` to determine
-    which ``Package`` node each module belongs to. The root ``Package``
-    name is derived from the first component common to all discovered
-    modules (or from ``root.name`` as a fallback).
+    The function uses the ``package_parts`` of each ``DiscoveredModule`` to
+    find the ``Package`` node of each module. The name of the root ``Package``
+    comes from the first component that all the modules have. If there is no
+    such component, the name comes from ``root.name``.
 
-    When a package's ``__init__.py`` defines ``__all__``, the resulting
-    ``Package`` is filtered as follows:
+    If the ``__init__.py`` of a package defines ``__all__``, the function
+    applies these filters to the ``Package``:
 
-    - ``Package.modules`` contains only the package-level ``Module`` (the
-      resolved init module, which already holds all hoisted public symbols).
-      Submodules whose short names do not appear in ``__all__`` are excluded.
-    - ``Package.subpackages`` contains only sub-packages whose short name
-      appears in ``__all__``.
+    - ``Package.modules`` contains the package-level ``Module``. This is the
+      resolved init module, which holds all the public symbols that it moved
+      up. ``Package.modules`` also contains the submodules with a short name
+      in ``__all__``.
+    - ``Package.subpackages`` contains only the subpackages with a short name
+      in ``__all__``.
 
     Args:
-        module_map: Mapping of dotted module name to resolved ``Module``.
-        all_discovered: All discovered modules, used to infer trie structure.
-        root: The root directory of the package being assembled.
-        package_all_map: Mapping from dotted package name to the literal
-            ``__all__`` frozenset, or ``None`` when ``__all__`` is absent.
+        module_map: The mapping from dotted module name to resolved ``Module``.
+        all_discovered: All the modules that the discovery found. The function
+            uses them to find the structure of the trie.
+        root: The root directory of the package to assemble.
+        package_all_map: The mapping from dotted package name to the literal
+            ``__all__`` frozenset, or ``None`` if there is no ``__all__``.
 
     Returns:
         The assembled ``Package`` trie.
     """
-    # Separate init modules from regular modules by parts key.
+    # Divide the init modules and the regular modules by their parts key.
     init_modules_by_parts: dict[tuple[str, ...], Module] = {}
     regular_modules_by_parts: dict[tuple[str, ...], list[Module]] = {}
     parts_to_path: dict[tuple[str, ...], Path] = {}
@@ -259,7 +270,7 @@ def _build_trie(
             regular_modules_by_parts.setdefault(pkg_parts, []).append(module)
             parts_to_path.setdefault(pkg_parts, dm.source_path.parent)
 
-    # Collect all unique package_parts tuples to identify every package node.
+    # Collect all the unique package_parts tuples to identify each package node.
     all_pkg_parts: set[tuple[str, ...]] = set()
     for dm in all_discovered:
         if dm.is_init:
@@ -268,16 +279,16 @@ def _build_trie(
             all_pkg_parts.add(dm.package_parts)
 
     def _make_package(parts: tuple[str, ...]) -> Package:
-        """Recursively assemble a ``Package`` for the given parts prefix.
+        """Assemble a ``Package`` for the given parts prefix recursively.
 
         Args:
-            parts: Tuple of name components identifying the package node,
-                e.g. ``("my_pkg", "sub")``.
+            parts: The tuple of name components that identifies the package
+                node, for example ``("my_pkg", "sub")``.
 
         Returns:
-            A ``Package`` whose ``modules`` are the direct members at this
-            level and whose ``subpackages`` are all immediate children,
-            assembled recursively.
+            A ``Package``. Its ``modules`` are the direct members at this
+            level. Its ``subpackages`` are all the direct children, which the
+            function assembles recursively.
         """
         name = ".".join(parts)
         path = parts_to_path.get(parts, root)
@@ -294,10 +305,10 @@ def _build_trie(
         subpackages_list: list[Package] = []
 
         if explicit_all is not None:
-            # When __all__ is defined, the resolved init module already holds
-            # every hoisted public symbol, so private sub-modules are dropped.
-            # Regular submodules and sub-packages stay only when their short
-            # name appears in __all__.
+            # If the package defines __all__, the resolved init module holds all
+            # the public symbols that it moved up. Thus, remove private submodules.
+            # Keep regular submodules and subpackages only if __all__ has their
+            # short name.
             if init_module is not None:
                 direct_modules_list.append(init_module)
 
@@ -325,8 +336,8 @@ def _build_trie(
         subpackages = sorted(subpackages_list, key=lambda p: p.name)
 
         return Package(
-            # The root parts are empty when root's own name is not an
-            # identifier; fall back to the directory name so it is never "".
+            # If the name of root is not an identifier, the root parts are empty.
+            # Then use the directory name, so that the name is never "".
             name=name or root.name,
             path=path,
             modules=direct_modules,
@@ -336,7 +347,7 @@ def _build_trie(
     if not all_pkg_parts:
         return Package(name=root.name, path=root, modules=(), subpackages=())
 
-    # The root is the shortest parts tuple (there should be exactly one).
+    # The root is the shortest parts tuple. There is only one such tuple.
     root_parts = min(all_pkg_parts, key=len)
 
     return _make_package(root_parts)
@@ -345,17 +356,17 @@ def _build_trie(
 def unresolved_name_warnings(api: Package | Module, path: Path) -> list[Diagnostic]:
     """List a warning for each public name in *api* that no import binds.
 
-    These are the references the tree shows as ``name (unresolved)``.
-    References that name the module they come from (re-exports from outside
-    the analyzed tree) are expected and are not reported.
+    These are the references that the tree shows as ``name (unresolved)``.
+    The function does not report references that name their source module.
+    These are re-exports from outside the analyzed tree, which are normal.
 
     Args:
         api: The assembled package or module.
-        path: The analyzed path: the source file when *api* is a ``Module``.
+        path: The analyzed path. If *api* is a ``Module``, this is the source file.
 
     Returns:
-        One ``"warning"`` diagnostic per unresolved name, sorted by module and
-        then by name.
+        One ``"warning"`` diagnostic for each unresolved name, sorted by module
+        and then by name.
     """
     located: list[tuple[Module, Path]] = []
     packages: list[Package] = []
@@ -395,30 +406,32 @@ def unresolved_name_warnings(api: Package | Module, path: Path) -> list[Diagnost
 
 
 def build_package(root: Path, config: Config, *, errors: list[Diagnostic] | None = None) -> Package | Module:
-    """Build a ``Package`` snapshot for the Python source rooted at *root*.
+    """Build a ``Package`` snapshot of the Python source at *root*.
 
-    When *root* is a single ``.py`` file, discovery is skipped and the file
-    is visited directly.  When *root* is a directory, the full five-step
-    pipeline runs:
+    If *root* is one ``.py`` file, the function does not do the discovery. It
+    visits the file directly. If *root* is a directory, the function does all
+    these five steps:
 
-    1. Discover all Python modules under *root*.
-    2. Partition into non-init and init modules.
-    3. Visit non-init modules, in a ``ProcessPoolExecutor`` when
-       ``config.max_workers > 1``, then resolve their re-exports of each other.
-    4. Serially resolve each ``__init__.py`` against the accumulated map.
-    5. Fold the completed map into a ``Package`` trie.
+    1. Find all the Python modules below *root*.
+    2. Divide them into init modules and other modules.
+    3. Visit the other modules. If ``config.max_workers > 1``, use a
+       ``ProcessPoolExecutor``. Then resolve the re-exports between them.
+    4. Resolve each ``__init__.py`` in series, with the collected map.
+    5. Put the completed map into a ``Package`` trie.
 
     Args:
-        root: A path to either a single ``.py`` file or a package directory.
-        config: Runtime configuration controlling workers, filters, etc.
-        errors: When given, a module under a directory *root* that cannot be
-            read or parsed is recorded here, sorted by module, and left out
-            of the result instead of raising. A single-file *root* still
-            raises, since there is nothing else to report.
+        root: The path to one ``.py`` file or to a package directory.
+        config: The runtime configuration. It sets the workers, the filters
+            and other options.
+        errors: If you give this list and *root* is a directory, the function
+            records each module that it cannot read or parse in the list,
+            sorted by module. It leaves the module out of the result and does
+            not raise an exception. If *root* is one file, the function still
+            raises an exception, because there is nothing else to report.
 
     Returns:
-        A ``Package`` containing the full public API surface of *root*. When
-        *root* is a single file, the bare ``Module`` is returned directly.
+        A ``Package`` with the full public API of *root*. If *root* is one
+        file, the function gives the bare ``Module``.
     """
     if root.is_file():
         source = read_source(root)
@@ -427,11 +440,11 @@ def build_package(root: Path, config: Config, *, errors: list[Diagnostic] | None
     keep_going = errors is not None
     found: list[Diagnostic] = []
 
-    # 1. Discover all Python source files under root.
+    # 1. Find all the Python source files below root.
     all_discovered = discover(root, config)
 
-    # 2. Evaluate every __all__ once, so `__all__ += sub.__all__` can see
-    #    other modules, then partition into regular modules and __init__.py files.
+    # 2. Evaluate each __all__ one time, so that `__all__ += sub.__all__` can see
+    #    other modules. Then divide the modules into regular modules and __init__.py files.
     trees: dict[str, ast.Module] = {}
     known_all = _evaluate_all(all_discovered, trees, found if keep_going else None)
     unreadable = {diagnostic.module for diagnostic in found}
@@ -439,9 +452,9 @@ def build_package(root: Path, config: Config, *, errors: list[Diagnostic] | None
     non_init_modules = [dm for dm in readable if not dm.is_init]
     init_modules = [dm for dm in readable if dm.is_init]
 
-    # 3. Visit non-init modules. A process pool costs more to start than it
-    #    saves for typical packages, and spawning workers re-imports the
-    #    caller's __main__, so it is strictly opt-in.
+    # 3. Visit the other modules. For usual packages, a process pool costs more
+    #    time to start than it saves. New workers also import the __main__ of
+    #    the caller again. Thus, the user must ask for the pool.
     visit = partial(_visit_worker, known_all=known_all, keep_going=keep_going)
     parsed_trees = [trees.get(dm.dotted_name) for dm in non_init_modules]
 
@@ -459,18 +472,18 @@ def build_package(root: Path, config: Config, *, errors: list[Diagnostic] | None
         else:
             module_map[dm.dotted_name] = outcome
 
-    # Follow re-export chains between regular modules (``_a`` re-exporting
-    # ``X`` from ``_b``), so an init that imports from ``_a`` finds ``X``.
+    # Follow the chains of re-exports between regular modules (``_a`` re-exports
+    # ``X`` from ``_b``). Thus, an init that imports from ``_a`` finds ``X``.
     namespace_parents = _namespace_parents(root)
     module_map = resolve_module_references(module_map, namespace_parents=namespace_parents)
 
-    # 4. Resolve __init__.py files serially, deepest first, so each
-    #    sub-package init is in module_map before its parent init tries to
+    # 4. Resolve the __init__.py files in series, the deepest first. Thus, each
+    #    subpackage init is in module_map before its parent init tries to
     #    resolve imports from it.
     sorted_inits = sorted(init_modules, key=lambda dm: len(dm.package_parts), reverse=True)
 
-    # Track the __all__ for each package so _build_trie can filter modules and
-    # subpackages accordingly.  A value of None means __all__ was absent.
+    # Record the __all__ of each package, so that _build_trie can filter the
+    # modules and subpackages. The value None means that there is no __all__.
     package_all_map: dict[str, frozenset[str] | None] = {}
 
     for init_module in sorted_inits:
@@ -498,5 +511,5 @@ def build_package(root: Path, config: Config, *, errors: list[Diagnostic] | None
     if errors is not None:
         errors.extend(sorted(found, key=lambda diagnostic: diagnostic.module))
 
-    # 5. Fold the completed module map into a Package trie.
+    # 5. Put the completed module map into a Package trie.
     return _build_trie(module_map, all_discovered, root, package_all_map)

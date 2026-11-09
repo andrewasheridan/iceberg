@@ -1,4 +1,4 @@
-"""Tests for sheridan.iceberg._loader (load_json)."""
+"""Test sheridan.iceberg._loader (load_json)."""
 
 import json
 from pathlib import Path
@@ -181,7 +181,7 @@ def test_unexpected_node_type_raises() -> None:
     data = _snapshot()
     data["classes"][0]["node_type"] = "function"
 
-    with pytest.raises(SnapshotError, match="expected node_type 'class'"):
+    with pytest.raises(SnapshotError, match="node_type must be 'class'"):
         load_json(json.dumps(data))
 
 

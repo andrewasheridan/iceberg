@@ -1,4 +1,4 @@
-"""Re-export package fixture — aggregates symbols from private submodules."""
+"""A re-export package fixture. It collects symbols from private submodules."""
 
 from reexport_pkg._alpha import Alpha
 from reexport_pkg._beta import Beta

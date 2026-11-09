@@ -1,31 +1,36 @@
-"""Builders that turn AST definition nodes into iceberg models.
+"""Build iceberg models from AST definition nodes.
 
-``visit_module`` and the public ``get_*`` utilities share these builders, so a
-definition is modelled the same way whichever entry point reads it.
+``visit_module`` and the public ``get_*`` utilities use the same builders.
+Thus, the model of a definition is the same for all entry points.
 
-Assignments contribute one ``Assignment`` per bound name: ``a = b = 1``
-yields ``a`` and ``b``, and ``c, *rest = ...`` yields ``c`` and ``rest``.
-Attribute and subscript targets are not captured.
+An assignment gives one ``Assignment`` for each bound name. ``a = b = 1`` gives
+``a`` and ``b``, and ``c, *rest = ...`` gives ``c`` and ``rest``. The builders
+do not collect attribute targets and subscript targets.
 
-PEP 695 ``type X = int`` statements are captured as ``Assignment`` with
-``annotation="TypeAlias"``. This maps the new syntax onto the same model
-used for ``X: TypeAlias = int`` style aliases so downstream tools see a
-consistent representation regardless of which form the source uses.
+The builders collect PEP 695 ``type X = int`` statements as an ``Assignment``
+with ``annotation="TypeAlias"``. Thus, the new syntax has the same model as
+aliases of the form ``X: TypeAlias = int``. Tools that use the models see the
+same representation for the two forms.
 
-Function decorators are captured as source strings, and decide the
-``Function.kind`` of a method: ``@property`` and ``@cached_property``
-make a ``"property"``, ``@classmethod`` and ``@staticmethod`` make those
-kinds, and any other method is a ``"method"``. Property setters, getters and
-deleters (``@p.setter``) are not reported, because they add no new name.
+The builders collect function decorators as source strings. The decorators set
+the ``Function.kind`` of a method:
 
-``typing.overload`` signatures are grouped into one ``Function``: the
-implementation that follows them carries the overload signatures in
-``Function.overloads``, so each name is reported once. When there is no
-implementation (for example under ``if TYPE_CHECKING:``), the last overload
-stands for the group.
+- ``@property`` and ``@cached_property`` make a ``"property"``.
+- ``@classmethod`` and ``@staticmethod`` make the kinds with these names.
+- All other methods are a ``"method"``.
 
-Class bases and keyword arguments (such as ``metaclass=``) are captured as
-unparsed source. Docstrings and class decorators are not captured.
+The builders do not report property setters, getters and deleters
+(``@p.setter``), because they do not add a new name.
+
+The builders put ``typing.overload`` signatures into one ``Function``. The
+implementation after the overloads holds the overload signatures in
+``Function.overloads``. Thus, the builders report each name one time. If there
+is no implementation (for example in ``if TYPE_CHECKING:``), the last overload
+represents the group.
+
+The builders collect class bases and keyword arguments (such as
+``metaclass=``) as unparsed source. They do not collect docstrings and class
+decorators.
 """
 
 __all__ = [
@@ -54,15 +59,15 @@ def build_function(
 
     Args:
         node: A ``FunctionDef`` or ``AsyncFunctionDef`` AST node.
-        in_class: ``True`` when *node* is in a class body, so that its
-            decorators decide whether it is a method, classmethod,
-            staticmethod or property.
+        in_class: ``True`` if *node* is in a class body. Then its decorators
+            decide if it is a method, a classmethod, a staticmethod or a
+            property.
         overloads: The ``@overload`` signatures that *node* implements, in
-            source order; see ``group_overloads``.
+            source order. See ``group_overloads``.
 
     Returns:
-        A ``Function`` capturing the name, parameters, return annotation,
-        whether the function is async, its kind and its decorators.
+        A ``Function`` with the name, the parameters, the return annotation,
+        the async flag, the kind and the decorators of the function.
     """
     positional, keyword_only, var_positional, var_keyword = _build_parameters(node.args)
 
@@ -84,7 +89,7 @@ type _FunctionNode = ast.FunctionDef | ast.AsyncFunctionDef
 
 
 def _is_overload(node: _FunctionNode) -> bool:
-    """Check whether *node* is decorated with ``typing.overload``.
+    """Check if *node* has the decorator ``typing.overload``.
 
     Args:
         node: A function definition.
@@ -102,17 +107,19 @@ def group_overloads(
     """Group ``@overload`` signatures with the definition that implements them.
 
     The overloads of a name are the ``@overload`` definitions before the next
-    definition of that name without ``@overload``, which is the implementation.
-    When no implementation follows, the last overload stands for the group.
+    definition of that name without ``@overload``. That definition is the
+    implementation. If no implementation comes after the overloads, the last
+    overload represents the group.
 
     Args:
         statements: The statements of one scope (a module or a class body), in
             source order.
 
     Returns:
-        A mapping from each implementation (or standing-in last overload) to
-        its overloads in source order, and the set of overload definitions that
-        are not reported on their own.
+        Two items. First, a mapping from each implementation (or from the last
+        overload that represents the group) to its overloads in source order.
+        Second, the set of overload definitions that iceberg does not report
+        separately.
     """
     overloads: dict[_FunctionNode, tuple[_FunctionNode, ...]] = {}
     grouped: set[_FunctionNode] = set()
@@ -137,23 +144,23 @@ def group_overloads(
 
 
 _PROPERTY_DECORATORS = frozenset({"property", "cached_property", "abstractproperty"})
-"""Decorator names (the last dotted part) that make a method a property."""
+"""The decorator names (the last dotted part) that make a method a property."""
 
 _ACCESSOR_ATTRIBUTES = frozenset({"setter", "getter", "deleter"})
-"""Attributes of a property that redefine one of its accessors (``@p.setter``)."""
+"""The attributes of a property that define one of its accessors again (``@p.setter``)."""
 
 
 def _decorator_name(decorator: ast.expr) -> str | None:
-    """Find the last dotted part of a decorator's name.
+    """Find the last dotted part of the name of a decorator.
 
     Args:
         decorator: A decorator expression, for example ``functools.cached_property``
             or ``lru_cache(maxsize=None)``.
 
     Returns:
-        ``"cached_property"`` for ``functools.cached_property``, the called
-        name for a call such as ``lru_cache(...)``, or ``None`` for any other
-        expression.
+        ``"cached_property"`` for ``functools.cached_property``. The called
+        name for a call such as ``lru_cache(...)``. ``None`` for all other
+        expressions.
     """
     match decorator:
         case ast.Call(func=func):
@@ -167,10 +174,10 @@ def _decorator_name(decorator: ast.expr) -> str | None:
 def _method_kind(decorators: list[ast.expr]) -> FunctionKind:
     """Decide the kind of a method from its decorators.
 
-    A property decorator wins over ``classmethod`` and ``staticmethod``.
+    A property decorator has priority over ``classmethod`` and ``staticmethod``.
 
     Args:
-        decorators: The ``decorator_list`` of a function defined in a class body.
+        decorators: The ``decorator_list`` of a function in a class body.
 
     Returns:
         ``"property"``, ``"classmethod"``, ``"staticmethod"`` or ``"method"``.
@@ -190,14 +197,14 @@ def _method_kind(decorators: list[ast.expr]) -> FunctionKind:
 
 
 def _is_property_accessor(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
-    """Check whether *node* redefines an accessor of a property with the same name.
+    """Check if *node* defines again an accessor of a property with the same name.
 
     Args:
-        node: A function defined in a class body.
+        node: A function in a class body.
 
     Returns:
         ``True`` for ``@p.setter``, ``@p.getter`` or ``@p.deleter`` on a
-        function named ``p``.
+        function with the name ``p``.
     """
     for decorator in node.decorator_list:
         match decorator:
@@ -219,19 +226,19 @@ def _build_parameters(
     Parameter | None,
     Parameter | None,
 ]:
-    """Split an ``arguments`` node into the four parameter groups.
+    """Divide an ``arguments`` node into the four parameter groups.
 
     Args:
-        args: The ``arguments`` node from a function definition.
+        args: The ``arguments`` node of a function definition.
 
     Returns:
-        A four-tuple of ``(positional, keyword_only, var_positional,
-        var_keyword)`` where *positional* is an ordered tuple covering
-        positional-only and positional-or-keyword parameters, *keyword_only*
-        is an unordered frozenset, and the last two are optional ``Parameter``
-        instances for ``*args`` and ``**kwargs``.
+        A four-tuple ``(positional, keyword_only, var_positional,
+        var_keyword)``. *positional* is an ordered tuple of the
+        positional-only and positional-or-keyword parameters. *keyword_only*
+        is an unordered frozenset. The last two items are optional
+        ``Parameter`` instances for ``*args`` and ``**kwargs``.
     """
-    # Defaults for positional params are right-aligned.
+    # The defaults of positional parameters align with the end of the list.
     all_positional_nodes = args.posonlyargs + args.args
     n_pos = len(all_positional_nodes)
     n_defaults = len(args.defaults)
@@ -288,26 +295,31 @@ def _build_parameters(
 def build_class(node: ast.ClassDef) -> Class:
     """Build a ``Class`` model from a class definition node.
 
-    Recurses into nested class definitions. Extracts methods and class-level
-    assignments, including those inside ``if`` and ``try`` blocks of the class
-    body, skipping property setters, getters and deleters, and groups
-    ``@overload`` signatures with their implementation. When a name is defined
-    more than once, only the first definition is kept. Bases and keyword
-    arguments such as ``metaclass=`` are kept as unparsed source. Does **not**
-    read ``node.decorator_list`` or any docstring.
+    The function does these steps:
+
+    - It goes into nested class definitions recursively.
+    - It collects the methods and the class-level assignments, also in the
+      ``if`` and ``try`` blocks of the class body.
+    - It skips property setters, getters and deleters.
+    - It puts ``@overload`` signatures together with their implementation.
+
+    If the class defines a name more than one time, the function keeps only the
+    first definition. It keeps the bases and keyword arguments such as
+    ``metaclass=`` as unparsed source. It does **not** read
+    ``node.decorator_list`` or docstrings.
 
     Args:
         node: A ``ClassDef`` AST node.
 
     Returns:
-        A ``Class`` capturing the name, bases, keyword arguments, and the
-        assignments, methods, and nested classes found in the class body.
+        A ``Class`` with the name, the bases and the keyword arguments. It also
+        has the assignments, the methods and the nested classes of the class body.
     """
     assignments: list[Assignment] = []
     methods: list[Function] = []
     nested_classes: list[Class] = []
-    # As in ``visit_module``: ``if``/``try`` branches are read, and the first
-    # definition of a name wins.
+    # As in ``visit_module``, read the ``if``/``try`` branches. The first
+    # definition of a name has priority.
     seen: set[str] = set()
     statements = list(module_level_statements(node.body))
     overloads, grouped = group_overloads(statements)
@@ -363,11 +375,12 @@ def build_class(node: ast.ClassDef) -> Class:
 
 
 def build_assignments(node: ast.Assign) -> list[Assignment]:
-    """Build one ``Assignment`` for every name an ``Assign`` statement binds.
+    """Build one ``Assignment`` for each name that an ``Assign`` statement binds.
 
-    Covers chained assignment (``a = b = 1``) and tuple, list, and starred
-    unpacking (``c, *rest = ...``). Attribute and subscript targets are
-    skipped. A name bound twice in the same statement is reported once.
+    The function accepts chained assignment (``a = b = 1``) and tuple, list
+    and starred unpacking (``c, *rest = ...``). It skips attribute targets and
+    subscript targets. If the statement binds a name two times, the function
+    reports it one time.
 
     Args:
         node: An ``Assign`` AST node.
@@ -383,16 +396,16 @@ def build_assignments(node: ast.Assign) -> list[Assignment]:
 
 
 def build_assignment(node: ast.Assign | ast.AnnAssign) -> Assignment | None:
-    """Build an ``Assignment`` from a simple name target, or return ``None``.
+    """Build an ``Assignment`` from a simple name target.
 
-    Returns ``None`` for non-simple targets such as tuple unpacking or
-    attribute assignment.
+    For targets that are not simple, such as tuple unpacking or attribute
+    assignment, the result is ``None``.
 
     Args:
         node: An ``Assign`` or ``AnnAssign`` AST node.
 
     Returns:
-        An ``Assignment`` when the target is a plain name, otherwise ``None``.
+        An ``Assignment`` if the target is a plain name. If not, ``None``.
     """
     match node:
         case ast.AnnAssign(target=ast.Name(id=name), annotation=ann):
@@ -418,7 +431,7 @@ def _annotation_source(node: ast.expr | None) -> str | None:
         node: An AST expression node, or ``None``.
 
     Returns:
-        The unparsed string for *node*, or ``None`` when *node* is ``None``.
+        The unparsed string for *node*, or ``None`` if *node* is ``None``.
     """
     if node is None:
         return None
@@ -427,22 +440,22 @@ def _annotation_source(node: ast.expr | None) -> str | None:
 
 
 _MAX_DEFAULT_LENGTH = 80
-"""Defaults whose source is longer than this are reported as ``...``."""
+"""iceberg reports a default as ``...`` if its source is longer than this value."""
 
 
 def _value_source(node: ast.expr | None) -> str | None:
     """Unparse a parameter default to source.
 
-    Any expression is rendered with ``ast.unparse``. A rendering longer than
-    ``_MAX_DEFAULT_LENGTH`` characters is replaced by ``...`` so that the
-    parameter is still reported as having a default.
+    The function renders all expressions with ``ast.unparse``. If the result
+    is longer than ``_MAX_DEFAULT_LENGTH`` characters, the function replaces it
+    with ``...``. Thus, the report still shows that the parameter has a default.
 
     Args:
         node: An AST expression node, or ``None``.
 
     Returns:
-        The unparsed string for *node* (or ``...`` when it is too long), or
-        ``None`` when *node* is ``None``.
+        The unparsed string for *node* (or ``...`` if it is too long). ``None``
+        if *node* is ``None``.
     """
     if node is None:
         return None
@@ -457,9 +470,9 @@ def _value_source(node: ast.expr | None) -> str | None:
 def build_type_alias(node: ast.TypeAlias) -> Assignment:
     """Build an ``Assignment`` from a PEP 695 ``type X = ...`` statement.
 
-    The alias is stored with ``annotation="TypeAlias"`` so that downstream
-    tools receive a representation consistent with ``X: TypeAlias = ...``
-    style aliases.
+    The function keeps the alias with ``annotation="TypeAlias"``. Thus, tools
+    that use the model get the same representation as for aliases of the form
+    ``X: TypeAlias = ...``.
 
     Args:
         node: A ``TypeAlias`` AST node.
@@ -474,8 +487,8 @@ def build_type_alias(node: ast.TypeAlias) -> Assignment:
                 annotation="TypeAlias",
             )
         case _:
-            # TypeAlias.name is always ast.Name per the grammar; this branch
-            # is unreachable but satisfies exhaustive type checking.
+            # The grammar makes TypeAlias.name always an ast.Name. The code never
+            # gets to this branch, but the exhaustive type check needs it.
             raise ParseError(  # pragma: no cover
                 f"Unexpected TypeAlias name node: {ast.dump(node.name)}"
             )

@@ -1,1 +1,1 @@
-"""Tests for sheridan.iceberg."""
+"""Test sheridan.iceberg."""

@@ -22,31 +22,32 @@ _ISSUES_URL = "https://github.com/andrewasheridan/iceberg/issues"
 
 
 def _traceback_requested(args: argparse.Namespace) -> bool:
-    """Tell whether the user asked for full tracebacks on unexpected errors.
+    """Tell if the user asked for full tracebacks of unexpected errors.
 
     Args:
         args: The parsed command-line arguments.
 
     Returns:
-        True if ``--traceback`` was given or ``ICEBERG_DEBUG`` is set to ``1``.
+        True if the user gave ``--traceback`` or set ``ICEBERG_DEBUG`` to ``1``.
     """
     return args.traceback or os.environ.get("ICEBERG_DEBUG") == "1"
 
 
 def _report_unexpected_error(exc: Exception, *, show_traceback: bool) -> None:
-    """Print an unexpected exception to stderr in a form users can put in a bug report.
+    """Print an unexpected exception to stderr in a form that users can put in a bug report.
 
     Args:
-        exc: The exception that escaped the analysis.
-        show_traceback: Print the full traceback instead of a hint on how to get it.
+        exc: The exception that the analysis did not catch.
+        show_traceback: If True, print the full traceback. If False, print a hint
+            that tells how to get the full traceback.
     """
     if show_traceback:
         traceback.print_exception(exc, file=sys.stderr)
     else:
         print(f"unexpected error: {type(exc).__name__}: {exc}", file=sys.stderr)
-        print("Run again with --traceback (or ICEBERG_DEBUG=1) for the full traceback.", file=sys.stderr)
+        print("To see the full traceback, run again with --traceback (or set ICEBERG_DEBUG=1).", file=sys.stderr)
 
-    print(f"This is a bug in iceberg. Please report it at {_ISSUES_URL}", file=sys.stderr)
+    print(f"This is a bug in iceberg. Report it at {_ISSUES_URL}", file=sys.stderr)
 
 
 def _positive_int(value: str) -> int:
@@ -64,19 +65,19 @@ def _positive_int(value: str) -> int:
     try:
         number = int(value)
     except ValueError:
-        raise argparse.ArgumentTypeError(f"expected a positive integer, got {value!r}") from None
+        raise argparse.ArgumentTypeError(f"the value must be a positive integer, not {value!r}") from None
 
     if number < 1:
-        raise argparse.ArgumentTypeError(f"expected a positive integer, got {value!r}")
+        raise argparse.ArgumentTypeError(f"the value must be a positive integer, not {value!r}")
 
     return number
 
 
 def _new_file_mode() -> int:
-    """Compute the permission bits ``open()`` would give a new file under the current umask.
+    """Compute the permission bits that ``open()`` gives a new file with the current umask.
 
-    ``tempfile.mkstemp`` creates files readable only by their owner, which would
-    otherwise carry over to the report once it is moved into place.
+    ``tempfile.mkstemp`` makes files that only their owner can read. Without this
+    function, the report keeps these permission bits after the move into place.
     """
     umask = os.umask(0)
     os.umask(umask)
@@ -85,21 +86,26 @@ def _new_file_mode() -> int:
 
 
 def _write_output(path: Path, text: str) -> None:
-    """Write *text* to *path* as UTF-8 with a final newline, replacing it atomically.
+    """Write *text* to *path* as UTF-8 with a final newline, and replace the file atomically.
 
-    Symlinks are followed, so the link stays and its target gets the report.
-    For a regular file or a new path, the text goes to a temporary file in the
-    target's directory first, so a failed write never leaves a partial file or
-    destroys an existing one; an existing file keeps its permission bits. A
-    path that exists but is not a regular file, such as ``/dev/stdout`` or a
-    named pipe, is written directly, since it cannot be replaced.
+    The function follows symlinks. Thus, the link stays and the target of the
+    link gets the report.
+
+    For a regular file or a new path, the function first writes the text to a
+    temporary file in the directory of the target. Thus, a failed write never
+    leaves a partial file and never destroys the old file. An existing file
+    keeps its permission bits.
+
+    If the path exists but is not a regular file (for example ``/dev/stdout`` or
+    a named pipe), the function writes to it directly. It cannot replace such a
+    file.
 
     Args:
         path: The file to write.
-        text: The report text, without the final newline.
+        text: The text of the report, without the final newline.
 
     Raises:
-        OSError: If the file cannot be written.
+        OSError: If the function cannot write the file.
     """
     data = f"{text}\n".encode()
     target = path.resolve()
@@ -133,18 +139,23 @@ def _write_output(path: Path, text: str) -> None:
 def _resolve_config(args: argparse.Namespace) -> Config:
     """Build the configuration for one run from the parsed arguments.
 
-    The base configuration comes from ``--config``, from the defaults when
-    ``--no-config`` is given, or else from the file found by walking up from
-    the analyzed path. Command-line values then override it.
+    The base configuration comes from one of these sources:
+
+    - The file from ``--config``.
+    - The default values, if the user gave ``--no-config``.
+    - The file that the search finds in the analyzed path or its parents.
+
+    Then the values from the command line replace the values in the base
+    configuration.
 
     Args:
         args: The parsed command-line arguments.
 
     Returns:
-        The configuration to analyze with.
+        The configuration for the analysis.
 
     Raises:
-        ConfigError: If the configuration file cannot be loaded.
+        ConfigError: If the function cannot load the configuration file.
     """
     if args.no_config:
         config = Config()
@@ -166,11 +177,11 @@ def _build_parser() -> argparse.ArgumentParser:
     """Build the argument parser for the ``iceberg`` command.
 
     Returns:
-        The parser, with every option the CLI accepts.
+        The parser, with all the options that the CLI accepts.
     """
     parser = argparse.ArgumentParser(
         prog="iceberg",
-        description="Report the public API surface of a Python package or module.",
+        description="Show the public API of a Python package or module.",
     )
     parser.add_argument(
         "--version",
@@ -180,13 +191,13 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "path",
         type=Path,
-        help="Path to a Python package directory or module file.",
+        help="The path to a Python package directory or a module file.",
     )
     parser.add_argument(
         "--json",
         action="store_true",
         default=False,
-        help="Emit output as JSON instead of the default tree format.",
+        help="Write the output as JSON, not as the default tree.",
     )
     parser.add_argument(
         "-o",
@@ -194,10 +205,10 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         metavar="PATH",
         help=(
-            "Write the report to PATH as UTF-8 instead of stdout. The file is replaced "
-            "only when the report is complete, so an error never leaves a partial file. "
-            "Symlinks are followed, an existing file keeps its permissions, and a "
-            "non-regular file such as /dev/stdout is written directly."
+            "Write the report to PATH as UTF-8, not to stdout. iceberg replaces the file "
+            "only when the report is complete. Thus, an error never leaves a partial file. "
+            "iceberg follows symlinks, and an existing file keeps its permissions. iceberg "
+            "writes directly to a file that is not regular, such as /dev/stdout."
         ),
     )
     parser.add_argument(
@@ -205,8 +216,8 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
         help=(
-            "In the tree output, also show the implementation signature of each "
-            "overloaded function after its @overload signatures."
+            "In the tree output, also show the signature of the implementation of each "
+            "overloaded function, after its @overload signatures."
         ),
     )
     parser.add_argument(
@@ -215,8 +226,9 @@ def _build_parser() -> argparse.ArgumentParser:
         default=[],
         metavar="GLOB",
         help=(
-            "Skip directories and files whose path relative to PATH matches GLOB. "
-            "Repeatable; extends the 'exclude' list from the configuration file."
+            "Skip the directories and files whose path relative to PATH matches GLOB. "
+            "You can give this option more than one time. It adds to the 'exclude' "
+            "list from the configuration file."
         ),
     )
 
@@ -226,21 +238,24 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         metavar="PATH",
         help=(
-            "Read configuration from PATH instead of searching upward from the analyzed path. "
-            "A file named pyproject.toml is read from its [tool.iceberg] table."
+            "Read the configuration from PATH. Do not search the analyzed path and its parents. "
+            "If the name of the file is pyproject.toml, iceberg reads its [tool.iceberg] table."
         ),
     )
     config_source.add_argument(
         "--no-config",
         action="store_true",
         default=False,
-        help="Ignore configuration files and use the defaults.",
+        help="Ignore the configuration files and use the default values.",
     )
     parser.add_argument(
         "--max-workers",
         type=_positive_int,
         metavar="N",
-        help="Number of worker processes used to parse modules. Overrides 'max_workers' from the configuration file.",
+        help=(
+            "The number of worker processes that parse modules. "
+            "This value replaces 'max_workers' from the configuration file."
+        ),
     )
 
     parser.add_argument(
@@ -248,8 +263,9 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
         help=(
-            "Skip modules that cannot be read or parsed instead of stopping. Errors and "
-            "unresolved names are printed to stderr, and the exit code is 1 if any module was skipped."
+            "If iceberg cannot read or parse a module, skip the module and continue. iceberg "
+            "prints the errors and the unresolved names to stderr. If it skipped a module, "
+            "the exit code is 1."
         ),
     )
     parser.add_argument(
@@ -257,8 +273,8 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
         help=(
-            "On an unexpected error, print the full traceback for a bug report. "
-            "Setting the ICEBERG_DEBUG=1 environment variable does the same."
+            "If an unexpected error occurs, print the full traceback for a bug report. "
+            "The environment variable ICEBERG_DEBUG=1 has the same effect."
         ),
     )
 
@@ -268,18 +284,18 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the iceberg CLI.
 
-    Parses *argv* (or ``sys.argv[1:]`` when *argv* is ``None``), resolves the
-    public API of the given path, and writes the result to stdout (or to the
-    ``--output`` file). With
-    ``--keep-going``, diagnostics go to stderr (and into the JSON output).
+    The function parses *argv* (or ``sys.argv[1:]`` if *argv* is ``None``). It
+    resolves the public API of the given path. Then it writes the result to
+    stdout (or to the ``--output`` file). With ``--keep-going``, the
+    diagnostics go to stderr (and into the JSON output).
 
     Args:
-        argv: Argument list to parse.  Defaults to ``sys.argv[1:]``.
+        argv: The list of arguments to parse. The default is ``sys.argv[1:]``.
 
     Returns:
-        An integer exit code: ``0`` on success, ``1`` on a known
-        ``IcebergError`` or when ``--keep-going`` skipped a module, ``2`` on
-        any unexpected exception.
+        An integer exit code. ``0`` if the run is successful. ``1`` for a known
+        ``IcebergError``, or if ``--keep-going`` skipped a module. ``2`` for an
+        unexpected exception.
     """
     args = _build_parser().parse_args(argv)
 
@@ -294,17 +310,17 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _run(args: argparse.Namespace) -> int:
-    """Analyze the path, then print or write the report and any diagnostics.
+    """Analyze the path, then print or write the report and the diagnostics.
 
     Args:
         args: The parsed command-line arguments.
 
     Returns:
-        ``0`` on success, ``1`` when the output file cannot be written or
-        ``--keep-going`` skipped a module.
+        ``0`` if the run is successful. ``1`` if the function cannot write the
+        output file, or if ``--keep-going`` skipped a module.
 
     Raises:
-        IcebergError: When the configuration or the analysis fails.
+        IcebergError: If the configuration or the analysis fails.
     """
     config = _resolve_config(args)
     report = get_public_api_report(args.path, config=config, keep_going=args.keep_going)
