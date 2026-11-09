@@ -158,17 +158,44 @@ def _ancestors(start: Path) -> list[Path]:
     return [base, *base.parents]
 
 
+def _pyproject_section(candidate: Path) -> dict[str, object] | None:
+    """Extract the ``[tool.iceberg]`` table from a ``pyproject.toml`` file.
+
+    Args:
+        candidate: The path to the ``pyproject.toml`` file.
+
+    Returns:
+        The ``[tool.iceberg]`` table, or ``None`` if the file has no such table.
+
+    Raises:
+        ConfigError: If the file cannot be read, contains invalid TOML, or
+            ``[tool]`` or ``[tool.iceberg]`` is not a table.
+    """
+    doc = _parse_toml(_read_text(candidate), candidate)
+    tool_section = doc.get("tool", {})
+    if not isinstance(tool_section, dict):
+        raise ConfigError(f"Expected '[tool]' to be a table in {candidate}, got {type(tool_section).__name__!r}.")
+    if "iceberg" not in tool_section:
+        return None
+    iceberg_section = tool_section["iceberg"]
+    if not isinstance(iceberg_section, dict):
+        raise ConfigError(
+            f"Expected '[tool.iceberg]' to be a table in {candidate}, got {type(iceberg_section).__name__!r}."
+        )
+    return iceberg_section
+
+
 def load_config(start: Path) -> Config:
     """Load iceberg configuration by searching upward from *start*.
 
-    The search proceeds in two passes:
+    The search walks upward from ``start`` (inclusive) and checks each
+    directory, nearest first:
 
-    1. Walk upward from ``start`` (inclusive) checking each directory for an
-       ``.iceberg.toml`` file. The first one found is parsed and returned.
-    2. If no ``.iceberg.toml`` is found, walk upward again looking for a
-       ``pyproject.toml`` that contains a ``[tool.iceberg]`` table. The first
-       match is used.
-    3. If neither file is found, return a :class:`Config` built from defaults.
+    1. If the directory has an ``.iceberg.toml`` file, it is parsed and used.
+    2. Otherwise, if the directory has a ``pyproject.toml`` file, it marks the
+       project root and the search stops there: its ``[tool.iceberg]`` table
+       is used if present, else the defaults are used.
+    3. If no file is found in any ancestor, the defaults are used.
 
     Args:
         start: The directory (or file path whose parent directory) to begin
@@ -183,33 +210,14 @@ def load_config(start: Path) -> Config:
             contains invalid TOML, has unknown keys, or has type-incorrect
             values.
     """
-    ancestors = _ancestors(start)
-
-    for directory in ancestors:
+    for directory in _ancestors(start):
         candidate = directory / ".iceberg.toml"
         if candidate.is_file():
-            text = _read_text(candidate)
-            doc = _parse_toml(text, candidate)
-            return _build_config(doc)
+            return _build_config(_parse_toml(_read_text(candidate), candidate))
 
-    for directory in ancestors:
         candidate = directory / "pyproject.toml"
-
         if candidate.is_file():
-            text = _read_text(candidate)
-            doc = _parse_toml(text, candidate)
-            tool_section = doc.get("tool", {})
-            if not isinstance(tool_section, dict):
-                raise ConfigError(
-                    f"Expected '[tool]' to be a table in {candidate}, got {type(tool_section).__name__!r}."
-                )
-            if "iceberg" not in tool_section:
-                continue
-            iceberg_section = tool_section["iceberg"]
-            if not isinstance(iceberg_section, dict):
-                raise ConfigError(
-                    f"Expected '[tool.iceberg]' to be a table in {candidate}, got {type(iceberg_section).__name__!r}."
-                )
-            return _build_config(iceberg_section)
+            section = _pyproject_section(candidate)
+            return Config() if section is None else _build_config(section)
 
     return Config()

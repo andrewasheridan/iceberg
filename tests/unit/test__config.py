@@ -231,6 +231,46 @@ def test_load_config_closer_ancestor_wins(tmp_path: Path) -> None:
     assert cfg.max_workers == 7
 
 
+def test_load_config_nearer_pyproject_wins_over_distant_iceberg_toml(tmp_path: Path) -> None:
+    # A distant .iceberg.toml (for example ~/.iceberg.toml) must not override the project.
+    _write(tmp_path / ".iceberg.toml", "max_workers = 5\n")
+    project = tmp_path / "project"
+    _write(project / "pyproject.toml", "[tool.iceberg]\nmax_workers = 3\n")
+    cfg = load_config(project / "src")
+    assert cfg.max_workers == 3
+
+
+def test_load_config_stops_at_pyproject_without_iceberg_table(tmp_path: Path) -> None:
+    # The project root has no [tool.iceberg] table; the parent project's config must not apply.
+    _write(tmp_path / "pyproject.toml", "[tool.iceberg]\nmax_workers = 4\n")
+    _write(tmp_path / ".iceberg.toml", "max_workers = 6\n")
+    project = tmp_path / "vendor" / "project"
+    _write(project / "pyproject.toml", '[tool.other]\nfoo = "bar"\n')
+    cfg = load_config(project / "pkg")
+    assert cfg == Config()
+
+
+def test_load_config_nested_project_uses_its_own_config(tmp_path: Path) -> None:
+    _write(tmp_path / "pyproject.toml", "[tool.iceberg]\nmax_workers = 4\n")
+    inner = tmp_path / "packages" / "inner"
+    _write(inner / "pyproject.toml", "[tool.iceberg]\nmax_workers = 2\n")
+    assert load_config(inner / "src").max_workers == 2
+    assert load_config(tmp_path / "packages").max_workers == 4
+
+
+def test_load_config_iceberg_toml_below_project_root_wins(tmp_path: Path) -> None:
+    _write(tmp_path / "pyproject.toml", "[tool.iceberg]\nmax_workers = 4\n")
+    _write(tmp_path / "src" / ".iceberg.toml", "max_workers = 9\n")
+    assert load_config(tmp_path / "src" / "pkg").max_workers == 9
+
+
+def test_load_config_iceberg_toml_above_project_root_ignored(tmp_path: Path) -> None:
+    _write(tmp_path / ".iceberg.toml", "max_workers = 9\n")
+    project = tmp_path / "project"
+    _write(project / "pyproject.toml", "[project]\nname = 'x'\n")
+    assert load_config(project).max_workers == 1
+
+
 # ---------------------------------------------------------------------------
 # max_workers positive integer constraint
 # ---------------------------------------------------------------------------
