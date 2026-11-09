@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.14"
 
 [[package]]
@@ -673,7 +673,7 @@ wheels = [
 
 [[package]]
 name = "sheridan-iceberg"
-version = "6.0.0"
+version = "6.0.1"
 source = { editable = "." }
 
 [package.optional-dependencies]
