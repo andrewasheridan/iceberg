@@ -237,7 +237,7 @@ class Package:
 
     Attributes:
         name: Fully-qualified dotted package name (e.g. ``"pkg.sub"``).
-        path: Absolute path to the package directory on disk.
+        path: Path to the package directory on disk. JSON output renders it relative to the analyzed root.
         modules: Tuple of ``Module`` objects belonging directly to this package.
         subpackages: Tuple of child ``Package`` objects, sorted by name.
     """
@@ -246,7 +246,7 @@ class Package:
     """Fully-qualified dotted package name, e.g. ``"pkg.sub"``."""
 
     path: Path
-    """Absolute path to the package directory on disk."""
+    """Path to the package directory on disk. JSON output renders it relative to the analyzed root."""
 
     modules: tuple[Module, ...]
     """Modules belonging directly to this package."""

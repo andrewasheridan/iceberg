@@ -332,8 +332,22 @@ def test_format_json_path_is_string() -> None:
     """The ``path`` field must be serialised as a plain string, not a mapping."""
     pkg = _make_package(name="mylib", path=Path("/some/path"))
     parsed = json.loads(format_json(pkg))
-    assert parsed["path"] == "/some/path"
     assert isinstance(parsed["path"], str)
+
+
+def test_format_json_root_path_is_dot() -> None:
+    """The root package path is rendered as ``"."``, not as an absolute path."""
+    pkg = _make_package(name="mylib", path=Path("/some/path"))
+    parsed = json.loads(format_json(pkg))
+    assert parsed["path"] == "."
+
+
+def test_format_json_subpackage_path_is_relative_to_root() -> None:
+    """Subpackage paths are POSIX paths relative to the root package directory."""
+    sub = _make_package(name="mylib.sub.deep", path=Path("/some/path/sub/deep"))
+    pkg = _make_package(name="mylib", path=Path("/some/path"), subpackages=(sub,))
+    parsed = json.loads(format_json(pkg))
+    assert parsed["subpackages"][0]["path"] == "sub/deep"
 
 
 def test_format_json_stable_across_two_calls() -> None:
@@ -681,3 +695,11 @@ def test_format_json_includes_references() -> None:
     )
     data = json.loads(format_json(module))
     assert data["references"] == [{"name": "json", "module": "json", "attribute": None}]
+
+
+def test_format_json_path_outside_root_is_not_absolute() -> None:
+    """A path outside the root package directory is reduced to its final component."""
+    sub = _make_package(name="mylib.sub", path=Path("/elsewhere/sub"))
+    pkg = _make_package(name="mylib", path=Path("/some/path"), subpackages=(sub,))
+    parsed = json.loads(format_json(pkg))
+    assert parsed["subpackages"][0]["path"] == "sub"
