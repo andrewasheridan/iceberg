@@ -1,6 +1,9 @@
 """Unit tests for sheridan.iceberg.utilities.get_function."""
 
 import ast
+import importlib
+import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -446,6 +449,44 @@ def test_get_package_module_type_returns_package() -> None:
 
     result: Package = get_package(sheridan.iceberg)
     assert isinstance(result, Package)
+
+
+def test_get_package_plain_stdlib_module_raises_invalid_path_error() -> None:
+    import textwrap
+
+    with pytest.raises(InvalidPathError, match=r"get_module\(\)"):
+        get_package(textwrap)
+
+
+def _import_namespace_package(name: str, *roots: Path) -> types.ModuleType:
+    for root in roots:
+        (root / name).mkdir()
+        (root / name / f"part_{root.name}.py").write_text("def f() -> None: ...\n")
+    sys.path[:0] = [str(r) for r in roots]
+    try:
+        return importlib.import_module(name)
+    finally:
+        del sys.path[: len(roots)]
+        sys.modules.pop(name, None)
+
+
+def test_get_package_namespace_package_uses_dunder_path(tmp_path: Path) -> None:
+    mod = _import_namespace_package("iceberg_ns_single", tmp_path)
+    assert getattr(mod, "__file__", None) is None
+
+    result: Package = get_package(mod)
+    assert isinstance(result, Package)
+    assert result.name == "iceberg_ns_single"
+
+
+def test_get_package_namespace_package_with_many_portions_raises(tmp_path: Path) -> None:
+    roots = [tmp_path / "a", tmp_path / "b"]
+    for root in roots:
+        root.mkdir()
+    mod = _import_namespace_package("iceberg_ns_multi", *roots)
+
+    with pytest.raises(InvalidPathError, match="2 portions"):
+        get_package(mod)
 
 
 # ---------------------------------------------------------------------------

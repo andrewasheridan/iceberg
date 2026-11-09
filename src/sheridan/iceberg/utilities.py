@@ -380,14 +380,13 @@ def get_package(
       the directory.
     - **str**: A string file-system path; converted to ``pathlib.Path`` and
       forwarded to the ``Path`` dispatch branch.
-    - **ModuleType**: A live ``types.ModuleType`` object; the package
-      directory is inferred from the location of the module's source file
-      via ``inspect.getfile``.
+    - **ModuleType**: A live package object; the package directory is read
+      from its ``__path__``. A plain module (no ``__path__``) is rejected,
+      and so is a namespace package with more than one portion.
 
     Args:
         path_or_mod: One of: a ``pathlib.Path`` to a package directory, a
-            string path to a package directory, or a ``types.ModuleType``
-            object belonging to the package.
+            string path to a package directory, or a package object.
 
     Returns:
         A ``Package`` dataclass capturing the name and public API of the
@@ -395,8 +394,9 @@ def get_package(
 
     Raises:
         InvalidPathError: When the resolved path points to a module rather
-            than a package, or when the source file for a ``ModuleType``
-            cannot be located.
+            than a package, when a ``ModuleType`` is a plain module rather
+            than a package, or when it is a namespace package with more
+            than one portion.
     """
     match path_or_mod:
         case str():
@@ -409,5 +409,24 @@ def get_package(
             raise InvalidPathError(f"{path_or_mod} points to a module, not a package — use get_module() instead")
 
         case _:
-            pkg_file = inspect.getfile(path_or_mod)
-            return get_package(Path(pkg_file).parent)
+            return get_package(_package_dir(path_or_mod))
+
+
+def _package_dir(mod: types.ModuleType) -> Path:
+    """Return the directory of the package *mod*, read from its ``__path__``.
+
+    Raises:
+        InvalidPathError: When *mod* is not a package (it has no
+            ``__path__``), or when it is a namespace package with more
+            than one portion.
+    """
+    search_path = getattr(mod, "__path__", None)
+    if search_path is None:
+        raise InvalidPathError(f"{mod.__name__} is a module, not a package — use get_module() instead")
+    portions = list(dict.fromkeys(search_path))
+    if len(portions) != 1:
+        raise InvalidPathError(
+            f"{mod.__name__} is a namespace package with {len(portions)} portions "
+            f"({', '.join(portions)}); pass the path of one portion to get_package() instead"
+        )
+    return Path(portions[0])
