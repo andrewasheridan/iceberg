@@ -7,17 +7,18 @@ name = "sheridan-iceberg"
 version = "8.0.5"
 description = "Reports the public API surface of Python modules"
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.14"
-authors = [{ name = "sheridan", email = "andrewasheridan@gmail.com" }]
+authors = [{ name = "Andrew Sheridan", email = "andrewasheridan@gmail.com" }]
 keywords = ["static-analysis", "api", "all", "linting"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Quality Assurance",
+    "Typing :: Typed",
 ]
 
 [project.urls]
