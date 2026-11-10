@@ -1,6 +1,43 @@
 # CLAUDE.md
 
-## Code style
+iceberg (`sheridan-iceberg` on PyPI) shows the public API of a Python package. It reads
+the source with `ast`. It does not import the package.
+
+## Check command
+
+Run `task check` before you say that a change is done. It runs these gates:
+`lock:check`, `lint:check`, `format:check`, `typecheck` (pyrefly), `test`, `api:check`
+and `sdist:check`. All gates must pass. `CONTRIBUTING.md` lists the other tasks.
+
+If you change the public API on purpose, run `task api:update` and commit `api.txt`.
+
+## Architecture
+
+The code is in `src/sheridan/iceberg/`. The analysis is a pipeline of four steps:
+
+1. Discover: `_discovery.py` walks the package directory. It makes one
+   `DiscoveredModule` for each module to visit, and removes the test modules.
+2. Visit: `_visitor.py` reads the AST of each module and makes a `Module` snapshot.
+   `_builders.py` makes the models for each definition.
+3. Resolve: `_init_resolver.py` resolves the re-exports in each `__init__.py`, for
+   example `from .sibling import X`.
+4. Trie: `_orchestrator.py` connects the steps. It puts all the modules into a
+   `Package` trie.
+
+Other modules:
+
+- `_models.py`: the dataclass models (`Package`, `Module`, `Class`, `Function`,
+  `Assignment`, `Diagnostic`).
+- `_api.py`: the public entry points, `get_public_api` and `get_public_api_report`.
+- `_formatter.py` and `_loader.py`: write the models as a tree or as JSON, and read the
+  JSON again.
+- `_cli.py`: the command-line interface.
+
+The `cases/` directory has example packages. Each case has a `README.md` that shows the
+expected output. If you change the output that users see, update the case READMEs and
+the golden tests.
+
+## Code conventions
 
 - Write all prose (docs, READMEs, docstrings, comments, CLI messages, issue, commit and
   PR bodies) in ASD-STE100 Simplified Technical English. Load the `ste100` skill before
@@ -22,3 +59,17 @@
   around them. Flatten nesting with early returns, and prefer a plain loop or a named
   intermediate value to a clever one-liner. See the Readability section of
   CONTRIBUTING.md.
+
+The `python-dev` skill has the tools and the Python rules. The `git-workflow` skill has
+the branch, commit, PR and release rules.
+
+## Claude Code files
+
+Commit new skills, agents and settings in `.claude/`. A file stays local only if
+`.gitignore` lists it, for example the issue loop (`.claude/skills/next-issue/`).
+`.claude/settings.local.json` is for your own settings and is not tracked.
+
+`.claude/settings.json` stops pushes to `main` and force-pushes. In an interactive
+session, the `.claude/hooks/ask-before-merge.sh` hook asks you before each merge
+command. Headless sessions (`claude -p`) skip this question, so that the issue loop can
+enable auto-merge.

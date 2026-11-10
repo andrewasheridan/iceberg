@@ -33,8 +33,9 @@ site/
 .idea/
 .vscode/
 
-# Claude agent worktrees
+# Claude Code: agent worktrees and personal settings
 .claude/worktrees/
+.claude/settings.local.json
 
 # Dagger
 ci/sdk/
