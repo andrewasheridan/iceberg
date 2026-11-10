@@ -120,6 +120,7 @@ def resolve_init(
 
     # Index the objects that the file defines by name, for a fast search.
     local_index = _index_module(local_module)
+    sibling_indexes: dict[str, dict[str, _Symbol]] = {}
 
     assignments: list[Assignment] = []
     classes: list[Class] = []
@@ -131,7 +132,7 @@ def resolve_init(
         if name in subpackage_names:
             continue
 
-        obj = _resolve_name(name, import_map, sibling_modules, local_index)
+        obj = _resolve_name(name, import_map, sibling_modules, sibling_indexes, local_index)
 
         if obj is None:
             if name in all_imports:
@@ -355,27 +356,35 @@ def _exported_names(module: Module) -> frozenset[str]:
 
 
 def _lookup_in_sibling(
-    name: str,
     source_name: str,
     dotted_module: str,
     sibling_modules: Mapping[str, Module],
+    sibling_indexes: dict[str, dict[str, _Symbol]],
 ) -> _Symbol | None:
     """Look up *source_name* in a sibling module from the mapping.
 
     Args:
-        name: The local alias. The function does not examine it.
         source_name: The original name that the sibling module exports.
         dotted_module: The fully qualified name of the sibling module to search.
         sibling_modules: All the available sibling modules, by dotted name.
+        sibling_indexes: The indexes of the sibling modules that the function
+            already made, by dotted name. The function adds each new index to
+            this cache, so that it indexes each sibling module only one time.
 
     Returns:
         The resolved symbol, or ``None`` if the module or the name is not there.
     """
+    sibling_index = sibling_indexes.get(dotted_module)
+    if sibling_index is not None:
+        return sibling_index.get(source_name)
+
     sibling = sibling_modules.get(dotted_module)
     if sibling is None:
         return None
 
     sibling_index = _index_module(sibling)
+    sibling_indexes[dotted_module] = sibling_index
+
     return sibling_index.get(source_name)
 
 
@@ -383,6 +392,7 @@ def _resolve_name(
     name: str,
     import_map: dict[str, tuple[str, str]],
     sibling_modules: Mapping[str, Module],
+    sibling_indexes: dict[str, dict[str, _Symbol]],
     local_index: dict[str, _Symbol],
 ) -> _Symbol | None:
     """Try to resolve *name* to a concrete symbol.
@@ -396,6 +406,8 @@ def _resolve_name(
         name: The public name to resolve.
         import_map: The map from local name to ``(dotted_module, original_name)``.
         sibling_modules: All the sibling modules that the imports can use.
+        sibling_indexes: The cache of sibling module indexes. See
+            ``_lookup_in_sibling``.
         local_index: The index of the symbols that the init module defines.
 
     Returns:
@@ -406,7 +418,7 @@ def _resolve_name(
         return local_index.get(name)
 
     dotted_module, source_name = import_map[name]
-    resolved = _lookup_in_sibling(name, source_name, dotted_module, sibling_modules)
+    resolved = _lookup_in_sibling(source_name, dotted_module, sibling_modules, sibling_indexes)
 
     if resolved is None:
         return local_index.get(name)

@@ -188,33 +188,31 @@ def _namespace_parents(root: Path) -> tuple[str, ...]:
     return tuple(reversed(names))
 
 
-def _child_names_at_level(
-    init_dotted_name: str,
-    all_discovered: tuple[DiscoveredModule, ...],
-) -> frozenset[str]:
-    """List the short names of all the items directly below a package.
+def _child_names_by_package(all_discovered: tuple[DiscoveredModule, ...]) -> dict[str, frozenset[str]]:
+    """Map each package to the short names of all the items directly below it.
 
     These items are the submodules, the subpackages and the namespace
     subdirectories. A namespace subdirectory has no ``__init__.py``, but it
-    contains modules.
+    contains modules. The function reads each module one time, so that the
+    cost does not increase with the square of the number of modules.
 
     Args:
-        init_dotted_name: The dotted name of the package.
         all_discovered: All the modules that the full walk found.
 
     Returns:
-        A frozenset of the short names (not dotted) of the direct children.
+        A mapping from the dotted name of a package to a frozenset of the
+        short names (not dotted) of its direct children. A package with no
+        children is not in the mapping.
     """
-    own_parts = init_dotted_name.split(".")
-    depth = len(own_parts)
-    names: set[str] = set()
+    children: dict[str, set[str]] = {}
 
     for dm in all_discovered:
         parts = dm.dotted_name.split(".")
-        if len(parts) > depth and parts[:depth] == own_parts:
-            names.add(parts[depth])
+        for depth in range(1, len(parts)):
+            parent = ".".join(parts[:depth])
+            children.setdefault(parent, set()).add(parts[depth])
 
-    return frozenset(names)
+    return {parent: frozenset(names) for parent, names in children.items()}
 
 
 def _build_trie(
@@ -278,6 +276,14 @@ def _build_trie(
         else:
             all_pkg_parts.add(dm.package_parts)
 
+    # Index the direct child nodes of each node one time, so that _make_package
+    # does not scan all the nodes for each node.
+    child_parts_by_parts: dict[tuple[str, ...], list[tuple[str, ...]]] = {}
+    for pkg_parts in all_pkg_parts:
+        # The empty root parts have no parent. Without this check, they are their own child.
+        if pkg_parts:
+            child_parts_by_parts.setdefault(pkg_parts[:-1], []).append(pkg_parts)
+
     def _make_package(parts: tuple[str, ...]) -> Package:
         """Assemble a ``Package`` for the given parts prefix recursively.
 
@@ -296,10 +302,7 @@ def _build_trie(
         explicit_all = package_all_map.get(name)
         init_module = init_modules_by_parts.get(parts)
 
-        child_parts_set: set[tuple[str, ...]] = set()
-        for pkg_parts in all_pkg_parts:
-            if len(pkg_parts) == len(parts) + 1 and pkg_parts[: len(parts)] == parts:
-                child_parts_set.add(pkg_parts)
+        child_parts = sorted(child_parts_by_parts.get(parts, []))
 
         direct_modules_list: list[Module] = []
         subpackages_list: list[Package] = []
@@ -316,7 +319,7 @@ def _build_trie(
                 if mod.name.split(".")[-1] in explicit_all:
                     direct_modules_list.append(mod)
 
-            for child in sorted(child_parts_set):
+            for child in child_parts:
                 if child[-1] in explicit_all:
                     subpackages_list.append(_make_package(child))
         else:
@@ -327,7 +330,7 @@ def _build_trie(
             if init_module is not None:
                 direct_modules_list.append(init_module)
 
-            for child in sorted(child_parts_set):
+            for child in child_parts:
                 subpackage = _make_package(child)
                 if subpackage.is_public:
                     subpackages_list.append(subpackage)
@@ -485,6 +488,7 @@ def build_package(root: Path, config: Config, *, errors: list[Diagnostic] | None
     # Record the __all__ of each package, so that _build_trie can filter the
     # modules and subpackages. The value None means that there is no __all__.
     package_all_map: dict[str, frozenset[str] | None] = {}
+    child_names = _child_names_by_package(all_discovered)
 
     for init_module in sorted_inits:
         package_all_map[init_module.dotted_name] = known_all.get(init_module.dotted_name)
@@ -493,7 +497,7 @@ def build_package(root: Path, config: Config, *, errors: list[Diagnostic] | None
                 read_source(init_module.source_path),
                 init_module.dotted_name,
                 module_map,
-                _child_names_at_level(init_module.dotted_name, all_discovered),
+                child_names.get(init_module.dotted_name, frozenset()),
                 namespace_parents=namespace_parents,
                 path=init_module.source_path,
                 known_all=known_all,

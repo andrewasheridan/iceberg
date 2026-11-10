@@ -69,6 +69,11 @@ tasks:
     cmds:
       - uv run iceberg src/ {{.CLI_ARGS}}
 
+  bench:
+    desc: Measure the analysis time (standard library by default; --generate N for a large tree)
+    cmds:
+      - uv run python scripts/benchmark.py {{.CLI_ARGS}}
+
   api:update:
     desc: Write the public API snapshot (api.txt) from src/sheridan/
     cmds:
