@@ -74,6 +74,26 @@ tasks:
     cmds:
       - uv run python scripts/benchmark.py {{.CLI_ARGS}}
 
+  mutate:
+    desc: Run mutation testing with mutmut (give a pattern to select functions)
+    cmds:
+      - uv run --group mutation mutmut run {{.CLI_ARGS}}
+
+  mutate:results:
+    desc: List the mutants that survived the last mutmut run
+    cmds:
+      - uv run --group mutation mutmut results
+
+  mutate:browse:
+    desc: Open the mutmut terminal UI to examine the mutants
+    cmds:
+      - uv run --group mutation mutmut browse
+
+  mutate:clean:
+    desc: Delete the mutmut results (mutants/)
+    cmds:
+      - rm -rf mutants/
+
   api:update:
     desc: Write the public API snapshot (api.txt) from src/sheridan/
     cmds:

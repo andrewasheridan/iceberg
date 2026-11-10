@@ -19,7 +19,7 @@ BANNER = re.compile(r"^\s*#\s*[-=]{10,}\s*$")
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SUFFIXES = frozenset({".py", ".pyi", ".toml", ".yaml", ".yml", ".sh"})
-_SKIP_DIRS = frozenset({"__pycache__", "node_modules", "site", "build", "dist"})
+_SKIP_DIRS = frozenset({"__pycache__", "node_modules", "site", "build", "dist", "mutants"})
 _ALLOWED_DOT_DIRS = frozenset({".github"})
 
 
