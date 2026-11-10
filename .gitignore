@@ -37,10 +37,6 @@ site/
 .claude/worktrees/
 .claude/settings.local.json
 
-# Dagger
-ci/sdk/
-ci/.venv/
-
 # Local issue loop (not tracked) and its logs
 .claude/skills/next-issue/
 scripts/next-issue.sh

@@ -22,31 +22,14 @@ The hooks run ruff, pyrefly, commitizen and pytest through `uv run --frozen`. Th
 the hooks use the versions in `uv.lock`. To run all the pre-commit hooks manually,
 run `uv run prek run --all-files`.
 
-### CI pipeline (Dagger)
+### CI pipeline
 
-The CI pipeline runs in containers through [Dagger](https://dagger.io). You must
-have these tools:
+CI runs in GitHub Actions with `uv` and `task`. It does not use containers. The
+"All gates" job runs the same tasks as `task check`, and these tasks too:
+`security:check` (bandit) and `docs:build`. Other jobs run the tests on Linux, macOS
+and Windows, and on the newest Python that iceberg supports.
 
-- [Dagger CLI](https://docs.dagger.io/install)
-- [Podman](https://podman.io/get-started) (default) **or** Docker
-
-After you clone the repo, initialize the Dagger module one time:
-
-```bash
-# macOS — start the Podman machine first
-podman machine start
-
-task ci-init   # generates ci/sdk/ (gitignored)
-```
-
-Then you can run the full pipeline locally at any time:
-
-```bash
-task ci
-
-# Prefer Docker?
-CONTAINER_RUNTIME=docker task ci
-```
+To run the gates locally, run `task check`.
 
 ## Workflow
 
@@ -305,10 +288,9 @@ and has no comma, mutmut reads that word as a different pragma.
 
 ## Public API snapshot
 
-`api.txt` is the tree output of iceberg for `src/sheridan/`. CI (the `iceberg` gate in
-`task ci`) and `task check` fail if the current public API is different from
-`api.txt`. They also print the diff. If you changed the API intentionally, do these
-steps:
+`api.txt` is the tree output of iceberg for `src/sheridan/`. CI (the `api` gate) and
+`task check` fail if the current public API is different from `api.txt`. They also
+print the diff. If you changed the API intentionally, do these steps:
 
 1. Run `task api:update`.
 2. Commit `api.txt` together with your change.
@@ -319,10 +301,10 @@ Thus, each change to the API is visible in the review.
 
 The sdist contains only `src/`, `tests/`, `README.md`, `LICENSE`, `CHANGELOG.md` and
 `pyproject.toml`. The `include` list in `[tool.hatch.build.targets.sdist]` sets these
-files. Hatch adds `PKG-INFO` and `.gitignore`. CI (the `sdist` gate in `task ci`) and
-`task check` build the sdist. They fail if it has a different top-level item. If you
-add a file that users must have in the sdist, add it to the `include` list and to the
-two checks.
+files. Hatch adds `PKG-INFO` and `.gitignore`. CI (the `sdist` gate) and `task check`
+build the sdist. They fail if it has a different top-level item. If you add a file
+that users must have in the sdist, add it to the `include` list and to the list of
+permitted entries in the `sdist:check` task in `Taskfile.yaml`.
 
 ## Dependencies
 
