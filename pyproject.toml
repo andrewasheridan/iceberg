@@ -123,6 +123,19 @@ omit = ["tests/*"]
 show_missing = true
 fail_under = 90
 
+[tool.mutmut]
+source_paths = ["src/sheridan/iceberg"]
+# mutmut copies tests/ and pyproject.toml by itself. The tests also read these paths.
+also_copy = ["cases/", "docs/", "scripts/", "README.md", "zensical.toml"]
+# A run of only some tests cannot reach the coverage limit. Then pytest fails, and
+# mutmut reports each mutant as killed.
+pytest_add_cli_args = ["--no-cov"]
+# pyrefly removes the mutants that do not type-check. It must not read .gitignore,
+# because .gitignore lists mutants/. Do not set mutate_only_covered_lines: mutmut
+# measures the coverage of the mutated copies, and after the first run their line
+# numbers are not the same as the source lines.
+type_check_command = ["pyrefly", "check", "--output-format", "json", "--use-ignore-files=false"]
+
 [tool.commitizen]
 name = "cz_conventional_commits"
 version = "8.0.6"
@@ -154,4 +167,7 @@ dev = [
     "pyrefly>=1.4.1",
     "ruff>=0.15.10",
     "zensical>=0.0.32",
+]
+mutation = [
+    "mutmut>=3.8.1",
 ]
