@@ -867,7 +867,7 @@ wheels = [
 
 [[package]]
 name = "sheridan-iceberg"
-version = "8.0.9"
+version = "8.0.10"
 source = { editable = "." }
 
 [package.dev-dependencies]
