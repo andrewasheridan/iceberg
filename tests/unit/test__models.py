@@ -12,6 +12,8 @@ from sheridan.iceberg._models import (
     Module,
     Package,
     Parameter,
+    _is_public_module_stem,
+    _is_public_name,
 )
 
 ALL_CLASSES = [Parameter, Function, Assignment, Class, Module, Package]
@@ -207,3 +209,27 @@ def test_parameter_hashable_in_frozenset() -> None:
     fs: frozenset[Parameter] = frozenset({p1, p2})
     assert p1 in fs
     assert p2 in fs
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("name", True),
+        ("x__", True),
+        ("__init__", True),
+        ("__a__", True),
+        ("____", False),
+        ("_x__", False),
+        ("_x", False),
+        ("__x", False),
+    ],
+)
+def test_is_public_name(name: str, expected: bool) -> None:
+    assert _is_public_name(name) is expected
+
+
+@pytest.mark.parametrize(
+    ("stem", "expected"), [("__init__", True), ("core", True), ("_core", False), ("__main__", False)]
+)
+def test_is_public_module_stem(stem: str, expected: bool) -> None:
+    assert _is_public_module_stem(stem) is expected

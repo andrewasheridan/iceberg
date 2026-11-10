@@ -55,7 +55,7 @@ def _visit_worker(
     tree: ast.Module | None = None,
     known_all: Mapping[str, frozenset[str] | None] | None = None,
     *,
-    keep_going: bool = False,
+    keep_going: bool,
 ) -> Module | Diagnostic:
     """Read the source from disk and parse it into a ``Module``.
 
@@ -154,7 +154,9 @@ def _evaluate_all(
         try:
             result[name] = extract_all(tree, package, evaluate, path=str(dm.source_path))
         finally:
+            # pragma: no mutate start, result holds the name now, thus evaluate() never reads in_progress for it again
             in_progress.discard(name)
+            # pragma: no mutate end
 
         return result[name]
 
@@ -351,7 +353,9 @@ def _build_trie(
         return Package(name=root.name, path=root, modules=(), subpackages=())
 
     # The root is the shortest parts tuple. There is only one such tuple.
+    # pragma: no mutate start, all tuples start with the root parts, thus the shortest is also the smallest
     root_parts = min(all_pkg_parts, key=len)
+    # pragma: no mutate end
 
     return _make_package(root_parts)
 
@@ -463,13 +467,17 @@ def build_package(root: Path, config: Config, *, errors: list[Diagnostic] | None
 
     visited: list[Module | Diagnostic]
     if config.max_workers > 1:
+        # pragma: no mutate start, without the trees or the worker count, the result is the same but slower
         with ProcessPoolExecutor(max_workers=config.max_workers) as executor:
             visited = list(executor.map(visit, non_init_modules, parsed_trees))
+        # pragma: no mutate end
     else:
+        # pragma: no mutate start, the lists have the same length, thus strict has no effect
         visited = [visit(dm, tree) for dm, tree in zip(non_init_modules, parsed_trees, strict=True)]
+        # pragma: no mutate end
 
     module_map: dict[str, Module] = {}
-    for dm, outcome in zip(non_init_modules, visited, strict=True):
+    for dm, outcome in zip(non_init_modules, visited, strict=True):  # pragma: no mutate, the same length
         if isinstance(outcome, Diagnostic):
             found.append(outcome)
         else:

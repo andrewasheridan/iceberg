@@ -101,7 +101,9 @@ def resolve_init(
     # Use visit_module for the names that the file defines and for the public-name filter.
     # Give it the evaluated __all__. Then visit_module does not evaluate (and report) it again.
     local_all = {**(known_all or {}), dotted_package: explicit_all}
+    # pragma: no mutate start, visit_module reads path only to parse and to evaluate __all__, and it gets both
     local_module = visit_module(init_source, dotted_package, path, local_all, tree=tree)
+    # pragma: no mutate end
 
     root_package = dotted_package.split(".")[0]
 
@@ -207,7 +209,9 @@ def resolve_module_references(
         try:
             result = _resolve_references(module, namespace_parents, resolve)
         finally:
+            # pragma: no mutate start, resolved holds the name now, thus resolve() never reads in_progress for it again
             in_progress.discard(name)
+            # pragma: no mutate end
 
         resolved[name] = result
         return result
@@ -374,7 +378,7 @@ def _lookup_in_sibling(
     Returns:
         The resolved symbol, or ``None`` if the module or the name is not there.
     """
-    sibling_index = sibling_indexes.get(dotted_module)
+    sibling_index = sibling_indexes.get(dotted_module)  # pragma: no mutate, without the cache, the result is the same
     if sibling_index is not None:
         return sibling_index.get(source_name)
 

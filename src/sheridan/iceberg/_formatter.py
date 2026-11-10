@@ -86,7 +86,7 @@ def _function_str(function: Function) -> str:
     elif function.keyword_parameters:
         params.append("*")
 
-    sorted_kw = sorted(function.keyword_parameters, key=lambda p: (p.name, p.annotation or ""))
+    sorted_kw = sorted(function.keyword_parameters, key=lambda p: p.name)
     for p in sorted_kw:
         params.append(_param_str(p))
 
@@ -381,7 +381,7 @@ def _relative_path(path: Path, root: Path | None) -> str:
         component of the path.
     """
     if root is not None and path.is_relative_to(root):
-        return path.relative_to(root).as_posix() or "."
+        return path.relative_to(root).as_posix()
 
     return path.name or "."
 

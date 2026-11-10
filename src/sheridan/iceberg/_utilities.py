@@ -59,8 +59,7 @@ def read_source(path: Path) -> str:
     try:
         return importlib.util.decode_source(data)
     except (SyntaxError, UnicodeDecodeError, LookupError) as exc:
-        reason = exc.msg if isinstance(exc, SyntaxError) else str(exc)
-        raise SourceReadError(f"cannot decode file: {reason}", path=str(path)) from exc
+        raise SourceReadError(f"cannot decode file: {exc}", path=str(path)) from exc
 
 
 def parse_source(source: str, path: Path | str | None = None) -> ast.Module:
@@ -327,8 +326,8 @@ def extract_all(
         warnings.warn(
             f"{prefix}cannot evaluate __all__ statically ({exc.reason}). "
             "iceberg uses the names without a leading underscore.",
-            UserWarning,
-            stacklevel=2,
+            UserWarning,  # pragma: no mutate, UserWarning is also the default category
+            stacklevel=2,  # pragma: no mutate, the mutmut trampoline adds a stack frame, see the test
         )
         return None
 
@@ -383,8 +382,6 @@ def bound_names(target: ast.expr) -> Iterator[str]:
                 yield from bound_names(elt)
         case ast.Starred(value=value):
             yield from bound_names(value)
-        case _:
-            pass
 
 
 def infer_all(tree: ast.Module) -> frozenset[str]:
@@ -447,9 +444,6 @@ def infer_all(tree: ast.Module) -> frozenset[str]:
                 if not name.startswith("_"):
                     names.add(name)
 
-            case _:
-                pass
-
     return frozenset(names)
 
 
@@ -509,9 +503,6 @@ def module_level_statements(body: list[ast.stmt]) -> Iterator[ast.stmt]:
                 yield from module_level_statements(orelse)
                 yield from module_level_statements(finalbody)
 
-            case _:
-                pass
-
 
 def collect_imports(
     tree: ast.Module,
@@ -552,10 +543,8 @@ def collect_imports(
                         exported = star_exports(source) if star_exports else None
                         for name in sorted(exported or ()):
                             result.setdefault(name, (source, name))
-
-                        continue
-
-                    result.setdefault(alias.asname or alias.name, (source, alias.name))
+                    else:
+                        result.setdefault(alias.asname or alias.name, (source, alias.name))
 
             case ast.Import(names=aliases):
                 for alias in aliases:
@@ -565,9 +554,6 @@ def collect_imports(
                         # ``import a.b`` binds ``a``.
                         top = alias.name.split(".")[0]
                         result.setdefault(top, (top, None))
-
-            case _:
-                pass
 
     return result
 
@@ -621,4 +607,4 @@ def _import_from_source(node: ast.ImportFrom, package: str) -> str:
     if node.level:
         return resolve_relative(package, node.module, node.level)
 
-    return node.module or ""
+    return node.module or ""  # pragma: no mutate, only a relative import has no module, and it returns above

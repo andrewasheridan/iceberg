@@ -1,11 +1,13 @@
 """Test sheridan.iceberg._init_resolver."""
 
+import re
+import warnings
 from pathlib import Path
 
 import pytest
 
 from sheridan.iceberg._exceptions import ParseError
-from sheridan.iceberg._init_resolver import resolve_init, resolve_module_references
+from sheridan.iceberg._init_resolver import _strip_namespace_prefix, resolve_init, resolve_module_references
 from sheridan.iceberg._models import Assignment, Class, Function, Module, Reference
 
 _EMPTY_MODULE = Module(name="", assignments=(), classes=(), functions=())
@@ -647,3 +649,72 @@ def test_module_references_outside_tree_kept() -> None:
     ref = Reference("sqrt", "math", "sqrt")
     modules = {"pkg._a": Module("pkg._a", (), (), (), (ref,))}
     assert resolve_module_references(modules)["pkg._a"].references == (ref,)
+
+
+def test_known_all_of_the_package_replaces_the_source_all() -> None:
+    source = '__all__ = ["b"]\ndef a(): ...\ndef b(): ...\n'
+    module = resolve_init(source, "pkg", {}, frozenset(), known_all={"pkg": frozenset({"a"})})
+
+    assert [function.name for function in module.functions] == ["a"]
+
+
+def test_known_all_resolves_all_of_other_modules() -> None:
+    source = "from . import sub\n__all__ = ['a']\n__all__ += sub.__all__\ndef a(): ...\n"
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        module = resolve_init(source, "pkg", {}, frozenset({"sub"}), known_all={"pkg.sub": frozenset({"x"})})
+
+    assert [function.name for function in module.functions] == ["a"]
+    assert _unresolved(module) == ("x",)
+
+
+def test_all_warning_names_the_init_path() -> None:
+    path = Path("src/pkg/__init__.py")
+
+    with pytest.warns(UserWarning, match=rf"^{re.escape(str(path))}:1: cannot evaluate __all__"):
+        resolve_init("__all__ = make()\n", "pkg", {}, frozenset(), path=path)
+
+
+def test_namespace_prefixed_star_import_in_subpackage_resolved() -> None:
+    fn = _make_function("f")
+    module = resolve_init(
+        init_source="from org.pkg.sub._c import *\n",
+        dotted_package="pkg.sub",
+        sibling_modules={"pkg.sub._c": _make_module("pkg.sub._c", functions=(fn,))},
+        subpackage_names=frozenset(),
+        namespace_parents=("src", "org"),
+    )
+
+    assert module.functions == (fn,)
+
+
+@pytest.mark.parametrize(
+    ("module", "expected"),
+    [
+        ("sheridan.iceberg", "iceberg"),
+        ("sheridan.iceberg._api", "iceberg._api"),
+        ("other.iceberg._api", "other.iceberg._api"),
+        ("iceberg._api", "iceberg._api"),
+    ],
+)
+def test_strip_namespace_prefix(module: str, expected: str) -> None:
+    assert _strip_namespace_prefix(module, "iceberg", ("src", "sheridan")) == expected
+
+
+def test_module_references_resolve_after_an_unresolved_one() -> None:
+    cls = _make_class("X")
+    ghost = Reference("ghost", None, None)
+    modules = {
+        "pkg._a": Module("pkg._a", (), (), (), (ghost, Reference("X", "pkg._b", "X"))),
+        "pkg._b": _make_module("pkg._b", classes=(cls,)),
+    }
+    resolved = resolve_module_references(modules)
+
+    assert resolved["pkg._a"].classes == (cls,)
+    assert resolved["pkg._a"].references == (ghost,)
+
+
+def test_all_warning_without_path_starts_with_the_line() -> None:
+    with pytest.warns(UserWarning, match=r"^1: cannot evaluate __all__"):
+        resolve_init("__all__ = make()\n", "pkg", {}, frozenset())

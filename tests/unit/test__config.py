@@ -1,7 +1,9 @@
 """Test sheridan.iceberg._config (the Config dataclass, load_config and load_config_file)."""
 
 import dataclasses
+import os
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -312,3 +314,55 @@ def test_load_config_file_validates_keys(tmp_path: Path) -> None:
 
     with pytest.raises(ConfigError, match="Unknown configuration key"):
         load_config_file(path)
+
+
+def test_load_config_pattern_must_be_a_string(tmp_path: Path) -> None:
+    _write(tmp_path / ".iceberg.toml", "test_module_pattern = 1\n")
+
+    with pytest.raises(ConfigError, match=r"^'test_module_pattern' must be a string, not 'int'\.$"):
+        load_config(tmp_path)
+
+
+def test_load_config_max_workers_one_is_accepted(tmp_path: Path) -> None:
+    _write(tmp_path / ".iceberg.toml", "max_workers = 1\n")
+
+    assert load_config(tmp_path).max_workers == 1
+
+
+@pytest.mark.parametrize(
+    ("name", "text"),
+    [(".iceberg.toml", "max_workers = [\n"), ("pyproject.toml", "[tool.iceberg\n")],
+)
+def test_load_config_parse_error_names_the_file(tmp_path: Path, name: str, text: str) -> None:
+    path = _write(tmp_path / name, text)
+
+    with pytest.raises(ConfigError, match=rf"^Cannot parse the TOML in {re.escape(str(path.resolve()))}: "):
+        load_config(tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        ("tool = 1\n", "'[tool]' in {path} must be a table, not 'int'."),
+        ("[tool]\niceberg = 1\n", "'[tool.iceberg]' in {path} must be a table, not 'int'."),
+    ],
+)
+def test_load_config_pyproject_tables_must_be_tables(tmp_path: Path, text: str, message: str) -> None:
+    path = _write(tmp_path / "pyproject.toml", text)
+
+    with pytest.raises(ConfigError, match=f"^{re.escape(message.format(path=path.resolve()))}$"):
+        load_config(tmp_path)
+
+
+@pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0, reason="needs POSIX permissions as non-root")
+def test_load_config_unreadable_file_raises(tmp_path: Path) -> None:
+    path = _write(tmp_path / ".iceberg.toml", "max_workers = 1\n")
+    path.chmod(0)
+
+    try:
+        with pytest.raises(ConfigError) as info:
+            load_config(tmp_path)
+    finally:
+        path.chmod(0o644)
+
+    assert str(info.value).startswith(f"Cannot read the configuration file {path.resolve()}: [Errno 13]")

@@ -43,7 +43,7 @@ def _report_unexpected_error(exc: Exception, *, show_traceback: bool) -> None:
             that tells how to get the full traceback.
     """
     if show_traceback:
-        traceback.print_exception(exc, file=sys.stderr)
+        traceback.print_exception(exc, file=sys.stderr)  # pragma: no mutate, None and the default also mean sys.stderr
     else:
         print(f"unexpected error: {type(exc).__name__}: {exc}", file=sys.stderr)
         print("To see the full traceback, run again with --traceback (or set ICEBERG_DEBUG=1).", file=sys.stderr)
@@ -80,7 +80,7 @@ def _new_file_mode() -> int:
     ``tempfile.mkstemp`` makes files that only their owner can read. Without this
     function, the report keeps these permission bits after the move into place.
     """
-    umask = os.umask(0)
+    umask = os.umask(0)  # pragma: no mutate, the next line restores the umask, so the temporary value has no effect
     os.umask(umask)
 
     return 0o666 & ~umask
@@ -133,7 +133,7 @@ def _write_output(path: Path, text: str) -> None:
         os.chmod(temp_name, mode)
         os.replace(temp_name, target)
     except BaseException:
-        Path(temp_name).unlink(missing_ok=True)
+        Path(temp_name).unlink(missing_ok=True)  # pragma: no mutate, the file exists on each failure path
         raise
 
 
@@ -187,7 +187,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--version",
         action="version",
-        version=f"%(prog)s {version('sheridan-iceberg')}",
+        version=f"%(prog)s {version('sheridan-iceberg')}",  # pragma: no mutate, names are not case-sensitive
     )
     parser.add_argument(
         "path",
@@ -197,7 +197,6 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--json",
         action="store_true",
-        default=False,
         help="Write the output as JSON, not as the default tree.",
     )
     parser.add_argument(
@@ -215,7 +214,6 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--show-overload-implementations",
         action="store_true",
-        default=False,
         help=(
             "In the tree output, also show the signature of the implementation of each "
             "overloaded function, after its @overload signatures."
@@ -246,7 +244,6 @@ def _build_parser() -> argparse.ArgumentParser:
     config_source.add_argument(
         "--no-config",
         action="store_true",
-        default=False,
         help="Ignore the configuration files and use the default values.",
     )
     parser.add_argument(
@@ -262,7 +259,6 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--keep-going",
         action="store_true",
-        default=False,
         help=(
             "If iceberg cannot read or parse a module, skip the module and continue. iceberg "
             "prints the errors and the unresolved names to stderr. If it skipped a module, "
@@ -272,7 +268,6 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--traceback",
         action="store_true",
-        default=False,
         help=(
             "If an unexpected error occurs, print the full traceback for a bug report. "
             "The environment variable ICEBERG_DEBUG=1 has the same effect."
@@ -293,7 +288,7 @@ def _print_utf8(text: str) -> None:
         text: The text to print.
     """
     if isinstance(sys.stdout, io.TextIOWrapper):
-        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stdout.reconfigure(encoding="utf-8")  # pragma: no mutate, codec names are not case-sensitive
 
     print(text)
 

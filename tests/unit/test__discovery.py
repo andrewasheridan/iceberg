@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from sheridan.iceberg._config import Config
-from sheridan.iceberg._discovery import DiscoveredModule, discover
+from sheridan.iceberg._discovery import DiscoveredModule, _compute_dotted_name, discover
 from sheridan.iceberg._exceptions import InvalidPathError
 
 
@@ -285,7 +285,7 @@ def test_namespace_package_as_root_includes_namespace_in_dotted_name(
     assert not any(name == "widgets" or name.startswith("widgets.") for name in dotted_names)
 
 
-@pytest.mark.parametrize("dirname", ["my-dir", "1abc", "class", "has space"])
+@pytest.mark.parametrize("dirname", ["my-dir", "1abc", "class", "has space", ".git", ".hidden"])
 def test_non_identifier_directory_is_pruned(tmp_path: Path, dirname: str) -> None:
     """discover skips a directory with a name that is not an identifier (or is a keyword), and its contents."""
     pkg = tmp_path / "pkg"
@@ -375,3 +375,16 @@ def test_exclude_matches_files_with_wildcards(tmp_path: Path) -> None:
     names = set(_by_dotted(discover(root, Config(exclude=("**/*_pb2.py",)))))
 
     assert names == {"pkg", "pkg.sub.real"}
+
+
+@pytest.mark.parametrize(
+    ("py_file", "expected"),
+    [
+        (Path("/x/pkg/sub/mod.py"), ("pkg.sub.mod", ("pkg", "sub"))),
+        (Path("/x/pkg/sub/__init__.py"), ("pkg.sub", ("pkg",))),
+        (Path("/x/my-pkg/mod.py"), ("mod", ())),
+        (Path("/x/my-pkg/__init__.py"), ("my-pkg", ())),
+    ],
+)
+def test_compute_dotted_name(py_file: Path, expected: tuple[str, tuple[str, ...]]) -> None:
+    assert _compute_dotted_name(py_file, Path("/x")) == expected

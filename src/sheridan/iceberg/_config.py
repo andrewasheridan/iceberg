@@ -162,7 +162,9 @@ def _read_text(path: Path) -> str:
         ConfigError: If the function cannot read the file.
     """
     try:
+        # pragma: no mutate start, codec names ignore case, and the locale encoding of the test machines is UTF-8
         return path.read_text(encoding="utf-8")
+        # pragma: no mutate end
     except OSError as exc:
         raise ConfigError(f"Cannot read the configuration file {path}: {exc}") from exc
 
@@ -178,7 +180,9 @@ def _ancestors(start: Path) -> list[Path]:
         and stops at the root of the filesystem.
     """
     resolved = start.resolve()
+    # pragma: no mutate start, a file contains no configuration file, thus the search also continues at the parent
     base = resolved if resolved.is_dir() else resolved.parent
+    # pragma: no mutate end
 
     return [base, *base.parents]
 

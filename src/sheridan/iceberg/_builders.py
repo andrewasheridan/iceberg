@@ -167,7 +167,7 @@ def _decorator_name(decorator: ast.expr) -> str | None:
             return _decorator_name(func)
         case ast.Name(id=name) | ast.Attribute(attr=name):
             return name
-        case _:
+        case _:  # pragma: no mutate, without this arm, the function also returns None
             return None
 
 
@@ -211,9 +211,6 @@ def _is_property_accessor(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
             case ast.Attribute(value=ast.Name(id=owner), attr=attr):
                 if attr in _ACCESSOR_ATTRIBUTES and owner == node.name:
                     return True
-
-            case _:
-                pass
 
     return False
 
@@ -260,7 +257,7 @@ def _build_parameters(
         )
 
     keyword_only: set[Parameter] = set()
-    for arg, default_node in zip(args.kwonlyargs, args.kw_defaults, strict=True):
+    for arg, default_node in zip(args.kwonlyargs, args.kw_defaults, strict=True):  # pragma: no mutate, same length
         kw_default: str | None = None
         if default_node is not None:
             kw_default = _value_source(default_node)
@@ -361,9 +358,6 @@ def build_class(node: ast.ClassDef) -> Class:
                 if keep(alias.name, is_public=alias.is_public):
                     assignments.append(alias)
 
-            case _:
-                pass
-
     return Class(
         name=node.name,
         bases=tuple(ast.unparse(base) for base in node.bases),
@@ -420,7 +414,7 @@ def build_assignment(node: ast.Assign | ast.AnnAssign) -> Assignment | None:
                 annotation=None,
             )
 
-        case _:
+        case _:  # pragma: no mutate, without this arm, the function also returns None
             return None
 
 
@@ -486,7 +480,7 @@ def build_type_alias(node: ast.TypeAlias) -> Assignment:
                 name=name,
                 annotation="TypeAlias",
             )
-        case _:
+        case _:  # pragma: no mutate, the code never gets to this arm
             # The grammar makes TypeAlias.name always an ast.Name. The code never
             # gets to this branch, but the exhaustive type check needs it.
             raise ParseError(  # pragma: no cover

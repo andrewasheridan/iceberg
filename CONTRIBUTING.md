@@ -248,6 +248,9 @@ A pattern selects mutants by name, for example
 `"sheridan.iceberg._builders.x_build_class*"`. mutmut always tests the selected
 mutants again, also if they have a result.
 
+A new or changed test does not reset a result. Thus, after you add tests for the
+mutants that survived, give a pattern for each function to test them again.
+
 A full run takes a long time. To start, select one module with a pattern.
 
 ### Read the results
@@ -294,6 +297,11 @@ and has no comma, mutmut reads that word as a different pragma.
 - If you change `only_mutate` or `do_not_mutate` in `[tool.mutmut]`, run
   `task mutate:clean` first. If you do not, mutmut can keep a plain copy of a file
   in `mutants/` and show errors for its mutants.
+- If most of the mutants show 🫥 no tests, run `task mutate:clean`, then run
+  `task mutate` again. mutmut mutates a file again only if the source file is newer
+  than its copy in `mutants/`. Thus, a plain copy of a file can stay in `mutants/`
+  after a run that stopped or failed. The tests then call no mutated function in
+  that file.
 
 ## Public API snapshot
 
