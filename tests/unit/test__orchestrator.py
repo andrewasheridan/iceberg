@@ -264,6 +264,48 @@ def test_eight_modules_parallel_path(tmp_path: Path) -> None:
     assert expected.issubset(all_names), f"Missing modules: {sorted(expected - all_names)}"
 
 
+def test_process_pool_gives_same_package_as_in_process(tmp_path: Path) -> None:
+    """The process pool and the in-process path give equal results.
+
+    The non-init modules define ``__all__``, and one of them extends it with
+    ``__all__ += _base.__all__``. Thus, the workers must get the parsed trees
+    and ``known_all`` from the parent process.
+    """
+    pkg = tmp_path / "pkg"
+    _write(pkg / "__init__.py", "from ._combined import *\nfrom .public import Thing\n")
+    _write(
+        pkg / "_base.py",
+        '__all__ = ["base_fn"]\n\ndef base_fn() -> int: ...\n\ndef base_helper() -> int: ...\n',
+    )
+    _write(
+        pkg / "_combined.py",
+        "from . import _base\n"
+        "from ._base import *\n"
+        '__all__ = ["combined_fn"]\n'
+        "__all__ += _base.__all__\n"
+        "\n"
+        "def combined_fn() -> int: ...\n",
+    )
+    _write(
+        pkg / "public.py",
+        '__all__ = ["Thing"]\n\nclass Thing: ...\n\ndef not_exported() -> None: ...\n',
+    )
+    _write(pkg / "sub" / "__init__.py", "from ._impl import *\n")
+    _write(
+        pkg / "sub" / "_impl.py",
+        '__all__ = ["impl_fn"]\n\ndef impl_fn() -> str: ...\n\ndef impl_helper() -> str: ...\n',
+    )
+
+    in_process = _build_dir(pkg, Config(max_workers=1))
+    pooled = _build_dir(pkg, Config(max_workers=2))
+
+    assert pooled == in_process
+
+    # Make sure that the comparison is not trivial: `__all__ +=` moved base_fn up.
+    init_module = next(m for m in in_process.modules if m.name == "pkg")
+    assert {f.name for f in init_module.functions} == {"base_fn", "combined_fn"}
+
+
 def test_default_config_safe_in_unguarded_script(tmp_path: Path) -> None:
     """A plain script with no ``if __name__ == "__main__":`` guard must work.
 
