@@ -35,7 +35,8 @@ code, and it has no runtime dependencies.
   the names `_x` and `__x` (name-mangled) are private.
 - iceberg follows re-exports through `__init__.py`. It understands relative
   imports, absolute imports, namespace packages, and imports in `try` and `if`
-  blocks.
+  blocks. A lazy import (`lazy from ._core import thing`) resolves the same as an
+  eager import, and the output does not show `lazy`.
 - A star import (`from ._core import *`) from a module in the analyzed tree
   gives the `__all__` of that module. If that module has no `__all__`, it gives
   the public names of the module.
@@ -49,6 +50,11 @@ code, and it has no runtime dependencies.
 ```bash
 pip install sheridan-iceberg
 ```
+
+iceberg reads source with the `ast` module of the Python that runs it. It can read
+only the syntax that this Python knows. For example, to analyze code that uses lazy
+imports (`lazy import`, new in Python 3.15), run iceberg on Python 3.15 or later. On
+Python 3.14, iceberg gives an `invalid syntax` error for this code.
 
 ## CLI
 
