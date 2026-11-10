@@ -104,8 +104,12 @@ never leaves a partial file and never overwrites the old file.
   The link does not change.
 - If the file exists, it keeps its permission bits. After iceberg writes the file, the
   user who ran iceberg owns it.
-- If PATH is not a regular file (for example `/dev/stdout` or a named pipe),
-  iceberg writes to it directly, without a temporary file.
+- If PATH names an open file descriptor (for example `/dev/stdout` or
+  `/dev/fd/1`), iceberg writes to that descriptor. Thus the report goes where the
+  shell sent the descriptor. With `-o /dev/stdout >> log.txt`, iceberg adds the
+  report to the end of `log.txt`.
+- If PATH is not a regular file (for example a named pipe), iceberg writes to it
+  directly, without a temporary file.
 
 ### Continue after bad files
 

@@ -152,3 +152,12 @@ def test_json_output_is_identical_for_copies_in_different_directories(tmp_path: 
     parsed = json.loads(first_result.stdout)
 
     assert parsed["path"] == "."
+
+
+@pytest.mark.skipif(not Path("/dev/stdout").exists(), reason="needs /dev/stdout")
+def test_output_to_dev_stdout_when_stdout_is_a_pipe(real_package_path: Path) -> None:
+    """``-o /dev/stdout`` sends the report to stdout when stdout is a pipe (#262)."""
+    result = _run([str(real_package_path), "-o", "/dev/stdout"])
+
+    assert result.returncode == 0, f"Expected exit code 0, got {result.returncode}.\nstderr: {result.stderr!r}"
+    assert "get_public_api" in result.stdout

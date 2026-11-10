@@ -20,6 +20,8 @@ from sheridan.iceberg._exceptions import IcebergError
 from sheridan.iceberg._formatter import format_diagnostic, format_json, format_tree
 
 _ISSUES_URL = "https://github.com/andrewasheridan/iceberg/issues"
+# The same limit as the Linux kernel, so that a symlink loop does not make the CLI run forever.
+_MAX_SYMLINK_HOPS = 40
 
 
 def _traceback_requested(args: argparse.Namespace) -> bool:
@@ -86,6 +88,39 @@ def _new_file_mode() -> int:
     return 0o666 & ~umask
 
 
+def _descriptor_of(path: Path) -> int | None:
+    """Find the open file descriptor that *path* names, if it names one.
+
+    A descriptor path is a path such as ``/dev/fd/1`` or ``/proc/self/fd/1``.
+    The function follows the symlinks of *path* one link at a time. Thus it
+    also finds ``/dev/stdout``, which is a link to a descriptor path.
+
+    The function does not resolve the link of the descriptor path. On Linux,
+    that link gives the file behind the descriptor, or a text such as
+    ``pipe:[1234]`` that is not a real path.
+
+    Args:
+        path: The path from the command line.
+
+    Returns:
+        The number of the descriptor, or ``None`` if *path* does not name a
+        descriptor of this process.
+    """
+    descriptor_dirs = {"/dev/fd", "/proc/self/fd", "/proc/thread-self/fd", f"/proc/{os.getpid()}/fd"}
+    current = path.absolute()
+
+    for _ in range(_MAX_SYMLINK_HOPS):
+        if str(current.parent) in descriptor_dirs and current.name.isdigit():
+            return int(current.name)
+
+        if not current.is_symlink():
+            return None
+
+        current = current.parent / os.readlink(current)
+
+    return None
+
+
 def _write_output(path: Path, text: str) -> None:
     """Write *text* to *path* as UTF-8 with a final newline, and replace the file atomically.
 
@@ -97,9 +132,13 @@ def _write_output(path: Path, text: str) -> None:
     leaves a partial file and never destroys the old file. An existing file
     keeps its permission bits.
 
-    If the path exists but is not a regular file (for example ``/dev/stdout`` or
-    a named pipe), the function writes to it directly. It cannot replace such a
+    If the path names an open file descriptor (for example ``/dev/stdout`` or
+    ``/dev/fd/1``), the function writes to that descriptor. Thus the report goes
+    where the shell sent the descriptor, and a ``>>`` redirection appends to its
     file.
+
+    If the path exists but is not a regular file (for example a named pipe), the
+    function writes to it directly. It cannot replace such a file.
 
     Args:
         path: The file to write.
@@ -109,6 +148,14 @@ def _write_output(path: Path, text: str) -> None:
         OSError: If the function cannot write the file.
     """
     data = f"{text}\n".encode()
+    descriptor = _descriptor_of(path)
+
+    if descriptor is not None:
+        with os.fdopen(descriptor, "wb", closefd=False) as file:
+            file.write(data)
+
+        return
+
     target = path.resolve()
 
     try:
@@ -208,7 +255,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "Write the report to PATH as UTF-8, not to stdout. iceberg replaces the file "
             "only when the report is complete. Thus, an error never leaves a partial file. "
             "iceberg follows symlinks, and an existing file keeps its permissions. iceberg "
-            "writes directly to a file that is not regular, such as /dev/stdout."
+            "writes directly to a file descriptor, such as /dev/stdout, and to a file that "
+            "is not regular, such as a named pipe."
         ),
     )
     parser.add_argument(
