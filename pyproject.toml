@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sheridan-iceberg"
-version = "8.0.8"
+version = "8.0.9"
 description = "Reports the public API surface of Python modules"
 readme = "README.md"
 license = "MIT"
@@ -138,7 +138,7 @@ type_check_command = ["pyrefly", "check", "--output-format", "json", "--use-igno
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "8.0.8"
+version = "8.0.9"
 version_files = [
     "pyproject.toml:^version",
 ]
