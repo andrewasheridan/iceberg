@@ -3,6 +3,7 @@ sheridan.iceberg._api (get_public_api).
 """
 
 import ast
+import os
 import re
 import subprocess
 import sys
@@ -737,3 +738,90 @@ def test_reexport_chain_with_absolute_import_through_namespace_parent(tmp_path: 
 
     assert [cls.name for cls in init.classes] == ["X"]
     assert init.references == ()
+
+
+def _subpackage_names(pkg: Package) -> list[str]:
+    return [subpackage.name for subpackage in pkg.subpackages]
+
+
+class TestRootWithoutTopLevelModule:
+    """A root directory that has packages but no ``.py`` file directly in it."""
+
+    def test_regular_packages_are_all_subpackages_of_the_root(self, tmp_path: Path) -> None:
+        src = tmp_path / "src"
+        _write(src / "alpha" / "__init__.py", "def a() -> None: ...\n")
+        _write(src / "beta" / "__init__.py", "def b() -> None: ...\n")
+
+        result = _build_dir(src, _default_config())
+
+        assert result.name == "src"
+        assert result.path == src
+        assert result.modules == ()
+        assert _subpackage_names(result) == ["src.alpha", "src.beta"]
+
+    def test_namespace_packages_are_all_subpackages_of_the_root(self, tmp_path: Path) -> None:
+        src = tmp_path / "src"
+        _write(src / "alpha" / "core.py", "def a() -> None: ...\n")
+        _write(src / "beta" / "core.py", "def b() -> None: ...\n")
+
+        result = _build_dir(src, _default_config())
+
+        assert result.name == "src"
+        assert _subpackage_names(result) == ["src.alpha", "src.beta"]
+        assert _all_module_names(result) == {"src.alpha.core", "src.beta.core"}
+
+    def test_directories_without_modules_between_root_and_package_become_packages(self, tmp_path: Path) -> None:
+        src = tmp_path / "src"
+        _write(src / "alpha" / "__init__.py", "def a() -> None: ...\n")
+        _write(src / "beta" / "deep" / "inner" / "core.py", "def b() -> None: ...\n")
+
+        result = _build_dir(src, _default_config())
+        (_, beta) = result.subpackages
+        (deep,) = beta.subpackages
+        (inner,) = deep.subpackages
+
+        assert (beta.name, beta.path) == ("src.beta", src / "beta")
+        assert (deep.name, deep.path) == ("src.beta.deep", src / "beta" / "deep")
+        assert inner.name == "src.beta.deep.inner"
+        assert _all_module_names(result) == {"src.alpha", "src.beta.deep.inner.core"}
+
+    def test_top_level_module_and_deep_package_are_connected(self, tmp_path: Path) -> None:
+        src = tmp_path / "src"
+        _write(src / "top.py", "def t() -> None: ...\n")
+        _write(src / "beta" / "deep" / "core.py", "def b() -> None: ...\n")
+
+        result = _build_dir(src, _default_config())
+
+        assert _all_module_names(result) == {"src.top", "src.beta.deep.core"}
+
+    def test_one_package_stays_the_root(self, tmp_path: Path) -> None:
+        src = tmp_path / "src"
+        _write(src / "ns" / "pkg" / "__init__.py", "def a() -> None: ...\n")
+
+        result = _build_dir(src, _default_config())
+
+        assert result.name == "src.ns.pkg"
+        assert result.path == src / "ns" / "pkg"
+
+    def test_result_is_the_same_for_each_hash_seed(self, tmp_path: Path) -> None:
+        """The set order changes with ``PYTHONHASHSEED``. Thus, run the CLI in a new process for each seed."""
+        src = tmp_path / "src"
+        for name in ("alpha", "beta", "gamma"):
+            _write(src / name / "__init__.py", f"def {name}() -> None: ...\n")
+
+        outputs: set[str] = set()
+        for seed in ("0", "1", "2", "3"):
+            completed = subprocess.run(
+                [sys.executable, "-m", "sheridan.iceberg", "--no-config", str(src)],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=True,
+                env={**os.environ, "PYTHONHASHSEED": seed},
+            )
+            outputs.add(completed.stdout)
+
+        (output,) = outputs
+        assert "package src.alpha" in output
+        assert "package src.beta" in output
+        assert "package src.gamma" in output

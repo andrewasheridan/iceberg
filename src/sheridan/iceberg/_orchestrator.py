@@ -217,6 +217,24 @@ def _child_names_by_package(all_discovered: tuple[DiscoveredModule, ...]) -> dic
     return {parent: frozenset(names) for parent, names in children.items()}
 
 
+def _common_prefix(parts_set: set[tuple[str, ...]]) -> tuple[str, ...]:
+    """Find the longest tuple that is a prefix of each tuple in *parts_set*.
+
+    Args:
+        parts_set: The parts tuples of the package nodes. It must not be empty.
+
+    Returns:
+        The common prefix. It is empty if the tuples have no common first component.
+    """
+    shortest = min(parts_set, key=len)
+
+    for index, component in enumerate(shortest):
+        if any(parts[index] != component for parts in parts_set):
+            return shortest[:index]
+
+    return shortest
+
+
 def _build_trie(
     module_map: dict[str, Module],
     all_discovered: tuple[DiscoveredModule, ...],
@@ -273,10 +291,25 @@ def _build_trie(
     # Collect all the unique package_parts tuples to identify each package node.
     all_pkg_parts: set[tuple[str, ...]] = set()
     for dm in all_discovered:
-        if dm.is_init:
-            all_pkg_parts.add(tuple(dm.dotted_name.split(".")))
-        else:
-            all_pkg_parts.add(dm.package_parts)
+        pkg_parts = tuple(dm.dotted_name.split(".")) if dm.is_init else dm.package_parts
+        all_pkg_parts.add(pkg_parts)
+        parts_to_path.setdefault(pkg_parts, dm.source_path.parent)
+
+    if not all_pkg_parts:
+        return Package(name=root.name, path=root, modules=(), subpackages=())
+
+    # The root is the longest prefix that all the nodes have. If no module is
+    # directly in the root directory, no node has these parts, and possibly no
+    # node has the parts between the root and a deeper package. Add these
+    # nodes, so that each node has a parent up to the root.
+    root_parts = _common_prefix(all_pkg_parts)
+    for pkg_parts in list(all_pkg_parts):
+        package_dir = parts_to_path[pkg_parts]
+
+        for end in range(len(root_parts), len(pkg_parts)):
+            ancestor = pkg_parts[:end]
+            all_pkg_parts.add(ancestor)
+            parts_to_path.setdefault(ancestor, package_dir.parents[len(pkg_parts) - end - 1])
 
     # Index the direct child nodes of each node one time, so that _make_package
     # does not scan all the nodes for each node.
@@ -348,14 +381,6 @@ def _build_trie(
             modules=direct_modules,
             subpackages=tuple(subpackages),
         )
-
-    if not all_pkg_parts:
-        return Package(name=root.name, path=root, modules=(), subpackages=())
-
-    # The root is the shortest parts tuple. There is only one such tuple.
-    # pragma: no mutate start, all tuples start with the root parts, thus the shortest is also the smallest
-    root_parts = min(all_pkg_parts, key=len)
-    # pragma: no mutate end
 
     return _make_package(root_parts)
 
