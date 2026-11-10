@@ -11,6 +11,17 @@ iceberg needs Python 3.14 or later. It has no runtime dependencies.
 pip install sheridan-iceberg
 ```
 
+iceberg does not support Python 3.13 or earlier, and there is no plan to add this
+support. If your project uses an earlier Python, run iceberg as a tool in a separate
+environment:
+
+```bash
+uvx --from sheridan-iceberg iceberg src/mypkg
+```
+
+iceberg does not import your code. Thus, it can analyze a package that runs on an
+earlier Python.
+
 iceberg reads source with the `ast` module of the Python that runs it. It can read
 only the syntax that this Python knows. For example, to analyze code that uses lazy
 imports (`lazy import`, new in Python 3.15), run iceberg on Python 3.15 or later. On
