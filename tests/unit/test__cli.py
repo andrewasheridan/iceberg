@@ -844,6 +844,70 @@ class TestOutput:
         assert stat.S_ISFIFO(fifo.stat().st_mode)
         assert sorted(p.name for p in tmp_path.iterdir()) == ["api.fifo", "pkg"]
 
+    @pytest.mark.parametrize(
+        "descriptor_dir",
+        [
+            pytest.param("/dev/fd", marks=pytest.mark.skipif(not Path("/dev/fd").is_dir(), reason="needs /dev/fd")),
+            pytest.param(
+                "/proc/self/fd",
+                marks=pytest.mark.skipif(not Path("/proc/self/fd").is_dir(), reason="needs /proc/self/fd"),
+            ),
+        ],
+    )
+    def test_descriptor_path_of_a_pipe_gets_the_report(self, descriptor_dir: str, package: Path) -> None:
+        # On Linux, the resolved path of a pipe descriptor is "pipe:[INODE]", which does not exist (#262).
+        read_fd, write_fd = os.pipe()
+
+        try:
+            assert main([str(package), "--no-config", "-o", f"{descriptor_dir}/{write_fd}"]) == 0
+            os.close(write_fd)
+            received = os.read(read_fd, 65536).decode()
+        finally:
+            os.close(read_fd)
+
+        assert "def greet() -> str" in received
+
+    @pytest.mark.skipif(not Path("/dev/fd").is_dir(), reason="needs /dev/fd")
+    def test_descriptor_path_appends_to_a_file_opened_for_append(self, package: Path, tmp_path: Path) -> None:
+        log = tmp_path / "log.txt"
+        log.write_text("previous\n", encoding="utf-8")
+        fd = os.open(log, os.O_WRONLY | os.O_APPEND)
+
+        try:
+            assert main([str(package), "--no-config", "-o", f"/dev/fd/{fd}"]) == 0
+        finally:
+            os.close(fd)
+
+        text = log.read_text(encoding="utf-8")
+
+        assert text.startswith("previous\n")
+        assert "def greet() -> str" in text
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["log.txt", "pkg"]
+
+    @pytest.mark.skipif(not Path("/dev/fd").is_dir(), reason="needs /dev/fd")
+    def test_symlink_to_a_descriptor_path_gets_the_report(self, package: Path, tmp_path: Path) -> None:
+        read_fd, write_fd = os.pipe()
+        link = tmp_path / "out"
+        link.symlink_to(f"/dev/fd/{write_fd}")
+
+        try:
+            assert main([str(package), "--no-config", "-o", str(link)]) == 0
+            os.close(write_fd)
+            received = os.read(read_fd, 65536).decode()
+        finally:
+            os.close(read_fd)
+
+        assert "def greet() -> str" in received
+        assert link.is_symlink()
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="needs POSIX symlinks")
+    def test_symlink_loop_returns_1(self, package: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        loop = tmp_path / "loop"
+        loop.symlink_to(loop)
+
+        assert main([str(package), "--no-config", "-o", str(loop)]) == 1
+        assert capsys.readouterr().err.startswith(f"error: cannot write {loop}: ")
+
     def test_keep_going_still_writes_file(
         self, package: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -895,7 +959,8 @@ class TestParser:
                 "Write the report to PATH as UTF-8, not to stdout. iceberg replaces the file "
                 "only when the report is complete. Thus, an error never leaves a partial file. "
                 "iceberg follows symlinks, and an existing file keeps its permissions. iceberg "
-                "writes directly to a file that is not regular, such as /dev/stdout.",
+                "writes directly to a file descriptor, such as /dev/stdout, and to a file that "
+                "is not regular, such as a named pipe.",
             ),
             "show_overload_implementations": (
                 None,
