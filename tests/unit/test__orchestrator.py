@@ -377,6 +377,31 @@ def test_non_identifier_root_directory_keeps_its_subpackages(tmp_path: Path) -> 
     assert [subpackage.name for subpackage in result.subpackages] == ["pkg"]
 
 
+def test_non_identifier_root_directory_puts_its_init_in_the_root(tmp_path: Path) -> None:
+    """The __init__.py of a root that is not an identifier is in the root package, not in a nested copy."""
+    root = tmp_path / "my-pkg"
+    _write(root / "__init__.py", "def f() -> None: ...\n")
+    _write(root / "mod.py", "def g() -> None: ...\n")
+
+    result = _build_dir(root, _default_config())
+
+    assert result.name == "my-pkg"
+    assert result.subpackages == ()
+    assert [module.name for module in result.modules] == ["mod", "my-pkg"]
+
+
+def test_non_identifier_root_directory_applies_the_all_of_its_init(tmp_path: Path) -> None:
+    """The __all__ of the root __init__.py filters the root package when the root is not an identifier."""
+    root = tmp_path / "my-pkg"
+    _write(root / "__init__.py", '__all__ = ["f"]\n\ndef f() -> None: ...\n')
+    _write(root / "mod.py", "def g() -> None: ...\n")
+
+    result = _build_dir(root, _default_config())
+
+    assert result.subpackages == ()
+    assert [module.name for module in result.modules] == ["my-pkg"]
+
+
 def _init_module(result: Package, name: str) -> Module:
     return next(mod for mod in result.modules if mod.name == name)
 
