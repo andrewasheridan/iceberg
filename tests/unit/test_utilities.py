@@ -498,6 +498,15 @@ def test_path_missing_name_raises_type_error_for_invalid_file(tmp_path: Path, ge
         getter(file)
 
 
+@pytest.mark.parametrize(
+    ("value", "type_name"),
+    [(42, "int"), (b"x = 1", "bytes"), (ast.parse("x = 1"), "Module")],
+)
+def test_get_assignment_unsupported_type_raises_type_error(value: object, type_name: str) -> None:
+    with pytest.raises(TypeError, match=type_name):
+        get_assignment(value)  # type: ignore[call-overload]
+
+
 def test_get_assignment_path_name_not_found_raises_not_found_error(tmp_path: Path) -> None:
     src = "MY_CONST: int = 99\n"
     file: Path = tmp_path / "consts.py"

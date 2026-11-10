@@ -388,7 +388,8 @@ def get_assignment(
             no assignment with that name.
         SourceReadError: If you give a ``Path``, but the function cannot
             read or decode the file.
-        TypeError: If you give a ``Path`` without ``name``.
+        TypeError: If you give a ``Path`` without ``name``, or if
+            the input is not one of the supported types.
     """
     match source_or_node_or_path:
         case ast.TypeAlias():
@@ -418,6 +419,9 @@ def get_assignment(
                 return found
 
             raise NotFoundError(f"{source_or_node_or_path} has no assignment {name!r}")
+
+        case _:
+            raise TypeError(f"get_assignment does not support the type {type(source_or_node_or_path).__name__!r}")
 
 
 @overload
