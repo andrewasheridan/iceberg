@@ -273,7 +273,7 @@ an identifier.
 
 To skip more paths, give `--exclude` one or more times, or set `exclude` in the
 configuration (see below). Each value is a glob. iceberg compares it with the
-path of each directory and file, relative to the directory that you give.
+path of each directory and file, relative to the analyzed directory (`path`).
 `**` matches zero or more directories:
 
 ```bash

@@ -273,7 +273,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default=[],
         metavar="GLOB",
         help=(
-            "Skip the directories and files whose path relative to PATH matches GLOB. "
+            "Skip the directories and files whose path relative to the analyzed directory "
+            "(path) matches GLOB. "
             "You can give this option more than one time. It adds to the 'exclude' "
             "list from the configuration file."
         ),

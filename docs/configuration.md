@@ -82,7 +82,7 @@ always have priority over the file.
 | `--config PATH` | Read only `PATH` and do not search. If the name of the file is `pyproject.toml`, iceberg reads its `[tool.iceberg]` table. |
 | `--no-config` | Ignore all configuration files and use the default values. You cannot use it with `--config`. |
 | `--max-workers N` | Replace `max_workers`. |
-| `--exclude GLOB` | Add `GLOB` to `exclude`. You can give this option more than one time. |
+| `--exclude GLOB` | Add `GLOB` to `exclude`. iceberg compares `GLOB` with paths relative to the analyzed directory. You can give this option more than one time. |
 
 ```bash
 iceberg src/mypkg --config ci/iceberg.toml --max-workers 4
