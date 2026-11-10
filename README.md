@@ -345,7 +345,7 @@ api = get_public_api(Path("src/mypkg"), config=Config(test_module_pattern=re.com
 ```bash
 task install            # set up the environment
 uv run prek install     # install the Git hooks
-task ci                 # lint, format check, type check, tests
+task check              # lint, format check, type check, tests
 ```
 
 For more information, see [CONTRIBUTING.md](CONTRIBUTING.md).
