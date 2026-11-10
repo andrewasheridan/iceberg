@@ -8,7 +8,7 @@ import pytest
 
 from sheridan.iceberg._exceptions import IcebergError, SnapshotError
 from sheridan.iceberg._formatter import JSON_SCHEMA_VERSION, format_json
-from sheridan.iceberg._loader import load_json
+from sheridan.iceberg._loader import _field, load_json
 from sheridan.iceberg._models import (
     Assignment,
     Class,
@@ -139,7 +139,7 @@ def test_invalid_json_raises() -> None:
 
 
 def test_top_level_must_be_an_object() -> None:
-    with pytest.raises(SnapshotError, match="JSON object"):
+    with pytest.raises(SnapshotError, match=r"^the value must be a JSON object, not list$"):
         load_json("[]")
 
 
@@ -181,7 +181,7 @@ def test_unexpected_node_type_raises() -> None:
     data = _snapshot()
     data["classes"][0]["node_type"] = "function"
 
-    with pytest.raises(SnapshotError, match="node_type must be 'class'"):
+    with pytest.raises(SnapshotError, match=r"^node_type must be 'class', not 'function'$"):
         load_json(json.dumps(data))
 
 
@@ -189,7 +189,7 @@ def test_non_object_node_raises() -> None:
     data = _snapshot()
     data["classes"] = ["C"]
 
-    with pytest.raises(SnapshotError, match="JSON object"):
+    with pytest.raises(SnapshotError, match=r"^the value must be a JSON object, not str$"):
         load_json(json.dumps(data))
 
 
@@ -225,3 +225,62 @@ def test_class_without_bases_or_keywords_raises(key: str) -> None:
 
     with pytest.raises(SnapshotError, match=f"missing field '{key}'"):
         load_json(json.dumps(data))
+
+
+@pytest.mark.parametrize(
+    ("key", "node_type"),
+    [("functions", "function"), ("assignments", "assignment"), ("references", "reference")],
+)
+def test_module_member_with_wrong_node_type_raises(key: str, node_type: str) -> None:
+    data = _snapshot()
+    data[key][0]["node_type"] = "class"
+
+    with pytest.raises(SnapshotError, match=rf"^node_type must be '{node_type}', not 'class'$"):
+        load_json(json.dumps(data))
+
+
+@pytest.mark.parametrize(("key", "node_type"), [("modules", "module"), ("subpackages", "package")])
+def test_package_member_with_wrong_node_type_raises(key: str, node_type: str, tmp_path: Path) -> None:
+    data = json.loads(format_json(_package(tmp_path)))
+    data[key][0]["node_type"] = "class"
+
+    with pytest.raises(SnapshotError, match=rf"^node_type must be '{node_type}', not 'class'$"):
+        load_json(json.dumps(data))
+
+
+def test_wrong_field_type_message_names_the_object_and_the_type() -> None:
+    data = _snapshot()
+    data["functions"][0]["returns"] = 3
+
+    with pytest.raises(SnapshotError, match=r"^field 'returns' in function 'f' has the wrong type: int$"):
+        load_json(json.dumps(data))
+
+
+def test_object_without_a_string_name_is_named_by_its_node_type() -> None:
+    data = _snapshot()
+    data["functions"][0]["name"] = 1
+
+    with pytest.raises(SnapshotError, match=r"^field 'name' in function has the wrong type: int$"):
+        load_json(json.dumps(data))
+
+
+def test_object_without_node_type_is_named_object() -> None:
+    data = _snapshot()
+    del data["functions"][0]["positional_parameters"][0]["annotation"]
+
+    with pytest.raises(SnapshotError, match=r"^missing field 'annotation' in object 'x'$"):
+        load_json(json.dumps(data))
+
+
+def test_object_without_node_type_or_name_is_named_object() -> None:
+    with pytest.raises(SnapshotError, match=r"^missing field 'k' in object$"):
+        _field({}, "k", str)
+
+
+def test_field_accepts_bool_if_the_allowed_types_include_bool() -> None:
+    assert _field({"k": True}, "k", (bool, type(None))) is True
+
+
+def test_field_rejects_bool_for_an_int_field() -> None:
+    with pytest.raises(SnapshotError, match="has the wrong type: bool"):
+        _field({"k": True}, "k", int)

@@ -7,7 +7,16 @@ from typing import Any
 
 import pytest
 
-from sheridan.iceberg._formatter import JSON_SCHEMA_VERSION, format_diagnostic, format_json, format_tree
+from sheridan.iceberg._formatter import (
+    JSON_SCHEMA_VERSION,
+    _reference_str,
+    _relative_path,
+    _sort_key,
+    _to_plain,
+    format_diagnostic,
+    format_json,
+    format_tree,
+)
 from sheridan.iceberg._models import (
     Assignment,
     Class,
@@ -971,3 +980,67 @@ class TestDiagnostics:
         module = Module(name="m", assignments=(), classes=(), functions=())
 
         assert json.loads(format_json(module, ()))["diagnostics"] == []
+
+
+def test_format_tree_recognizes_overload_decorator_with_many_dots() -> None:
+    *_, last = _overloaded().overloads
+    fn = dataclasses.replace(last, decorators=("pkg.typing.overload",), overloads=_overloaded().overloads)
+
+    result = format_tree(_make_module(name="m", functions=(fn,)), show_overload_implementation=True)
+
+    assert result.splitlines() == [
+        "module m",
+        "├── def f(x: int) -> int",
+        "└── def f(x: str) -> str",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("reference", "expected"),
+    [
+        (Reference(name="a", module="a.b", attribute=None), "import a.b"),
+        (Reference(name="ab", module="a.b", attribute=None), "import a.b as ab"),
+    ],
+)
+def test_reference_str_dotted_import(reference: Reference, expected: str) -> None:
+    assert _reference_str(reference) == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ({"name": "b", "x": 1}, "b"),
+        ("username", '"username"'),
+        (["b", "a"], '["b", "a"]'),
+        ({"b": 1, "a": 2}, '{"a": 2, "b": 1}'),
+    ],
+)
+def test_sort_key(value: Any, expected: str) -> None:
+    assert _sort_key(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("path", "root", "expected"),
+    [
+        (Path("/r/pkg/mod.py"), Path("/r/pkg"), "mod.py"),
+        (Path("/r/pkg"), Path("/r/pkg"), "."),
+        (Path("/elsewhere/mod.py"), Path("/r/pkg"), "mod.py"),
+        (Path("/"), None, "."),
+    ],
+)
+def test_relative_path(path: Path, root: Path | None, expected: str) -> None:
+    assert _relative_path(path, root) == expected
+
+
+@pytest.mark.parametrize("container", [frozenset, tuple])
+def test_to_plain_renders_paths_in_containers_relative_to_root(container: Any) -> None:
+    assert _to_plain(container([Path("/r/sub/a.py")]), Path("/r")) == ["sub/a.py"]
+
+
+def test_format_json_diagnostic_paths_are_relative_to_root() -> None:
+    package = _make_package(name="pkg", path=Path("/r/pkg"))
+    diagnostic = Diagnostic(severity="error", module="pkg.bad", path=Path("/r/pkg/sub/bad.py"), message="boom")
+
+    data = json.loads(format_json(package, (diagnostic,)))
+
+    assert data["diagnostics"][0]["path"] == "sub/bad.py"

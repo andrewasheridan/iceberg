@@ -3,6 +3,7 @@ sheridan.iceberg._api (get_public_api).
 """
 
 import ast
+import re
 import subprocess
 import sys
 import warnings
@@ -14,9 +15,16 @@ import pytest
 
 from sheridan.iceberg._api import get_public_api
 from sheridan.iceberg._config import Config
-from sheridan.iceberg._exceptions import ParseError, SourceReadError
+from sheridan.iceberg._discovery import discover
+from sheridan.iceberg._exceptions import IcebergError, ParseError, SourceReadError
 from sheridan.iceberg._models import Diagnostic, Function, Module, Package, Reference
-from sheridan.iceberg._orchestrator import build_package, unresolved_name_warnings
+from sheridan.iceberg._orchestrator import (
+    _child_names_by_package,
+    _error_diagnostic,
+    _evaluate_all,
+    build_package,
+    unresolved_name_warnings,
+)
 
 
 def _write(path: Path, text: str = "") -> Path:
@@ -594,7 +602,7 @@ class TestKeepGoing:
         result = build_package(tmp_path / "pkg", _default_config(), errors=errors)
 
         assert isinstance(result, Package)
-        assert "pkg.sub.mod" in _all_module_names(result)
+        assert _all_module_names(result) == {"pkg", "pkg.sub.mod"}
         assert [error.module for error in errors] == ["pkg.sub"]
 
     def test_errors_are_sorted_by_module(self, tmp_path: Path) -> None:
@@ -630,7 +638,102 @@ class TestUnresolvedNameWarnings:
 
         assert [(w.module, w.path) for w in unresolved_name_warnings(api, path)] == [("solo", path)]
 
+    def test_warnings_are_sorted_by_module_name(self, tmp_path: Path) -> None:
+        _write(tmp_path / "pkg" / "__init__.py")
+        _write(tmp_path / "pkg" / "b.py", '__all__ = ["ghost_b"]\n')
+        _write(tmp_path / "pkg" / "sub" / "__init__.py", '__all__ = ["ghost_sub"]\n')
+        api = build_package(tmp_path / "pkg", _default_config())
+
+        assert [w.module for w in unresolved_name_warnings(api, tmp_path / "pkg")] == ["pkg.b", "pkg.sub"]
+
+    def test_resolved_reference_before_an_unresolved_one(self, tmp_path: Path) -> None:
+        path = _write(tmp_path / "solo.py", '__all__ = ["a", "ghost"]\nfrom math import sqrt as a\n')
+        api = build_package(path, _default_config())
+
+        assert [w.message for w in unresolved_name_warnings(api, path)] == ["'ghost' is exported but never bound"]
+
     def test_no_references_no_warnings(self, tmp_path: Path) -> None:
         _write(tmp_path / "pkg" / "__init__.py", "def f() -> None: ...\n")
 
         assert unresolved_name_warnings(build_package(tmp_path / "pkg", _default_config()), tmp_path / "pkg") == []
+
+
+def test_error_diagnostic_without_message_attribute_uses_str() -> None:
+    diagnostic = _error_diagnostic("pkg.mod", Path("mod.py"), IcebergError("boom"))
+
+    assert (diagnostic.message, diagnostic.lineno) == ("boom", None)
+
+
+def test_evaluate_all_resolves_relative_import_in_nested_module(tmp_path: Path) -> None:
+    pkg = tmp_path / "pkg"
+    _write(pkg / "__init__.py")
+    _write(pkg / "sub" / "__init__.py")
+    _write(pkg / "sub" / "other.py", '__all__ = ["x"]\n')
+    _write(pkg / "sub" / "mod.py", "from .other import __all__\n")
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        known_all = _evaluate_all(discover(pkg, _default_config()), {})
+
+    assert known_all["pkg.sub.mod"] == {"x"}
+
+
+def test_child_names_by_package_maps_each_package_to_its_direct_children(tmp_path: Path) -> None:
+    pkg = tmp_path / "pkg"
+    _write(pkg / "__init__.py")
+    _write(pkg / "a.py")
+    _write(pkg / "sub" / "__init__.py")
+    _write(pkg / "sub" / "deep" / "b.py")
+
+    assert _child_names_by_package(discover(pkg, _default_config())) == {
+        "pkg": frozenset({"a", "sub"}),
+        "pkg.sub": frozenset({"deep"}),
+        "pkg.sub.deep": frozenset({"b"}),
+    }
+
+
+def test_nested_package_all_filters_by_short_name(tmp_path: Path) -> None:
+    pkg = tmp_path / "pkg"
+    _write(pkg / "__init__.py")
+    _write(pkg / "sub" / "__init__.py", '__all__ = ["mod", "deep"]\n')
+    _write(pkg / "sub" / "mod.py", "def f() -> None: ...\n")
+    _write(pkg / "sub" / "hidden.py", "def g() -> None: ...\n")
+    _write(pkg / "sub" / "deep" / "__init__.py")
+    _write(pkg / "sub" / "other" / "__init__.py", "def h() -> None: ...\n")
+
+    result = _build_dir(pkg, _default_config())
+
+    assert _all_module_names(result) == {"pkg", "pkg.sub", "pkg.sub.mod", "pkg.sub.deep"}
+
+
+def test_single_file_warning_names_the_file(tmp_path: Path) -> None:
+    path = _write(tmp_path / "solo.py", "__all__ = make()\n")
+
+    with pytest.warns(UserWarning, match=rf"^{re.escape(str(path))}:1: cannot evaluate __all__"):
+        build_package(path, _default_config())
+
+
+def test_subpackage_init_is_resolved_before_its_parent(tmp_path: Path) -> None:
+    pkg = tmp_path / "pkg"
+    _write(pkg / "__init__.py", 'from .sub import thing\n__all__ = ["thing"]\n')
+    _write(pkg / "sub" / "__init__.py", 'from ._impl import thing\n__all__ = ["thing"]\n')
+    _write(pkg / "sub" / "_impl.py", "def thing() -> None: ...\n")
+
+    result = _build_dir(pkg, _default_config())
+    init = _init_module(result, "pkg")
+
+    assert [function.name for function in init.functions] == ["thing"]
+    assert init.references == ()
+
+
+def test_reexport_chain_with_absolute_import_through_namespace_parent(tmp_path: Path) -> None:
+    pkg = tmp_path / "ns" / "pkg"
+    _write(pkg / "__init__.py", 'from ._a import X\n__all__ = ["X"]\n')
+    _write(pkg / "_a.py", 'from ns.pkg._b import X\n__all__ = ["X"]\n')
+    _write(pkg / "_b.py", "class X:\n    pass\n")
+
+    result = _build_dir(pkg, _default_config())
+    (init,) = result.modules
+
+    assert [cls.name for cls in init.classes] == ["X"]
+    assert init.references == ()

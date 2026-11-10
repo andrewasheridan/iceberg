@@ -1,5 +1,6 @@
 """Test sheridan.iceberg._api."""
 
+import re
 from pathlib import Path
 
 import pytest
@@ -66,3 +67,10 @@ class TestGetPublicApiReport:
         target.write_text("def f() -> None: ...\n", encoding="utf-8")
 
         assert get_public_api(target) == get_public_api_report(target).api
+
+
+def test_missing_path_message_names_the_resolved_path(tmp_path: Path) -> None:
+    missing = tmp_path / "missing"
+
+    with pytest.raises(InvalidPathError, match=rf"^path does not exist: {re.escape(str(missing.resolve()))}$"):
+        get_public_api_report(missing)

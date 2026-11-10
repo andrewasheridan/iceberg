@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sheridan.iceberg._cli import main
+from sheridan.iceberg._cli import _build_parser, main
 from sheridan.iceberg._config import Config
 from sheridan.iceberg._exceptions import IcebergError, InvalidPathError
 from sheridan.iceberg._models import Report
@@ -201,10 +201,11 @@ def test_main_unexpected_error_hints_at_traceback_and_tracker(
 
     err = capsys.readouterr().err
 
-    assert "--traceback" in err
-    assert "ICEBERG_DEBUG=1" in err
-    assert "https://github.com/andrewasheridan/iceberg/issues" in err
-    assert "Traceback (most recent call last)" not in err
+    assert err.splitlines() == [
+        "unexpected error: RuntimeError: boom",
+        "To see the full traceback, run again with --traceback (or set ICEBERG_DEBUG=1).",
+        "This is a bug in iceberg. Report it at https://github.com/andrewasheridan/iceberg/issues",
+    ]
 
 
 def test_main_traceback_option_prints_full_traceback(
@@ -614,6 +615,13 @@ def test_main_exclude_extends_config_option_file(tmp_path: Path) -> None:
     assert config.exclude == ("a", "b")
 
 
+def test_main_max_workers_accepts_one(tmp_path: Path) -> None:
+    """--max-workers accepts 1, the smallest permitted value."""
+    config = _config_passed_to_api([str(tmp_path), "--no-config", "--max-workers", "1"])
+
+    assert config.max_workers == 1
+
+
 @pytest.mark.parametrize("value", ["0", "-1", "two", "1.5"])
 def test_main_max_workers_rejects_invalid_values(
     value: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -753,6 +761,20 @@ class TestOutput:
         assert list(out_dir.iterdir()) == [target]
         assert target.read_text(encoding="utf-8") == "previous\n"
 
+    def test_temporary_file_is_hidden_next_to_the_target(self, package: Path, tmp_path: Path) -> None:
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        target = out_dir / "api.txt"
+
+        with patch("sheridan.iceberg._cli.os.replace", side_effect=OSError(28, "No space left on device")) as replace:
+            main([str(package), "--no-config", "-o", str(target)])
+
+        temp_path = Path(replace.call_args.args[0])
+
+        assert temp_path.parent == out_dir.resolve()
+        assert temp_path.name.startswith(".api.txt.")
+        assert temp_path.name.endswith(".tmp")
+
     def test_missing_directory_returns_1(
         self, package: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -848,3 +870,70 @@ class TestStdoutEncoding:
 
         stdout.flush()
         assert stdout.buffer.getvalue() == "package café\n└── módulo\n".encode()
+
+
+class TestParser:
+    """The parser gives each option its documented help text, metavar and default."""
+
+    def test_description(self) -> None:
+        assert _build_parser().description == "Show the public API of a Python package or module."
+
+    def test_options(self) -> None:
+        parser = _build_parser()
+        options = {
+            action.dest: (action.metavar, action.default, action.help)
+            for action in parser._actions
+            if action.dest not in {"help", "version"}
+        }
+
+        assert options == {
+            "path": (None, None, "The path to a Python package directory or a module file."),
+            "json": (None, False, "Write the output as JSON, not as the default tree."),
+            "output": (
+                "PATH",
+                None,
+                "Write the report to PATH as UTF-8, not to stdout. iceberg replaces the file "
+                "only when the report is complete. Thus, an error never leaves a partial file. "
+                "iceberg follows symlinks, and an existing file keeps its permissions. iceberg "
+                "writes directly to a file that is not regular, such as /dev/stdout.",
+            ),
+            "show_overload_implementations": (
+                None,
+                False,
+                "In the tree output, also show the signature of the implementation of each "
+                "overloaded function, after its @overload signatures.",
+            ),
+            "exclude": (
+                "GLOB",
+                [],
+                "Skip the directories and files whose path relative to PATH matches GLOB. "
+                "You can give this option more than one time. It adds to the 'exclude' "
+                "list from the configuration file.",
+            ),
+            "config": (
+                "PATH",
+                None,
+                "Read the configuration from PATH. Do not search the analyzed path and its parents. "
+                "If the name of the file is pyproject.toml, iceberg reads its [tool.iceberg] table.",
+            ),
+            "no_config": (None, False, "Ignore the configuration files and use the default values."),
+            "max_workers": (
+                "N",
+                None,
+                "The number of worker processes that parse modules. "
+                "This value replaces 'max_workers' from the configuration file.",
+            ),
+            "keep_going": (
+                None,
+                False,
+                "If iceberg cannot read or parse a module, skip the module and continue. iceberg "
+                "prints the errors and the unresolved names to stderr. If it skipped a module, "
+                "the exit code is 1.",
+            ),
+            "traceback": (
+                None,
+                False,
+                "If an unexpected error occurs, print the full traceback for a bug report. "
+                "The environment variable ICEBERG_DEBUG=1 has the same effect.",
+            ),
+        }

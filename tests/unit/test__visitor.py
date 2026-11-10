@@ -1,6 +1,8 @@
 """Test the AST visitor module sheridan.iceberg._visitor."""
 
 import dataclasses
+import re
+import warnings
 from pathlib import Path
 
 import pytest
@@ -1104,3 +1106,32 @@ def test_function_without_overloads_has_empty_overloads() -> None:
     (f,) = _visit("def f(x: int) -> int: ...").functions
 
     assert f.overloads == ()
+
+
+def test_known_all_resolves_all_of_a_sibling_in_a_nested_package() -> None:
+    source = "from . import sub\n__all__ = ['a']\n__all__ += sub.__all__\ndef a(): ...\n"
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        module = visit_module(source, "pkg.inner.mod", known_all={"pkg.inner.sub": frozenset({"x"})})
+
+    assert [function.name for function in module.functions] == ["a"]
+    assert [reference.name for reference in module.references] == ["x"]
+
+
+def test_all_warning_names_the_path() -> None:
+    path = Path("pkg/mod.py")
+
+    with pytest.warns(UserWarning, match=rf"^{re.escape(str(path))}:1: cannot evaluate __all__"):
+        visit_module("__all__ = make()\n", "pkg.mod", path)
+
+
+def test_relative_reexport_in_nested_package_names_the_sibling() -> None:
+    module = visit_module("from .core import thing\n__all__ = ['thing']\n", "pkg.inner.mod")
+
+    assert module.references == (Reference("thing", "pkg.inner.core", "thing"),)
+
+
+def test_all_warning_without_path_starts_with_the_line() -> None:
+    with pytest.warns(UserWarning, match=r"^1: cannot evaluate __all__"):
+        visit_module("__all__ = make()\n", "pkg.mod")

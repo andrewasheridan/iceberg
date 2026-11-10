@@ -1,7 +1,9 @@
 """Test the functions in sheridan.iceberg.utilities."""
 
 import ast
+import functools
 import importlib
+import re
 import sys
 import types
 from collections.abc import Callable
@@ -719,7 +721,9 @@ def test_get_package_namespace_package_with_many_portions_raises(tmp_path: Path)
 
     mod = _import_namespace_package("iceberg_ns_multi", *roots)
 
-    with pytest.raises(InvalidPathError, match="2 portions"):
+    portions = ", ".join(str(root / "iceberg_ns_multi") for root in roots)
+
+    with pytest.raises(InvalidPathError, match=rf"2 portions \({re.escape(portions)}\)\."):
         get_package(mod)
 
 
@@ -745,3 +749,85 @@ def test_get_package_path_to_module_raises_invalid_path_error(tmp_path: Path) ->
 
     with pytest.raises(InvalidPathError, match="Use get_module"):
         get_package(module)
+
+
+def test_get_module_module_type_uses_the_dotted_module_name() -> None:
+    import sheridan.iceberg._formatter
+
+    assert get_module(sheridan.iceberg._formatter).name == "sheridan.iceberg._formatter"
+
+
+def test_path_dotted_name_finds_methods_in_else_and_finally_blocks(tmp_path: Path) -> None:
+    path = tmp_path / "mod.py"
+    path.write_text(
+        "class C:\n"
+        "    if X:\n"
+        "        pass\n"
+        "    else:\n"
+        "        def f(self): ...\n"
+        "    try:\n"
+        "        pass\n"
+        "    finally:\n"
+        "        def g(self): ...\n",
+        encoding="utf-8",
+    )
+
+    assert get_function(path, name="C.f").name == "f"
+    assert get_function(path, name="C.g").name == "g"
+
+
+def test_str_syntax_error_has_no_path() -> None:
+    with pytest.raises(ParseError) as info:
+        get_function("def broken(:\n")
+
+    assert info.value.path is None
+
+
+def test_callable_without_name_raises_invalid_path_error() -> None:
+    with pytest.raises(InvalidPathError, match="Cannot find the source of"):
+        get_function(functools.partial(print))
+
+
+@pytest.mark.parametrize(
+    ("getter", "message"),
+    [
+        (get_function, "The source has no function definition"),
+        (get_class, "The source has no class definition"),
+        (get_assignment, "The source has no assignment"),
+    ],
+)
+def test_str_without_definition_message(getter: Callable[[str], object], message: str) -> None:
+    with pytest.raises(ParseError, match=rf"^{message}$"):
+        getter("import os\n")
+
+
+def test_ast_unpacking_target_message() -> None:
+    node = ast.parse("a, b = 1, 2").body[0]
+
+    assert isinstance(node, ast.Assign)
+    with pytest.raises(ParseError, match=r"^The target of the assignment is not a simple name$"):
+        get_assignment(node)
+
+
+def test_ast_plain_assign_node() -> None:
+    node = ast.parse("x = 1").body[0]
+
+    assert isinstance(node, ast.Assign)
+    assert get_assignment(node) == Assignment(name="x", annotation=None)
+
+
+@pytest.mark.parametrize(
+    ("getter", "kind"),
+    [(get_function, "function"), (get_class, "class"), (get_assignment, "assignment")],
+)
+def test_path_not_found_message(tmp_path: Path, getter: Callable[..., object], kind: str) -> None:
+    path = tmp_path / "mod.py"
+    path.write_text("import os\n", encoding="utf-8")
+
+    with pytest.raises(NotFoundError, match=rf"^{re.escape(str(path))} has no {kind} 'missing'$"):
+        getter(path, name="missing")
+
+
+def test_path_missing_name_message(tmp_path: Path) -> None:
+    with pytest.raises(TypeError, match=r"^give name when you give a Path$"):
+        get_function(tmp_path / "mod.py")  # type: ignore[call-overload]

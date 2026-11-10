@@ -54,9 +54,6 @@ _PRUNED_DIRS = frozenset(
 )
 """The directory names that the filesystem walk always skips."""
 
-_PRUNED_SUFFIXES = (".egg-info",)
-"""The directory name suffixes that the filesystem walk always skips."""
-
 
 def _is_importable_name(name: str) -> bool:
     """Check if *name* can be a component of an import statement.
@@ -81,17 +78,13 @@ def _should_prune(name: str) -> bool:
 
         - A name in :data:`_PRUNED_DIRS` (``__pycache__``, ``build``,
           ``dist``, ``venv`` and other names).
-        - A name that ends with ``.egg-info``.
-        - A name that starts with ``'.'``.
         - A name that you cannot import (not an identifier, or a keyword).
+          Examples are ``.git`` and names that end with ``.egg-info``.
 
         Modules in such a directory are not source, or you cannot import them.
         Thus, the walk skips them silently.
     """
-    if name in _PRUNED_DIRS or name.endswith(_PRUNED_SUFFIXES) or name.startswith("."):
-        return True
-
-    return not _is_importable_name(name)
+    return name in _PRUNED_DIRS or not _is_importable_name(name)
 
 
 def _is_excluded(path: Path, root: Path, patterns: tuple[str, ...]) -> bool:
@@ -146,11 +139,11 @@ def _compute_dotted_name(py_file: Path, root: Path) -> tuple[str, tuple[str, ...
     if is_init:
         # The module name is the name of the directory that holds the file.
         # package_parts are all the parent directories above it that are also packages.
-        package_parts = tuple(parts[:-1]) if parts else ()
+        package_parts = tuple(parts[:-1])
         dotted_name = ".".join(parts) if parts else py_file.parent.name
     else:
         package_parts = tuple(parts)
-        dotted_name = ".".join([*parts, py_file.stem]) if parts else py_file.stem
+        dotted_name = ".".join([*parts, py_file.stem])
 
     return dotted_name, package_parts
 

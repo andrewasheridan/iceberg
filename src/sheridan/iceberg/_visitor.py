@@ -133,9 +133,6 @@ def visit_module(
                 if keep(alias.name):
                     assignments.append(alias)
 
-            case _:
-                pass
-
     references: tuple[Reference, ...] = ()
     if explicit_all is not None:
         references = _build_references(

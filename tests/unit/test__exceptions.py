@@ -114,3 +114,7 @@ def test_parse_error_from_syntax_error_ignores_unknown_filename() -> None:
         compile("def f(:\n", "<unknown>", "exec")
 
     assert ParseError.from_syntax_error(info.value).path is None
+
+
+def test_parse_error_from_syntax_error_with_empty_message() -> None:
+    assert ParseError.from_syntax_error(SyntaxError("")).message == ""

@@ -11,6 +11,7 @@ import pytest
 
 from sheridan.iceberg._exceptions import ParseError, SourceReadError
 from sheridan.iceberg._utilities import (
+    _NotStaticError,
     bound_names,
     collect_imports,
     extract_all,
@@ -86,6 +87,8 @@ def test_star_import_explicit_import_first_wins() -> None:
         ("import os", None),
         ("from ._c import *", None),
         ("from os import *", "os"),
+        ("x = 1\nfrom os import *", "os"),
+        ("from os import path\nfrom sys import *", "sys"),
         ("from os import *\nfrom sys import *\nfrom ._c import *", "sys"),
         ("try:\n    from .._x import *\nexcept ImportError:\n    pass", "_x"),
     ],
@@ -219,6 +222,10 @@ def _extract(
         ("__all__ = ['a']\n__all__.insert(-1, 'b')", {"a", "b"}),
         ("__all__ = ['a'] + ['b'] + ('c',)", {"a", "b", "c"}),
         ("__all__ = ['a']\n__all__ = __all__ + ['b']", {"a", "b"}),
+        ("__all__ = ['a']\n__all__ = ['b'] + __all__", {"a", "b"}),
+        ("__all__ = ['a']\n__all__: list[str] = __all__ + ['b']", {"a", "b"}),
+        ("__all__ = ['a']\n__all__ += __all__", {"a"}),
+        ("__all__ = ['a']\n__all__.extend(__all__)", {"a"}),
         ("__all__ = ['a']\n__all__ = ['b']", {"b"}),
         ("x = 1", None),
     ],
@@ -339,6 +346,7 @@ def test_extract_all_warns_when_all_imported_in_try_branch_is_unknown() -> None:
     [
         "from .sub import names as __all__",
         "import names as __all__",
+        "__all__ = ['a']\nimport __all__.sub",
         "__all__ = ['a']\nfor __all__ in [['b']]:\n    pass",
         "__all__ = ['a']\nwith open(path) as __all__:\n    pass",
         "__all__ = ['a']\nwhile X:\n    __all__ = ['b']",
@@ -363,6 +371,7 @@ def test_extract_all_warns_on_other_statements_that_bind_all(source: str) -> Non
         "__all__ = ['a']\ndef f():\n    __all__ = ['b']",
         "__all__ = ['a']\nclass C:\n    __all__ = ['b']",
         "__all__ = ['a']\nfrom .sub import __all__ as sub_all",
+        "__all__ = ['a']\nf = lambda: (__all__ := ['b'])",
     ],
 )
 def test_extract_all_ignores_statements_that_do_not_bind_all(source: str) -> None:
@@ -378,6 +387,55 @@ def test_extract_all_warning_names_path_and_line() -> None:
     tree = ast.parse("__all__ = ['a']\n__all__ += make()")
     with pytest.warns(UserWarning, match=r"^pkg/mod\.py:2: cannot evaluate __all__"):
         extract_all(tree, "pkg", path="pkg/mod.py")
+
+
+@pytest.mark.parametrize(
+    ("source", "line", "reason"),
+    [
+        ("__all__ = ['a', name]", 1, "an element is not a string literal"),
+        ("__all__ = __all__ + ['a']", 1, "the code uses __all__ before it assigns it"),
+        ("__all__ = make()", 1, "the value is not a literal list or tuple"),
+        ("__all__, x = ['a'], 1", 1, "an unpacking assignment binds __all__"),
+        ("__all__ += ['a']", 1, "the code changes __all__ before it assigns it"),
+        ("__all__ = ['a']\n__all__ -= ['a']", 2, "iceberg supports only +="),
+        ("__all__.append('a')", 1, "the code changes __all__ before it assigns it"),
+        ("__all__ = ['a']\ndel __all__", 2, "a statement that iceberg does not evaluate binds __all__"),
+    ],
+)
+def test_extract_all_warning_gives_line_and_reason(source: str, line: int, reason: str) -> None:
+    with pytest.warns(UserWarning) as record:
+        assert extract_all(ast.parse(source), "pkg") is None
+
+    [warning] = record
+    assert str(warning.message) == (
+        f"{line}: cannot evaluate __all__ statically ({reason}). iceberg uses the names without a leading underscore."
+    )
+
+
+@pytest.mark.skipif("MUTANT_UNDER_TEST" in os.environ, reason="the mutmut trampoline adds a stack frame")
+def test_extract_all_warning_points_at_the_caller() -> None:
+    with pytest.warns(UserWarning) as record:
+        extract_all(ast.parse("__all__ = make()"), "pkg")
+
+    [warning] = record
+    assert warning.filename == __file__
+
+
+def test_extract_all_warning_without_path_or_line_has_no_prefix() -> None:
+    target = ast.Name(id="__all__", ctx=ast.Store())
+    tree = ast.Module(body=[ast.Assign(targets=[target], value=ast.Name(id="names", ctx=ast.Load()))], type_ignores=[])
+
+    with pytest.warns(UserWarning, match=r"^cannot evaluate __all__ statically \(the value"):
+        assert extract_all(tree) is None
+
+
+def test_extract_all_resolves_relative_imports_from_top_level_by_default() -> None:
+    lookup = {"sub": frozenset({"x"})}.get
+    assert extract_all(ast.parse("from .sub import __all__"), lookup=lookup) == {"x"}
+
+
+def test_not_static_error_message_is_the_reason() -> None:
+    assert str(_NotStaticError(ast.Pass(), "the reason")) == "the reason"
 
 
 def test_read_source_reads_utf8(tmp_path: Path) -> None:
@@ -400,7 +458,17 @@ def test_read_source_bytes_not_valid_for_encoding(tmp_path: Path) -> None:
         read_source(path)
 
     assert info.value.path == str(path)
-    assert str(info.value).startswith(f"{path}: ")
+    assert str(info.value) == f"{path}: cannot decode file: invalid or missing encoding declaration"
+
+
+def test_read_source_bytes_not_valid_after_the_encoding_lines(tmp_path: Path) -> None:
+    path = tmp_path / "mod.py"
+    path.write_bytes(b"x = 1\ny = 2\nNAME = '\xe9'\n")
+
+    with pytest.raises(SourceReadError) as info:
+        read_source(path)
+
+    assert str(info.value).startswith(f"{path}: cannot decode file: 'utf-8' codec can't decode byte 0xe9")
 
 
 def test_read_source_unknown_encoding(tmp_path: Path) -> None:
@@ -416,6 +484,7 @@ def test_read_source_missing_file(tmp_path: Path) -> None:
         read_source(path)
 
     assert info.value.path == str(path)
+    assert str(info.value) == f"{path}: cannot read file: No such file or directory"
 
 
 def test_read_source_broken_symlink(tmp_path: Path) -> None:
