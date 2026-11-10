@@ -312,6 +312,20 @@ def test_non_identifier_root_directory_has_non_empty_name(tmp_path: Path) -> Non
     assert result.name == "my-project"
 
 
+def test_non_identifier_root_directory_keeps_its_subpackages(tmp_path: Path) -> None:
+    """The packages below a root that is not an identifier become subpackages of the root."""
+    root = tmp_path / "my-project"
+    _write(root / "core.py", "def f() -> None: ...\n")
+    _write(root / "pkg" / "__init__.py", "from .api import g\n")
+    _write(root / "pkg" / "api.py", "def g() -> None: ...\n")
+
+    result = build_package(root, _default_config())
+
+    assert isinstance(result, Package)
+    assert result.name == "my-project"
+    assert [subpackage.name for subpackage in result.subpackages] == ["pkg"]
+
+
 def _init_module(result: Package, name: str) -> Module:
     return next(mod for mod in result.modules if mod.name == name)
 

@@ -217,7 +217,12 @@ task api:check    # fail if the public API differs from api.txt
 task api:update   # rewrite api.txt from src/sheridan/
 task sdist:check  # fail if the sdist ships files outside its include list
 task check        # all gates (read-only: lint:check, format:check, …)
+task bench        # measure the analysis time of the standard library
 ```
+
+To measure the time on a large tree, run `task bench -- --generate 30000`. This
+command makes a package with about 30000 modules and analyzes it. Run it before
+and after a change that can make the analysis slower. Compare the best times.
 
 ## Public API snapshot
 
