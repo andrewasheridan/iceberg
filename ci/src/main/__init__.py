@@ -21,6 +21,9 @@ import dagger
 from dagger import DefaultPath, dag, function, object_type
 
 _PYTHON_IMAGE = "python:3.14-slim"
+# The newest Python that iceberg supports. uv installs it in the 3.14 image, and only the
+# "test" dependency group is synced, because some dev tools have no wheels for it yet.
+_NEXT_PYTHON = "3.15"
 _API_SNAPSHOT = "api.txt"
 _API_PATH = "src/sheridan/"
 _SDIST_DIR = "/dist"
@@ -53,6 +56,16 @@ def _uv(source: dagger.Directory) -> dagger.Container:
 
 def _base(source: dagger.Directory) -> dagger.Container:
     return _uv(source).with_exec(["uv", "sync", "--locked"])
+
+
+def _test_next_python(source: dagger.Directory) -> dagger.Container:
+    """Run pytest on the newest supported Python with only the test dependencies."""
+    return (
+        _uv(source)
+        .with_mounted_cache("/root/.local/share/uv/python", dag.cache_volume("uv-python"))
+        .with_exec(["uv", "sync", "--locked", "--python", _NEXT_PYTHON, "--no-default-groups", "--group", "test"])
+        .with_exec(["uv", "run", "--no-sync", "pytest"])
+    )
 
 
 async def _api_check(source: dagger.Directory) -> str:
@@ -147,6 +160,14 @@ class SheridanIcebergCi:
         return await _base(source).with_exec(["uv", "run", "pytest"]).stdout()
 
     @function
+    async def test_next_python(
+        self,
+        source: Annotated[dagger.Directory, DefaultPath(".")],
+    ) -> str:
+        """Run pytest with coverage on the newest supported Python."""
+        return await _test_next_python(source).stdout()
+
+    @function
     async def security(
         self,
         source: Annotated[dagger.Directory, DefaultPath(".")],
@@ -194,6 +215,7 @@ class SheridanIcebergCi:
             ("format-check", base.with_exec(["uv", "run", "ruff", "format", "--check", "."])),
             ("typecheck", base.with_exec(["uv", "run", "pyrefly", "check"])),
             ("test", base.with_exec(["uv", "run", "pytest"])),
+            (f"test-{_NEXT_PYTHON}", _test_next_python(source)),
             ("security", base.with_exec(["uv", "run", "bandit", "-r", "src/"])),
             ("docs", base.with_exec(["uv", "run", "zensical", "build"])),
         ]

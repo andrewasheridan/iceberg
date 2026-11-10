@@ -11,6 +11,11 @@ iceberg needs Python 3.14 or later. It has no runtime dependencies.
 pip install sheridan-iceberg
 ```
 
+iceberg reads source with the `ast` module of the Python that runs it. It can read
+only the syntax that this Python knows. For example, to analyze code that uses lazy
+imports (`lazy import`, new in Python 3.15), run iceberg on Python 3.15 or later. On
+Python 3.14, iceberg gives an `invalid syntax` error for this code.
+
 ## Look at the public API
 
 Give iceberg the path of a package directory, a source root such as `src/`, or one

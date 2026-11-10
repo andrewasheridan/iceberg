@@ -17,6 +17,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Software Development :: Quality Assurance",
     "Typing :: Typed",
 ]
@@ -137,15 +138,20 @@ pre_bump_hooks = [
 update_changelog_on_bump = true
 
 [dependency-groups]
+# Only what pytest needs, so that CI can run the tests on a new Python before every dev
+# tool has wheels for it.
+test = [
+    "jsonschema>=4.26.0",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+]
 dev = [
+    { include-group = "test" },
     "bandit[toml]>=1.9.4",
     "commitizen>=4.13.10",
-    "jsonschema>=4.26.0",
     "mkdocstrings[python]>=1.0.3",
     "prek>=0.5.10",
     "pyrefly>=1.4.1",
-    "pytest>=9.0.3",
-    "pytest-cov>=7.1.0",
     "ruff>=0.15.10",
     "zensical>=0.0.32",
 ]
