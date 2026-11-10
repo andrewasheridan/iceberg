@@ -28,7 +28,7 @@ def _read(source: str | Path) -> str:
     """Dedent a source string, or read the text of the file at a ``Path``.
 
     Raises:
-        InvalidPathError: If the function cannot read a ``Path``.
+        SourceReadError: If the function cannot read or decode a ``Path``.
     """
     if isinstance(source, Path):
         return read_source(source)
@@ -41,7 +41,7 @@ def _parse(source: str | Path) -> ast.Module:
 
     Raises:
         ParseError: If the source is not valid Python.
-        InvalidPathError: If the function cannot read a ``Path``.
+        SourceReadError: If the function cannot read or decode a ``Path``.
     """
     path = source if isinstance(source, Path) else None
     return parse_source(_read(source), path)
@@ -231,6 +231,8 @@ def get_function(
         InvalidPathError: If a callable is a lambda, or if the function cannot
             find the source of a callable (builtins, functions that a REPL or
             ``exec`` defined).
+        SourceReadError: If you give a ``Path``, but the function cannot
+            read or decode the file.
         TypeError: If you give a ``Path`` without ``name``.
     """
     match source_or_node_or_path_or_func:
@@ -306,6 +308,8 @@ def get_class(
         InvalidPathError: If the function cannot find the source of a class
             object (C extension types, classes that a REPL or ``exec``
             defined).
+        SourceReadError: If you give a ``Path``, but the function cannot
+            read or decode the file.
         TypeError: If you give a ``Path`` without ``name``.
     """
     match source_or_node_or_path_or_cls:
@@ -382,6 +386,8 @@ def get_assignment(
             string without ``name`` and the source has no assignment.
         NotFoundError: If you give ``name``, but the source string or file has
             no assignment with that name.
+        SourceReadError: If you give a ``Path``, but the function cannot
+            read or decode the file.
         TypeError: If you give a ``Path`` without ``name``.
     """
     match source_or_node_or_path:
@@ -454,6 +460,8 @@ def get_module(
         ParseError: If a source string or file is not valid Python.
         InvalidPathError: If you give a ``ModuleType``, but the function cannot
             find its source file (for example, a builtin module).
+        SourceReadError: If the function cannot read or decode the file of a
+            ``Path`` or the source file of a ``ModuleType``.
     """
     match source_or_path_or_mod:
         case str():
