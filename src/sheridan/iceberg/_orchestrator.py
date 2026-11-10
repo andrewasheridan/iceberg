@@ -235,6 +235,30 @@ def _common_prefix(parts_set: set[tuple[str, ...]]) -> tuple[str, ...]:
     return shortest
 
 
+def _node_parts(dm: DiscoveredModule) -> tuple[str, ...]:
+    """Find the parts of the ``Package`` node that holds *dm*.
+
+    A regular module is in the node of its parent directories. An
+    ``__init__.py`` makes the node of its own directory. If the name of this
+    directory is not an identifier, the directory is the analyzed root, and
+    the node is the root node with the empty parts.
+
+    Args:
+        dm: The discovered module.
+
+    Returns:
+        The parts of the node, for example ``("my_pkg", "sub")``.
+    """
+    if not dm.is_init:
+        return dm.package_parts
+
+    directory_name = dm.source_path.parent.name
+    if not directory_name.isidentifier():
+        return dm.package_parts
+
+    return (*dm.package_parts, directory_name)
+
+
 def _build_trie(
     module_map: dict[str, Module],
     all_discovered: tuple[DiscoveredModule, ...],
@@ -279,19 +303,19 @@ def _build_trie(
         if module is None:
             continue
 
+        pkg_parts = _node_parts(dm)
+
         if dm.is_init:
-            pkg_parts = tuple(dm.dotted_name.split("."))
             init_modules_by_parts[pkg_parts] = module
             parts_to_path[pkg_parts] = dm.source_path.parent
         else:
-            pkg_parts = dm.package_parts
             regular_modules_by_parts.setdefault(pkg_parts, []).append(module)
             parts_to_path.setdefault(pkg_parts, dm.source_path.parent)
 
     # Collect all the unique package_parts tuples to identify each package node.
     all_pkg_parts: set[tuple[str, ...]] = set()
     for dm in all_discovered:
-        pkg_parts = tuple(dm.dotted_name.split(".")) if dm.is_init else dm.package_parts
+        pkg_parts = _node_parts(dm)
         all_pkg_parts.add(pkg_parts)
         parts_to_path.setdefault(pkg_parts, dm.source_path.parent)
 
@@ -331,7 +355,10 @@ def _build_trie(
             level. Its ``subpackages`` are all the direct children, which the
             function assembles recursively.
         """
-        name = ".".join(parts)
+        # If the name of root is not an identifier, the root parts are empty.
+        # Then use the directory name, so that the name is never "". The root
+        # __init__.py has this name too, thus package_all_map has its __all__.
+        name = ".".join(parts) or root.name
         path = parts_to_path.get(parts, root)
 
         explicit_all = package_all_map.get(name)
@@ -374,9 +401,7 @@ def _build_trie(
         subpackages = sorted(subpackages_list, key=lambda p: p.name)
 
         return Package(
-            # If the name of root is not an identifier, the root parts are empty.
-            # Then use the directory name, so that the name is never "".
-            name=name or root.name,
+            name=name,
             path=path,
             modules=direct_modules,
             subpackages=tuple(subpackages),
