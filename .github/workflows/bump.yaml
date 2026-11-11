@@ -95,5 +95,8 @@ jobs:
               --base main \
               --head "chore/version-bump-$NEW_VERSION"
             gh pr edit "chore/version-bump-$NEW_VERSION" --add-label automated || true
-            gh pr merge "chore/version-bump-$NEW_VERSION" --squash --auto
+            # CI skips bump branches. If the skipped checks finish first, the PR is
+            # already mergeable and GitHub refuses --auto. Then merge it at once.
+            gh pr merge "chore/version-bump-$NEW_VERSION" --squash --auto \
+              || gh pr merge "chore/version-bump-$NEW_VERSION" --squash
           fi
